@@ -8,7 +8,10 @@ import {
   Phone,
   Search,
   Trash2,
-  Users
+
+  Users,
+  Calendar,
+  Clock
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -58,6 +61,12 @@ const Dashboard = () => {
     fetchPatients();
     fetchCamps();
   }, []);
+
+  // Filter for My Assigned Camps
+  const employeeName = localStorage.getItem("employeeName");
+  const myAssignedCamps = camps.filter(camp =>
+    camp.volunteers && camp.volunteers.includes(employeeName)
+  );
 
   /* ================= DELETE ================= */
 
@@ -116,10 +125,9 @@ const Dashboard = () => {
           <button
             onClick={() => setSelectedCampId("all")}
             className={`px-4 py-2 rounded-lg border text-sm font-semibold
-              ${
-                selectedCampId === "all"
-                  ? "bg-blue-600 text-white"
-                  : "bg-white hover:bg-gray-50"
+              ${selectedCampId === "all"
+                ? "bg-blue-600 text-white"
+                : "bg-white hover:bg-gray-50"
               }`}
           >
             All Camps
@@ -157,34 +165,119 @@ const Dashboard = () => {
 
       {/* ================= CAMPS SECTION ================= */}
       <div>
-        <h3 className="text-lg font-semibold mb-4">Camps</h3>
+
+        {/* MY ASSIGNED CAMPS SECTION */}
+        {myAssignedCamps.length > 0 && (
+          <div className="mb-10">
+            <h3 className="text-lg font-semibold mb-4 text-indigo-700 flex items-center gap-2">
+              <span className="bg-indigo-100 p-1 rounded-lg"><Users size={18} /></span>
+              My Assigned Camps
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {myAssignedCamps.map((camp) => (
+                <div
+                  key={camp._id}
+                  onClick={() => setSelectedCampId(camp._id)}
+                  className={`cursor-pointer p-4 rounded-2xl border transition-all
+                  ${selectedCampId === camp._id
+                      ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
+                      : "bg-white hover:border-indigo-300 hover:shadow-md"
+                    }`}
+                >
+                  <h4 className="font-bold truncate">{camp.name}</h4>
+
+                  <div className={`mt-2 flex items-center gap-2 text-sm
+                    ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                    <MapPin size={14} />
+                    <span className="truncate">{camp.location}</span>
+                  </div>
+
+                  <div className={`mt-1 flex items-center gap-2 text-sm
+                    ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                    <Calendar size={14} />
+                    <span>{camp.date || "No date"}</span>
+                  </div>
+
+                  <div className={`mt-1 flex items-center gap-2 text-sm
+                    ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                    <Clock size={14} />
+                    <span>{camp.time || "No time"}</span>
+                  </div>
+
+                  {/* <div className={`mt-1 flex items-start gap-2 text-sm
+                    ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                    <Users size={14} className="mt-0.5" />
+                    <span className="truncate max-w-[150px]" title={camp.volunteers?.join(", ")}>
+                      {camp.volunteers && camp.volunteers.length > 0
+                        ? camp.volunteers.join(", ")
+                        : "No volunteers"}
+                    </span>
+                  </div> */}
+
+                  <span className={`inline-block mt-3 text-xs font-bold px-2 py-1 rounded-lg
+                    ${selectedCampId === camp._id
+                      ? "bg-white/20 text-white"
+                      : "bg-gray-100 text-gray-600"
+                    }`}>
+                    {patients.filter((p) => p.campId?._id === camp._id).length} Patients
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="border-b my-8"></div>
+          </div>
+        )}
+
+        <h3 className="text-lg font-semibold mb-4">All Camps</h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {camps.map((camp) => (
             <div
               key={camp._id}
               onClick={() => setSelectedCampId(camp._id)}
-               className={`cursor-pointer p-4 rounded-2xl border transition-all
+              className={`cursor-pointer p-4 rounded-2xl border transition-all
           ${selectedCampId === camp._id
-            ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
-            : "bg-white hover:border-indigo-300 hover:shadow-md"
+                  ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
+                  : "bg-white hover:border-indigo-300 hover:shadow-md"
                 }`}
             >
-              <h4 className="font-semibold text-lg">{camp.name}</h4>
+              <h4 className="font-bold truncate">{camp.name}</h4>
 
-              <p className="flex items-center gap-2 text-sm text-gray-00 mt-2">
+              <div className={`mt-2 flex items-center gap-2 text-sm
+                ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
                 <MapPin size={14} />
-                {camp.location}
-              </p>
+                <span className="truncate">{camp.location}</span>
+              </div>
 
-              <p className="mt-3 text-sm font-medium text-gray-800">
-                Patients:{" "}
-                {
-                  patients.filter(
-                    (p) => p.campId?._id === camp._id
-                  ).length
-                }
-              </p>
+              <div className={`mt-1 flex items-center gap-2 text-sm
+                ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                <Calendar size={14} />
+                <span>{camp.date || "No date"}</span>
+              </div>
+
+              <div className={`mt-1 flex items-center gap-2 text-sm
+                ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                <Clock size={14} />
+                <span>{camp.time || "No time"}</span>
+              </div>
+
+              {/* <div className={`mt-1 flex items-start gap-2 text-sm
+                ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                <Users size={14} className="mt-0.5" />
+                <span className="truncate max-w-[150px]" title={camp.volunteers?.join(", ")}>
+                  {camp.volunteers && camp.volunteers.length > 0
+                    ? camp.volunteers.join(", ")
+                    : "No volunteers"}
+                </span>
+              </div> */}
+
+              <span className={`inline-block mt-3 text-xs font-bold px-2 py-1 rounded-lg
+                ${selectedCampId === camp._id
+                  ? "bg-white/20 text-white"
+                  : "bg-gray-100 text-gray-600"
+                }`}>
+                {patients.filter((p) => p.campId?._id === camp._id).length} Patients
+              </span>
             </div>
           ))}
         </div>

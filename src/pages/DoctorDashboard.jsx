@@ -8,8 +8,8 @@ const DoctorDashboard = () => {
 
     const fetchPartners = async () => {
         try {
-            // Fetch from LOCAL backend (where partners are stored)
-            const res = await axios.get("http://localhost:5000/api/auth/partners");
+            // Fetch from PRODUCTION backend
+            const res = await axios.get("https://bim-backend-4i12.onrender.com/api/auth/partners");
             setPartners(res.data);
         } catch (err) {
             console.error("Error fetching partners:", err);

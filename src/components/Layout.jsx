@@ -237,14 +237,14 @@ const Layout = ({ children }) => {
             return (
               <>
                 <MenuItem to="/dashboard" icon={<LayoutDashboard size={25} />} label="Dashboard" close={() => setOpen(false)} />
-                {role === "admin" && (
+                {/* {role === "admin" && (
                   <MenuItem to="/admin/applications" icon={<User size={25} />} label="Requests" close={() => setOpen(false)} />
-                )}
+                )} */}
                 <MenuItem to="/camp" icon={<ShieldCheck size={25} />} label="Camp Update" close={() => setOpen(false)} />
                 <MenuItem to="/add-patient" icon={<UserPlus size={25} />} label="Add Patient" close={() => setOpen(false)} />
                 <MenuItem to="/doctor" icon={<ShieldCheck size={25} />} label="Partner Panel" close={() => setOpen(false)} />
-                <MenuItem to="/our-volunteers" icon={<Users size={25} />} label="Our Volunteers" close={() => setOpen(false)} />
-                <MenuItem to="/join-us" icon={<UserPlus size={25} />} label="Join Us" close={() => setOpen(false)} />
+                {/* <MenuItem to="/our-volunteers" icon={<Users size={25} />} label="Our Volunteers" close={() => setOpen(false)} /> */}
+                {/* <MenuItem to="/join-us" icon={<UserPlus size={25} />} label="Join Us" close={() => setOpen(false)} /> */}
               </>
             );
           })()}

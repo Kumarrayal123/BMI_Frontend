@@ -66,14 +66,14 @@ const Register = () => {
 
                 {/* Role Toggle */}
                 <div className="flex p-1 bg-gray-100 rounded-xl mb-6">
-                    <button
+                    {/* <button
                         type="button"
                         onClick={() => setRole("user")}
                         className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${role === "user" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
                             }`}
                     >
                         Normal User
-                    </button>
+                    </button> */}
                     <button
                         type="button"
                         onClick={() => setRole("partner")}

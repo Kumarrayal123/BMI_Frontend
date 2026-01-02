@@ -23,8 +23,8 @@ const Login = () => {
       } else if (loginType === "employee") {
         url = "https://attendancebackend-5cgn.onrender.com/api/employees/login";
       } else {
-        // Partner / User (Local Backend)
-        url = "http://localhost:5000/api/auth/login";
+        // Partner / User (Deploy Backend)
+        url = "https://bim-backend-4i12.onrender.com/api/auth/login";
       }
 
       console.log(`Logging in as ${loginType} to ${url}`);
@@ -96,6 +96,36 @@ const Login = () => {
             </div>
           )}
 
+
+          <div className="mb-6 flex flex-col gap-2">
+            <div className="flex bg-gray-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setLoginType("employee")}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${loginType === "employee" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}
+              >
+                Employee
+              </button>
+              <button
+                type="button"
+                onClick={() => setLoginType("partner")}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${loginType === "partner" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}
+              >
+                Partner/Doctor
+              </button>
+              <button
+                type="button"
+                onClick={() => setLoginType("admin")}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${loginType === "admin" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}
+              >
+                Admin
+              </button>
+            </div>
+          </div>
+
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
               <label
@@ -161,37 +191,8 @@ const Login = () => {
             </div>
           </form>
 
-          <div className="mt-6 flex flex-col gap-2">
-            <div className="flex bg-gray-100 p-1 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setLoginType("employee")}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${loginType === "employee" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
-              >
-                Employee
-              </button>
-              <button
-                type="button"
-                onClick={() => setLoginType("partner")}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${loginType === "partner" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
-              >
-                Partner/User
-              </button>
-              <button
-                type="button"
-                onClick={() => setLoginType("admin")}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${loginType === "admin" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
-              >
-                Admin
-              </button>
-            </div>
-          </div>
-
           <div className="mt-2 pt-6 border-t border-gray-100">
-           
+
             <div className=" mb-10 text-center">
               <p className="text-sm text-gray-600">
                 New User or Partner?{" "}

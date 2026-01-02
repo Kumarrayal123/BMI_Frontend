@@ -15,7 +15,7 @@ const UserCamps = () => {
 
     const fetchCamps = async () => {
         try {
-            const response = await axios.get("http://localhost:5000/api/camps/allcamps");
+            const response = await axios.get("https://bim-backend-4i12.onrender.com/api/camps/allcamps");
             setCamps(response.data);
             setLoading(false);
         } catch (err) {

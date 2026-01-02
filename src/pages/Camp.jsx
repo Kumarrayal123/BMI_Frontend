@@ -626,6 +626,7 @@ import axios from "axios";
 import {
   Activity,
   Calendar,
+  Clock,
   CheckCircle,
   Copy,
   Eye,
@@ -703,23 +704,29 @@ export default function CampDashboard() {
     location: "",
     address: "",
     date: "",
-    time: ""
+    name: "",
+    location: "",
+    address: "",
+    date: "",
+    time: "",
+    volunteers: []
   });
+  const [volunteers, setVolunteers] = useState([]);
   const [camps, setCamps] = useState([]);
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   // 🔒 Lock body scroll when Create Camp modal is open
-useEffect(() => {
-  if (showCampModal) {
-    document.body.style.overflow = "hidden";
-  } else {
-    document.body.style.overflow = "auto";
-  }
+  useEffect(() => {
+    if (showCampModal) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "auto";
+    }
 
-  return () => {
-    document.body.style.overflow = "auto";
-  };
-}, [showCampModal]);
+    return () => {
+      document.body.style.overflow = "auto";
+    };
+  }, [showCampModal]);
 
 
   // Filters
@@ -736,13 +743,21 @@ useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [campsRes, patientsRes] = await Promise.all([
+        const [campsRes, patientsRes, employeesRes] = await Promise.all([
           axios.get(`${API_BASE}/camps/allcamps`).catch(() => ({ data: [] })),
-          axios.get(`${API_BASE}/patients`).catch(() => ({ data: [] }))
+          axios.get(`${API_BASE}/patients`).catch(() => ({ data: [] })),
+          axios.get("https://attendancebackend-5cgn.onrender.com/api/employees/get-employees").catch(() => ({ data: [] }))
         ]);
 
         setCamps(campsRes.data || []);
         setPatients(patientsRes.data || []);
+
+        // Filter volunteers
+        const validRoles = ["nurse", "medical", "pebolemist", "phlebotomist"];
+        const filteredVolunteers = (employeesRes.data || []).filter(emp =>
+          validRoles.includes(emp.role?.toLowerCase())
+        );
+        setVolunteers(filteredVolunteers);
       } catch (err) {
         console.error("Failed to fetch data", err);
       } finally {
@@ -757,8 +772,8 @@ useEffect(() => {
     return patients.filter(p => {
       // 1. Filter by Camp
       if (selectedCampId !== "all") {
-  if (String(p.campId?._id) !== String(selectedCampId)) return false;
-}
+        if (String(p.campId?._id) !== String(selectedCampId)) return false;
+      }
 
 
       // 2. Filter by Search
@@ -784,15 +799,15 @@ useEffect(() => {
 
   const campsWithCount = useMemo(() => {
     return camps.map(c => {
-     const count = patients.filter(
-  p => String(p.campId?._id) === String(c._id)
-).length;
+      const count = patients.filter(
+        p => String(p.campId?._id) === String(c._id)
+      ).length;
       return { ...c, count };
     });
   }, [camps, patients]);
 
   /* -------- HELPER: PREPARE REPORT DATA -------- */
-  
+
   const prepareReportData = async (patientId) => {
     try {
       const res = await axios.get(`${API_BASE}/patients/${patientId}`);
@@ -988,30 +1003,49 @@ ${publicLink}
     }
   };
 
-const handleCreateCamp = async () => {
-  try {
-    await axios.post(`${API_BASE}/camps/addcamp`, campForm);
+  const handleAddVolunteer = (e) => {
+    const val = e.target.value;
+    if (!val) return;
+    if (!campForm.volunteers.includes(val)) {
+      setCampForm({
+        ...campForm,
+        volunteers: [...campForm.volunteers, val]
+      });
+    }
+  };
 
-    alert("✅ Camp created successfully");
-
-    setShowCampModal(false);
+  const handleRemoveVolunteer = (name) => {
     setCampForm({
-      name: "",
-      location: "",
-      address: "",
-      date: "",
-      time: ""
+      ...campForm,
+      volunteers: campForm.volunteers.filter(v => v !== name)
     });
+  };
 
-    // camps list refresh
-    const res = await axios.get(`${API_BASE}/camps/allcamps`);
-    setCamps(res.data);
+  const handleCreateCamp = async () => {
+    try {
+      await axios.post(`${API_BASE}/camps/addcamp`, campForm);
 
-  } catch (err) {
-    console.error("CREATE CAMP ERROR", err);
-    alert("❌ Failed to create camp");
-  }
-};
+      alert("✅ Camp created successfully");
+
+      setShowCampModal(false);
+      setCampForm({
+        name: "",
+        location: "",
+        address: "",
+        date: "",
+        time: "",
+        volunteers: []
+      });
+
+      // camps list refresh
+      const res = await axios.get(`${API_BASE}/camps/allcamps`);
+      setCamps(res.data);
+
+    } catch (err) {
+      console.error("CREATE CAMP ERROR", err);
+      alert("❌ Failed to create camp");
+    }
+  };
 
   return (
     <div className="min-h-screen p-0 space-y-1 bg-gray-50/50 md:p-0 animate-fade-in">
@@ -1031,82 +1065,82 @@ const handleCreateCamp = async () => {
       </div>
 
       {/* STATS Section */}
-<div className="grid grid-cols-1 gap-6 md:grid-cols-4">
-  <StatsCard
-    title="Total Camps"
-    value={totalCamps}
-    icon={MapPin}
-    colorClass="bg-gradient-to-br from-indigo-500 to-purple-600"
-  />
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
+        <StatsCard
+          title="Total Camps"
+          value={totalCamps}
+          icon={MapPin}
+          colorClass="bg-gradient-to-br from-indigo-500 to-purple-600"
+        />
 
-  {/* NEW CARD — Active Camps */}
-  <StatsCard
-    title="Active Camps"
-    value={camps.length}
-    icon={Activity}
-    colorClass="bg-gradient-to-br from-indigo-400 to-indigo-600"
-  />
+        {/* NEW CARD — Active Camps */}
+        <StatsCard
+          title="Active Camps"
+          value={camps.length}
+          icon={Activity}
+          colorClass="bg-gradient-to-br from-indigo-400 to-indigo-600"
+        />
 
-  <StatsCard
-    title="Total Patients"
-    value={totalPatients}
-    icon={Users}
-    colorClass="bg-gradient-to-br from-blue-500 to-cyan-500"
-  />
+        <StatsCard
+          title="Total Patients"
+          value={totalPatients}
+          icon={Users}
+          colorClass="bg-gradient-to-br from-blue-500 to-cyan-500"
+        />
 
-  <StatsCard
-    title="Recent Additions"
-    value={recentPatients}
-    icon={Activity}
-    colorClass="bg-gradient-to-br from-emerald-500 to-teal-500"
-  />
+        <StatsCard
+          title="Recent Additions"
+          value={recentPatients}
+          icon={Activity}
+          colorClass="bg-gradient-to-br from-emerald-500 to-teal-500"
+        />
 
-</div>
+      </div>
 
 
       {/* <div className="grid items-start grid-cols-1 gap-8 lg:grid-cols-4"> */}
 
-        {/* ===== CAMPS ROW (Below Stats) ===== */}
-<div className="space-y-4">
+      {/* ===== CAMPS ROW (Below Stats) ===== */}
+      <div className="space-y-4">
 
- <div className="flex items-center justify-between">
-  <h3 className="text-lg font-bold text-gray-800">Camps</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-800">Camps</h3>
 
-  <div className="flex items-center gap-3">
-    {/* Active Badge */}
-    {/* <span className="px-2 py-1 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-full">
+          <div className="flex items-center gap-3">
+            {/* Active Badge */}
+            {/* <span className="px-2 py-1 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-full">
       {camps.length} Active
     </span> */}
 
-     {/* All Camp Button */}
-   <button
-  onClick={() => setSelectedCampId("all")}
-  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold
+            {/* All Camp Button */}
+            <button
+              onClick={() => setSelectedCampId("all")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold
              hover:bg-blue-700 transition"
->
-  All Camps Data
-</button>
-    {/* Create Camp Button */}
-    <button
-      onClick={() => setShowCampModal(true)}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+            >
+              All Camps Data
+            </button>
+            {/* Create Camp Button */}
+            <button
+              onClick={() => setShowCampModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg
                  bg-green-600 text-white text-xs font-semibold
                  hover:bg-green-700 transition"
-    >
-      <Calendar size={14} />
-      Create Camp
-    </button>
-   
+            >
+              <Calendar size={14} />
+              Create Camp
+            </button>
 
 
-  </div>
-</div>
+
+          </div>
+        </div>
 
 
-  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-    
-    {/* ALL CAMPS CARD */}
-    {/* <div
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+
+          {/* ALL CAMPS CARD */}
+          {/* <div
       onClick={() => setSelectedCampId("all")}
       className={`cursor-pointer p-4 rounded-2xl border transition-all
         ${selectedCampId === "all"
@@ -1123,79 +1157,95 @@ const handleCreateCamp = async () => {
       </p>
     </div> */}
 
-    {/* CAMP CARDS */}
-    {campsWithCount.map(camp => (
-      <div
-        key={camp._id}
-        onClick={() => setSelectedCampId(camp._id)}
-        className={`cursor-pointer p-4 rounded-2xl border transition-all
+          {/* CAMP CARDS */}
+          {campsWithCount.map(camp => (
+            <div
+              key={camp._id}
+              onClick={() => setSelectedCampId(camp._id)}
+              className={`cursor-pointer p-4 rounded-2xl border transition-all
           ${selectedCampId === camp._id
-            ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
-            : "bg-white hover:border-indigo-300 hover:shadow-md"
-          }`}
-      >
-        <h4 className="font-bold truncate">{camp.name}</h4>
+                  ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
+                  : "bg-white hover:border-indigo-300 hover:shadow-md"
+                }`}
+            >
+              <h4 className="font-bold truncate">{camp.name}</h4>
 
-        <div className={`mt-2 flex items-center gap-2 text-sm
+              <div className={`mt-2 flex items-center gap-2 text-sm
           ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
-          <MapPin size={14} />
-          <span className="truncate">{camp.location}</span>
-        </div>
+                <MapPin size={14} />
+                <span className="truncate">{camp.location}</span>
+              </div>
 
-        <div className={`mt-1 flex items-center gap-2 text-sm
+              <div className={`mt-1 flex items-center gap-2 text-sm
           ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
-          <Calendar size={14} />
-          <span>{camp.date || "No date"}</span>
-        </div>
+                <Calendar size={14} />
+                <span>{camp.date || "No date"}</span>
+              </div>
 
-        <span className={`inline-block mt-3 text-xs font-bold px-2 py-1 rounded-lg
+              <div className={`mt-1 flex items-center gap-2 text-sm
+          ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                <Clock size={14} />
+                <span>{camp.time || "No time"}</span>
+              </div>
+
+              {/* <div className={`mt-1 flex items-start gap-2 text-sm
+          ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                <Users size={14} className="mt-0.5" />
+                <span className="truncate max-w-[150px]" title={camp.volunteers?.join(", ")}>
+                  {camp.volunteers && camp.volunteers.length > 0
+                    ? camp.volunteers.join(", ")
+                    : "No volunteers"}
+                </span>
+              </div> */}
+
+              <span className={`inline-block mt-3 text-xs font-bold px-2 py-1 rounded-lg
           ${selectedCampId === camp._id
-            ? "bg-white/20 text-white"
-            : "bg-gray-100 text-gray-600"
-          }`}>
-          {camp.count} Patients
-        </span>
-      </div>
-    ))}
-  </div>
-{/* </div> */}
+                  ? "bg-white/20 text-white"
+                  : "bg-gray-100 text-gray-600"
+                }`}>
+                {camp.count} Patients
+              </span>
+            </div>
+          ))}
+        </div>
+        {/* </div> */}
 
 
         {/* RIGHT SIDE - PARTICIPANTS TABLE */}
         <div className="space-y-6 lg:col-span-3">
 
-        {/* Controls */}
-<div className="flex flex-col items-center justify-between gap-4 p-2 bg-white border border-gray-100 shadow-sm rounded-2xl lg:flex-row">
+          {/* Controls */}
+          <div className="flex flex-col items-center justify-between gap-4 p-2 bg-white border border-gray-100 shadow-sm rounded-2xl lg:flex-row">
 
-  {/* Search */}
-  <div className="relative w-full lg:max-w-md">
-    <Search
-      className="absolute text-gray-400 -translate-y-1/2 left-4 top-1/2"
-      size={18}
-    />
-    <input
-      type="text"
-      placeholder="Search by name, phone or camp..."
-      className="w-full pl-11 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-xl
+            {/* Search */}
+            <div className="relative w-full lg:max-w-md">
+              <Search
+                className="absolute text-gray-400 -translate-y-1/2 left-4 top-1/2"
+                size={18}
+              />
+              <input
+                type="text"
+                placeholder="Search by name, phone or camp..."
+                className="w-full pl-11 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-xl
                  focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-      value={searchQuery}
-      onChange={(e) => setSearchQuery(e.target.value)}
-    />
-  </div>
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
 
-  {/* Right Section */}
-  <div className="flex flex-wrap items-center gap-3">
+            {/* Right Section */}
+            <div className="flex flex-wrap items-center gap-3">
 
-    {/* Count */}
-    <div className="flex items-center gap-2 mr-2 text-sm text-gray-500">
-      <Filter size={16} />
-      <span>Showing {filteredPatients.length} participants</span>
-    </div>
+              {/* Count */}
+              <div className="flex items-center gap-2 mr-2 text-sm text-gray-500">
+                <Filter size={16} />
+                <span>Showing {filteredPatients.length} participants</span>
+              </div>
 
-    {/* Buttons Row */}
-    <div className="flex items-center gap-3">
-      {/* Create Camp */}
-      {/* <button
+              {/* Buttons Row */}
+              <div className="flex items-center gap-3">
+                {/* Create Camp */}
+                {/* <button
   onClick={() => setShowCampModal(true)}
   className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition bg-green-600 rounded-xl hover:bg-green-700"
 >
@@ -1204,157 +1254,157 @@ const handleCreateCamp = async () => {
 </button> */}
 
 
-      {/* Add Patient */}
-      <button
-        onClick={() => navigate("/add-patient", {
-        state: {
-            campId: selectedCampId
-          }
-        })}
-        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition bg-indigo-600 rounded-xl hover:bg-indigo-700"
-      >
-        <Plus size={16} />
-        Add Patient
-      </button>
-    </div>
-
-  </div>
-</div>
-
-
-
-         {/* Table Container */}
-<div className="overflow-hidden bg-white border border-gray-100 shadow-sm rounded-2xl">
-  <div className="overflow-x-auto">
-    <table className="w-full text-left">
-      
-      {/* TABLE HEAD */}
-      <thead>
-        <tr className="border-b border-gray-100 bg-gray-50/50">
-          <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">
-            Name
-          </th>
-          <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">
-            Phone
-          </th>
-          <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">
-            Camp
-          </th>
-          <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">
-            Reports
-          </th>
-        </tr>
-      </thead>
-
-      {/* TABLE BODY */}
-      <tbody className="divide-y divide-gray-100">
-        {loading ? (
-          <tr>
-            <td colSpan={4} className="p-8 text-center text-gray-500">
-              <div className="flex flex-col items-center gap-2">
-                <div className="w-6 h-6 border-2 border-indigo-500 rounded-full border-t-transparent animate-spin"></div>
-                <span>Loading participants...</span>
+                {/* Add Patient */}
+                <button
+                  onClick={() => navigate("/add-patient", {
+                    state: {
+                      campId: selectedCampId
+                    }
+                  })}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition bg-indigo-600 rounded-xl hover:bg-indigo-700"
+                >
+                  <Plus size={16} />
+                  Add Patient
+                </button>
               </div>
-            </td>
-          </tr>
-        ) : filteredPatients.length > 0 ? (
-          filteredPatients.map((patient) => (
-            <tr
-              key={patient._id}
-              className="transition-colors group hover:bg-gray-50/80"
-            >
 
-              {/* NAME COLUMN */}
-              <td className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-indigo-700 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100">
-                    {patient.name?.charAt(0)?.toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">
-                      {patient.name}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {patient.age} Y • {patient.gender}
-                    </p>
-                  </div>
-                </div>
-              </td>
-
-              {/* PHONE COLUMN */}
-              <td className="p-4">
-                <span className="text-sm font-medium text-gray-700">
-                  {patient.contact || "N/A"}
-                </span>
-              </td>
-
-             <td className="p-4">
- <span className="px-3 py-1 text-sm text-green-700 bg-green-100 rounded-full">
-  {patient.campId?.name || "N/A"}
-</span>
-
-
-</td>
+            </div>
+          </div>
 
 
 
+          {/* Table Container */}
+          <div className="overflow-hidden bg-white border border-gray-100 shadow-sm rounded-2xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
 
-              {/* REPORTS COLUMN */}
-              <td className="p-4">
-                <div className="flex items-center gap-2">
+                {/* TABLE HEAD */}
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/50">
+                    <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">
+                      Name
+                    </th>
+                    <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">
+                      Phone
+                    </th>
+                    <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">
+                      Camp
+                    </th>
+                    <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">
+                      Reports
+                    </th>
+                  </tr>
+                </thead>
 
-                  {/* VIEW */}
-                  <button
-                    onClick={() => viewReport(patient)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                {/* TABLE BODY */}
+                <tbody className="divide-y divide-gray-100">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={4} className="p-8 text-center text-gray-500">
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="w-6 h-6 border-2 border-indigo-500 rounded-full border-t-transparent animate-spin"></div>
+                          <span>Loading participants...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : filteredPatients.length > 0 ? (
+                    filteredPatients.map((patient) => (
+                      <tr
+                        key={patient._id}
+                        className="transition-colors group hover:bg-gray-50/80"
+                      >
+
+                        {/* NAME COLUMN */}
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-indigo-700 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100">
+                              {patient.name?.charAt(0)?.toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-900">
+                                {patient.name}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {patient.age} Y • {patient.gender}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* PHONE COLUMN */}
+                        <td className="p-4">
+                          <span className="text-sm font-medium text-gray-700">
+                            {patient.contact || "N/A"}
+                          </span>
+                        </td>
+
+                        <td className="p-4">
+                          <span className="px-3 py-1 text-sm text-green-700 bg-green-100 rounded-full">
+                            {patient.campId?.name || "N/A"}
+                          </span>
+
+
+                        </td>
+
+
+
+
+                        {/* REPORTS COLUMN */}
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+
+                            {/* VIEW */}
+                            <button
+                              onClick={() => viewReport(patient)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
                       bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
-                  >
-                    <Eye size={14} />
-                    View
-                  </button>
+                            >
+                              <Eye size={14} />
+                              View
+                            </button>
 
-                  {/* DOWNLOAD */}
-                  <button
-                    onClick={() => downloadPDF(patient)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                            {/* DOWNLOAD */}
+                            <button
+                              onClick={() => downloadPDF(patient)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
                       bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
-                  >
-                    <FileText size={14} />
-                    Download
-                  </button>
+                            >
+                              <FileText size={14} />
+                              Download
+                            </button>
 
-                  {/* WHATSAPP */}
-                  <button
-                    onClick={() => shareReport(patient)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                            {/* WHATSAPP */}
+                            <button
+                              onClick={() => shareReport(patient)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
                       bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
-                  >
-                    <MessageCircle size={14} />
-                    WhatsApp
-                  </button>
+                            >
+                              <MessageCircle size={14} />
+                              WhatsApp
+                            </button>
 
-                </div>
-              </td>
-            </tr>
-          ))
-        ) : (
-          <tr>
-            <td colSpan={4} className="p-12 text-center">
-              <div className="flex flex-col items-center justify-center gap-3 text-gray-400">
-                <Users size={48} className="opacity-20" />
-                <p className="text-lg font-medium">No participants found</p>
-                <p className="text-sm">
-                  Try adjusting your search or filters.
-                </p>
-              </div>
-            </td>
-          </tr>
-        )}
-      </tbody>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="p-12 text-center">
+                        <div className="flex flex-col items-center justify-center gap-3 text-gray-400">
+                          <Users size={48} className="opacity-20" />
+                          <p className="text-lg font-medium">No participants found</p>
+                          <p className="text-sm">
+                            Try adjusting your search or filters.
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
 
-    </table>
-  </div>
-</div>
+              </table>
+            </div>
+          </div>
 
 
           {/* --- SHARE MODAL --- */}
@@ -1443,92 +1493,124 @@ const handleCreateCamp = async () => {
       </div>
 
       {/* --- CREATE CAMP MODAL --- */}
-{showCampModal &&
-  createPortal(
-    <div className="fixed inset-0 z-[9999] bg-black/60">
+      {showCampModal &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] bg-black/60">
 
-      <div
-        className="fixed w-full max-w-lg px-4 -translate-x-1/2 -translate-y-1/2 top-1/2 left-1/2"
-      >
-        <div className="p-6 space-y-5 bg-white shadow-2xl rounded-2xl">
-
-          <h2 className="text-xl font-bold text-gray-800">
-            Create New Camp
-          </h2>
-
-          <input
-            className="w-full px-4 py-2 border rounded-xl"
-            placeholder="Camp Name"
-            value={campForm.name}
-            onChange={(e) =>
-              setCampForm({ ...campForm, name: e.target.value })
-            }
-          />
-
-          <input
-            className="w-full px-4 py-2 border rounded-xl"
-            placeholder="Location"
-            value={campForm.location}
-            onChange={(e) =>
-              setCampForm({ ...campForm, location: e.target.value })
-            }
-          />
-
-          <textarea
-            className="w-full px-4 py-2 border rounded-xl"
-            placeholder="Address"
-            value={campForm.address}
-            onChange={(e) =>
-              setCampForm({ ...campForm, address: e.target.value })
-            }
-          />
-
-          <input
-            type="date"
-            className="w-full px-4 py-2 border rounded-xl"
-            value={campForm.date}
-            onChange={(e) =>
-              setCampForm({ ...campForm, date: e.target.value })
-            }
-          />
-
-          <input
-            className="w-full px-4 py-2 border rounded-xl"
-            placeholder="Time"
-            value={campForm.time}
-            onChange={(e) =>
-              setCampForm({ ...campForm, time: e.target.value })
-            }
-          />
-
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              onClick={() => setShowCampModal(false)}
-              className="px-4 py-2 border rounded-xl"
+            <div
+              className="fixed w-full max-w-lg px-4 -translate-x-1/2 -translate-y-1/2 top-1/2 left-1/2"
             >
-              Cancel
-            </button>
+              <div className="p-6 space-y-5 bg-white shadow-2xl rounded-2xl">
 
-            <button
-              onClick={handleCreateCamp}
-              className="px-4 py-2 text-white bg-green-600 rounded-xl"
-            >
-              Create Camp
-            </button>
-          </div>
+                <h2 className="text-xl font-bold text-gray-800">
+                  Create New Camp
+                </h2>
 
-        </div>
-      </div>
-    </div>,
-    document.body
-  )}
+                <input
+                  className="w-full px-4 py-2 border rounded-xl"
+                  placeholder="Camp Name"
+                  value={campForm.name}
+                  onChange={(e) =>
+                    setCampForm({ ...campForm, name: e.target.value })
+                  }
+                />
+
+                <input
+                  className="w-full px-4 py-2 border rounded-xl"
+                  placeholder="Location"
+                  value={campForm.location}
+                  onChange={(e) =>
+                    setCampForm({ ...campForm, location: e.target.value })
+                  }
+                />
+
+                {/* <textarea
+                  className="w-full px-4 py-2 border rounded-xl"
+                  placeholder="Address"
+                  value={campForm.address}
+                  onChange={(e) =>
+                    setCampForm({ ...campForm, address: e.target.value })
+                  }
+                /> */}
+
+                <input
+                  type="date"
+                  className="w-full px-4 py-2 border rounded-xl"
+                  value={campForm.date}
+                  onChange={(e) =>
+                    setCampForm({ ...campForm, date: e.target.value })
+                  }
+                />
+
+                <input
+                  className="w-full px-4 py-2 border rounded-xl"
+                  placeholder="Time"
+                  value={campForm.time}
+                  onChange={(e) =>
+                    setCampForm({ ...campForm, time: e.target.value })
+                  }
+                />
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Select Volunteers</label>
+
+                  {/* Selected Volunteers Tags */}
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {campForm.volunteers.map((vol, idx) => (
+                      <span key={idx} className="flex items-center gap-1 px-3 py-1 text-sm text-indigo-700 bg-indigo-100 rounded-full">
+                        {vol}
+                        <button
+                          onClick={() => handleRemoveVolunteer(vol)}
+                          className="ml-1 text-indigo-500 hover:text-indigo-900"
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+
+                  <select
+                    className="w-full px-4 py-2 border rounded-xl bg-white"
+                    value=""
+                    onChange={handleAddVolunteer}
+                  >
+                    <option value="">+ Add Volunteer</option>
+                    {volunteers.map((vol) => (
+                      <option key={vol._id} value={vol.name}>
+                        {vol.name} ({vol.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <button
+                    onClick={() => setShowCampModal(false)}
+                    className="px-4 py-2 border rounded-xl"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    onClick={handleCreateCamp}
+                    className="px-4 py-2 text-white bg-green-600 rounded-xl"
+                  >
+                    Create Camp
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
 
 
 
     </div>
 
-    
+
   );
-}     
+}
 
