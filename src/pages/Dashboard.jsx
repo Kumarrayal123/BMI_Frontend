@@ -29,7 +29,7 @@ const Dashboard = () => {
   const fetchPatients = async () => {
     try {
       const res = await axios.get(
-        "https://bim-backend-4i12.onrender.com/api/patients"
+        "https://bmi-backend-1-nnpo.onrender.com/api/patients"
       );
       setPatients(res.data);
 
@@ -49,7 +49,7 @@ const Dashboard = () => {
   const fetchCamps = async () => {
     try {
       const res = await axios.get(
-        "https://bim-backend-4i12.onrender.com/api/camps/allcamps"
+        "https://bmi-backend-1-nnpo.onrender.com/api/camps/allcamps"
       );
       setCamps(res.data || []);
     } catch (err) {
@@ -73,7 +73,7 @@ const Dashboard = () => {
   const deletePatient = async (id) => {
     if (!window.confirm("Are you sure?")) return;
     await axios.delete(
-      `https://bim-backend-4i12.onrender.com/api/patients/${id}`
+      `https://bmi-backend-1-nnpo.onrender.com/api/patients/${id}`
     );
     fetchPatients();
   };

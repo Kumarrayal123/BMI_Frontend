@@ -24,7 +24,7 @@ const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
   const fetchTests = async () => {
     try {
       const res = await axios.get(
-        `https://bim-backend-4i12.onrender.com/api/patients/${patientId}/tests`
+        `https://bmi-backend-1-nnpo.onrender.com/api/patients/${patientId}/tests`
       );
       const testHistory = res.data || [];
       setTests(testHistory);
@@ -65,7 +65,7 @@ const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
       const loadData = async () => {
         try {
           const res = await axios.get(
-            `https://bim-backend-4i12.onrender.com/api/patients/${patientId}/tests`
+            `https://bmi-backend-1-nnpo.onrender.com/api/patients/${patientId}/tests`
           );
           const testHistory = res.data || [];
           setTests(testHistory);
@@ -106,7 +106,7 @@ const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
     // 1. Check Weight
     if (values.weight) {
       requests.push(
-        axios.post(`https://bim-backend-4i12.onrender.com/api/patients/${patientId}/test`, {
+        axios.post(`https://bmi-backend-1-nnpo.onrender.com/api/patients/${patientId}/test`, {
           type: "weight",
           value: parseFloat(values.weight),
         })
@@ -116,7 +116,7 @@ const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
     // 2. Check Height
     if (values.height) {
       requests.push(
-        axios.post(`https://bim-backend-4i12.onrender.com/api/patients/${patientId}/test`, {
+        axios.post(`https://bmi-backend-1-nnpo.onrender.com/api/patients/${patientId}/test`, {
           type: "height",
           value: parseFloat(values.height),
         })
@@ -126,7 +126,7 @@ const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
     // 3. Check Sugar
     if (values.sugar) {
       requests.push(
-        axios.post(`https://bim-backend-4i12.onrender.com/api/patients/${patientId}/test`, {
+        axios.post(`https://bmi-backend-1-nnpo.onrender.com/api/patients/${patientId}/test`, {
           type: "sugar",
           value: parseFloat(values.sugar),
           sugarType: values.sugarType,
@@ -137,7 +137,7 @@ const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
     // 4. Check BP
     if (values.systolic && values.diastolic) {
       requests.push(
-        axios.post(`https://bim-backend-4i12.onrender.com/api/patients/${patientId}/test`, {
+        axios.post(`https://bmi-backend-1-nnpo.onrender.com/api/patients/${patientId}/test`, {
           type: "bp",
           value: parseInt(values.systolic),
           value2: parseInt(values.diastolic),

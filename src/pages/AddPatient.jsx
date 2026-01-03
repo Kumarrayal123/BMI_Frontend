@@ -16,7 +16,7 @@
 //         e.preventDefault();
 //         setLoading(true);
 //         try {
-//             await axios.post('https://bim-backend-4i12.onrender.com/api/patients', formData);
+//             await axios.post('https://bmi-backend-1-nnpo.onrender.com/api/patients', formData);
 //             navigate('/');
 //         } catch (err) {
 //             console.error(err);
@@ -84,7 +84,7 @@
 // import { useEffect, useState } from "react";
 // import { Link, useNavigate } from "react-router-dom";
 
-// const API = "https://bim-backend-4i12.onrender.com/api";
+// const API = "https://bmi-backend-1-nnpo.onrender.com/api";
 
 // const AddPatient = () => {
 //   const navigate = useNavigate();
@@ -212,7 +212,7 @@ import { ArrowLeft, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
-const API = "https://bim-backend-4i12.onrender.com/api";
+const API = "https://bmi-backend-1-nnpo.onrender.com/api";
 
 const AddPatient = () => {
   const navigate = useNavigate();

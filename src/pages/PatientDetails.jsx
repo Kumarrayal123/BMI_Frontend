@@ -12,7 +12,7 @@
 
 //     const fetchPatient = async () => {
 //         try {
-//             const res = await axios.get(`https://bim-backend-4i12.onrender.com/api/patients/${id}`);
+//             const res = await axios.get(`https://bmi-backend-1-nnpo.onrender.com/api/patients/${id}`);
 //             setPatient(res.data);
 //         } catch (err) {
 //             console.error(err);
@@ -309,7 +309,7 @@
 //   const fetchPatient = async () => {
 //     try {
 //       const res = await axios.get(
-//         `https://bim-backend-4i12.onrender.com/api/patients/${id}`
+//         `https://bmi-backend-1-nnpo.onrender.com/api/patients/${id}`
 //       );
 //       setPatient(res.data);
 //     } catch (err) {
@@ -512,7 +512,7 @@
 
 //   const fetchPatient = async () => {
 //     try {
-//       const res = await axios.get(`https://bim-backend-4i12.onrender.com/api/patients/${id}`);
+//       const res = await axios.get(`https://bmi-backend-1-nnpo.onrender.com/api/patients/${id}`);
 //       setPatient(res.data);
 //     } catch (err) {
 //       console.error(err);
@@ -774,7 +774,7 @@ const PatientDetails = () => {
 
   const fetchPatient = async () => {
     try {
-      const res = await axios.get(`https://bim-backend-4i12.onrender.com/api/patients/${id}`);
+      const res = await axios.get(`https://bmi-backend-1-nnpo.onrender.com/api/patients/${id}`);
       setPatient(res.data);
     } catch (err) {
       console.error(err);

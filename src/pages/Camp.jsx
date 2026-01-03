@@ -18,7 +18,7 @@
 // import { useNavigate } from "react-router-dom";
 // import { generateMedicalReport, generateMedicalReportFile } from "../utils/pdfGenerator";
 
-// const API_BASE = "https://bim-backend-4i12.onrender.com/api";
+// const API_BASE = "https://bmi-backend-1-nnpo.onrender.com/api";
 
 // /* ================= UTILS ================= */
 
@@ -644,7 +644,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { generateMedicalReport, generateMedicalReportFile } from "../utils/pdfGenerator";
 
-const API_BASE = "https://bim-backend-4i12.onrender.com/api";
+const API_BASE = "https://bmi-backend-1-nnpo.onrender.com/api";
 
 
 
@@ -874,7 +874,7 @@ export default function CampDashboard() {
     formData.append("file", pdfBlob, "health-report.pdf");
 
     const res = await axios.post(
-      "https://bim-backend-4i12.onrender.com/api/reports/upload",
+      "https://bmi-backend-1-nnpo.onrender.com/api/reports/upload",
       formData,
       { headers: { "Content-Type": "multipart/form-data" } }
     );

@@ -24,7 +24,7 @@ const Login = () => {
         url = "https://attendancebackend-5cgn.onrender.com/api/employees/login";
       } else {
         // Partner / User (Deploy Backend)
-        url = "https://bim-backend-4i12.onrender.com/api/auth/login";
+        url = "https://bmi-backend-1-nnpo.onrender.com/api/auth/login";
       }
 
 

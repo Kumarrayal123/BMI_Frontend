@@ -8,7 +8,7 @@ const AdminApplications = () => {
 
     const fetchApplications = async () => {
         try {
-            const res = await axios.get("http://localhost:5000/api/applications");
+            const res = await axios.get("https://bmi-backend-1-nnpo.onrender.com/api/applications");
             setApplications(res.data);
         } catch (err) {
             console.error("Error fetching applications:", err);

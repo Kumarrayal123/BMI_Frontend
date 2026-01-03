@@ -34,7 +34,7 @@ const Register = () => {
             // I am pointing to the EXPECTED local endpoint if we were running cleanly.
             // However, if the user works on the deployed backend, I cannot push there.
             // Assuming localhost for now:
-            const localUrl = "http://localhost:5000/api/auth/register";
+            const localUrl = "https://bmi-backend-1-nnpo.onrender.com/api/auth/register";
 
             const payload = { ...formData, role };
             if (role !== "partner") delete payload.clinicName;

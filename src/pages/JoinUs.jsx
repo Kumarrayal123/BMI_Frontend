@@ -40,7 +40,7 @@ const JoinUs = () => {
 
             const payload = { ...formData, userId };
 
-            await axios.post("http://localhost:5000/api/applications", payload);
+            await axios.post("https://bmi-backend-1-nnpo.onrender.com/api/applications", payload);
 
             alert("Application submitted successfully! We will contact you soon.");
             setFormData({ name: "", mobile: "", location: "", type: "volunteer", message: "" });
