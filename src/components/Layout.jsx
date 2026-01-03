@@ -11,6 +11,7 @@ import {
 import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import logo from "../assets/logo.png";
+import AIChat from "./AIChat";
 
 const Layout = ({ children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -24,6 +25,7 @@ const Layout = ({ children }) => {
     return (
       <div className="min-h-screen bg-gray-50">
         <main className="w-full h-full">{children}</main>
+        {/* Optional: Show AIChat even on login? Maybe not. */}
       </div>
     );
   }
@@ -154,6 +156,9 @@ const Layout = ({ children }) => {
       <footer className="bg-white border-t py-4 text-center text-sm text-gray-500">
         © 2025 Timely Health. All rights reserved.
       </footer>
+
+      {/* ✅ FLOAT AI CHAT */}
+      <AIChat />
     </div>
   );
 };

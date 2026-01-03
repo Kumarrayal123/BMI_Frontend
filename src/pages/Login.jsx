@@ -27,7 +27,7 @@ const Login = () => {
         url = "https://bim-backend-4i12.onrender.com/api/auth/login";
       }
 
-      console.log(`Logging in as ${loginType} to ${url}`);
+
 
       const response = await fetch(url, {
         method: "POST",
