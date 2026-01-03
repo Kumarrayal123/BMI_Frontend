@@ -565,15 +565,15 @@
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import bmiChart from "../assets/bmi chart.jpg";
-import signature from "../assets/signature.png";
+import bmiChartImg from "../assets/bmi chart.jpg";
+import signatureImg from "../assets/signature.png";
 
 /* ================= CONSTANTS ================= */
 
-const PRIMARY_BLUE  = [66, 135, 194]; // Header, table head
-const SECTION_BLUE  = [58, 122, 179]; // Section titles
-const TEXT_DARK     = [0, 0, 0];
-const TEXT_GRAY     = [107, 114, 128];
+const PRIMARY_BLUE = [66, 135, 194]; // Header, table head
+const SECTION_BLUE = [58, 122, 179]; // Section titles
+const TEXT_DARK = [0, 0, 0];
+const TEXT_GRAY = [107, 114, 128];
 
 
 /* ================= HELPERS ================= */
@@ -798,7 +798,12 @@ const createReportDoc = (patient, tests, bmiData) => {
     doc.text("BMI REFERENCE CHART", pageWidth / 2, y, { align: "center" });
 
     y += 4;
-    doc.addImage(bmiChart, "JPG", pageWidth / 2 - 45, y, 90, 50);
+    // Use the imported image directly
+    try {
+      doc.addImage(bmiChartImg, "JPEG", pageWidth / 2 - 45, y, 90, 50);
+    } catch (e) {
+      console.error("Failed to add BMI chart image:", e);
+    }
 
     y += 54;
     doc.setFont("helvetica", "normal");
@@ -822,7 +827,13 @@ const createReportDoc = (patient, tests, bmiData) => {
   const sigWidth = 30;
   const sigHeight = 12;
   const sigX = pageWidth - 15 - sigWidth;
-  doc.addImage(signature, "PNG", sigX, y + 2, sigWidth, sigHeight);
+
+  // Use the loaded base64 image
+  try {
+    doc.addImage(signatureImg, "PNG", sigX, y + 2, sigWidth, sigHeight);
+  } catch (e) {
+    console.error("Failed to add signature image:", e);
+  }
 
   doc.setFontSize(9);
   doc.setTextColor(75, 85, 99); // Gray-600
@@ -860,6 +871,7 @@ export const generateMedicalReportFile = (patient, tests, bmiData) => {
     type: "application/pdf",
   });
 };
+
 
 
 
