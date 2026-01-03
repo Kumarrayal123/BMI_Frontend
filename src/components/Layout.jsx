@@ -75,9 +75,12 @@ const Layout = ({ children }) => {
             <NavLink to="/add-patient" className={getLinkClass} onClick={close}>
               <span>Add Patient</span>
             </NavLink>
-            <NavLink to="/doctor" className={getLinkClass} onClick={close}>
-              <span>Partner Panel</span>
-            </NavLink>
+            {/* Only show Partner Panel to partners and admins, not employees */}
+            {(role === "partner" || role === "admin") && (
+              <NavLink to="/doctor" className={getLinkClass} onClick={close}>
+                <span>Partner Panel</span>
+              </NavLink>
+            )}
           </>
         )}
 

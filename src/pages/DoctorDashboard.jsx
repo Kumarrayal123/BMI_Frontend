@@ -1,10 +1,21 @@
 import axios from "axios";
 import { Building2, Mail, MapPin, Phone, ShieldCheck, User } from "lucide-react";
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const DoctorDashboard = () => {
     const [partners, setPartners] = useState([]);
     const [loading, setLoading] = useState(true);
+    const navigate = useNavigate();
+
+    // ✅ Check if user has permission to access this page
+    useEffect(() => {
+        const role = localStorage.getItem("role");
+        if (role !== "partner" && role !== "admin") {
+            // Redirect employees to dashboard
+            navigate("/dashboard");
+        }
+    }, [navigate]);
 
     const fetchPartners = async () => {
         try {
