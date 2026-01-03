@@ -1,15 +1,9 @@
 import {
-  LayoutDashboard,
   Menu,
-  ShieldCheck,
-  User,
-  UserPlus,
-  Users,
-  X,
-  LogOut
+  X
 } from "lucide-react";
 import { useState } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import logo from "../assets/logo.png";
 import AIChat from "./AIChat";
 
@@ -17,6 +11,9 @@ const Layout = ({ children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+
+  const role = localStorage.getItem("role");
+  const dashboardPath = role === "user" ? "/user-camps" : "/dashboard";
 
   // Hide Navbar on Login (path '/') and Register (path '/register')
   const isAuthPage = location.pathname === "/" || location.pathname === "/register";
@@ -36,7 +33,6 @@ const Layout = ({ children }) => {
   };
 
   const NavLinks = ({ mobile = false }) => {
-    const role = localStorage.getItem("role"); // 'user', 'partner', 'employee', 'admin'
     const close = mobile ? () => setIsMobileMenuOpen(false) : () => { };
 
     const baseClass = mobile
@@ -54,40 +50,32 @@ const Layout = ({ children }) => {
         {role === "user" ? (
           <>
             <NavLink to="/user-camps" className={getLinkClass} onClick={close}>
-              <ShieldCheck size={18} />
               <span>Camp Update</span>
             </NavLink>
             <NavLink to="/our-volunteers" className={getLinkClass} onClick={close}>
-              <Users size={18} />
               <span>Our Volunteers</span>
             </NavLink>
             <NavLink to="/join-us" className={getLinkClass} onClick={close}>
-              <UserPlus size={18} />
               <span>Join Us</span>
             </NavLink>
           </>
         ) : (
           <>
             <NavLink to="/dashboard" className={getLinkClass} onClick={close}>
-              <LayoutDashboard size={18} />
               <span>Dashboard</span>
             </NavLink>
             {role === "admin" && (
               <NavLink to="/admin/applications" className={getLinkClass} onClick={close}>
-                <User size={18} />
                 <span>Requests</span>
               </NavLink>
             )}
             <NavLink to="/camp" className={getLinkClass} onClick={close}>
-              <ShieldCheck size={18} />
               <span>Camps</span>
             </NavLink>
             <NavLink to="/add-patient" className={getLinkClass} onClick={close}>
-              <UserPlus size={18} />
               <span>Add Patient</span>
             </NavLink>
             <NavLink to="/doctor" className={getLinkClass} onClick={close}>
-              <ShieldCheck size={18} />
               <span>Partner Panel</span>
             </NavLink>
           </>
@@ -98,7 +86,6 @@ const Layout = ({ children }) => {
           onClick={handleLogout}
           className={`${mobile ? "flex w-full items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50" : "flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg"} transition-all`}
         >
-          <LogOut size={18} />
           <span>Logout</span>
         </button>
       </>
@@ -112,13 +99,15 @@ const Layout = ({ children }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
 
-            {/* Logo */}
-            <div className="flex-shrink-0 flex items-center gap-2">
-              <div className="bg-indigo-600 p-1.5 rounded-lg">
-                <img src={logo} alt="Logo" className="h-6 w-6 object-contain brightness-0 invert" />
+            {/* Logo - Clickable to Dashboard */}
+            <Link
+              to={dashboardPath}
+              className="flex-shrink-0 flex items-center hover:opacity-80 transition-opacity cursor-pointer active:scale-95 transform transition-all"
+            >
+              <div className="p-1">
+                <img src={logo} alt="Timely Health Logo" className="h-10 w-auto object-contain" />
               </div>
-              <span className="font-bold text-xl text-gray-900 tracking-tight">Timely Health</span>
-            </div>
+            </Link>
 
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center gap-2">
