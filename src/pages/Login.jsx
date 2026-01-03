@@ -17,15 +17,19 @@ const Login = () => {
 
     try {
       let url = "";
+      const BMI_BACKEND = "https://bmi-backend-1-nnpo.onrender.com/api";
 
       if (loginType === "admin") {
-        url = "https://attendancebackend-5cgn.onrender.com/api/admin/login";
+        // Use proxy endpoint for admin login
+        url = `${BMI_BACKEND}/proxy/admin/login`;
       } else if (loginType === "employee") {
-        url = "https://attendancebackend-5cgn.onrender.com/api/employees/login";
+        // Use proxy endpoint for employee login
+        url = `${BMI_BACKEND}/proxy/employees/login`;
       } else {
-        // Partner / User (Deploy Backend)
-        url = "https://bmi-backend-1-nnpo.onrender.com/api/auth/login";
+        // Partner / User (Direct BMI Backend)
+        url = `${BMI_BACKEND}/auth/login`;
       }
+
 
 
 
