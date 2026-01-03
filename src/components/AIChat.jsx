@@ -120,7 +120,7 @@ const AIChat = () => {
             const lowerText = userText.toLowerCase().trim();
 
             if (lowerText === "hi" || lowerText === "hello" || lowerText.includes("hello") || lowerText.includes("hi")) {
-                responseText = "Hi there! Ready to help you with your tasks.";
+                responseText = "Hi there! Ready to help you.";
             } else if (lowerText.includes("underweight")) {
                 responseText = "Your test results show underweight. I strongly suggest you get a doctor consultation.";
             } else if (lowerText.includes("healthy")) {
