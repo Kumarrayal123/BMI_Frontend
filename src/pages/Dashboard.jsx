@@ -204,15 +204,28 @@ const Dashboard = () => {
                     <span>{camp.time || "No time"}</span>
                   </div>
 
-                  {/* <div className={`mt-1 flex items-start gap-2 text-sm
-                    ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
-                    <Users size={14} className="mt-0.5" />
-                    <span className="truncate max-w-[150px]" title={camp.volunteers?.join(", ")}>
-                      {camp.volunteers && camp.volunteers.length > 0
-                        ? camp.volunteers.join(", ")
-                        : "No volunteers"}
-                    </span>
-                  </div> */}
+                  {/* Volunteers Display - Grid Layout */}
+                  {camp.volunteers && camp.volunteers.length > 0 ? (
+                    <div className={`mt-2 text-xs ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-600"}`}>
+                      <div className="flex items-center gap-1 mb-1">
+                        <Users size={12} />
+                        <span className="font-semibold">Volunteers:</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 pl-4">
+                        {camp.volunteers.map((volunteer, idx) => (
+                          <div key={idx} className="truncate" title={volunteer}>
+                            • {volunteer}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className={`mt-2 flex items-center gap-2 text-xs
+                  ${selectedCampId === camp._id ? "text-indigo-200" : "text-gray-400"}`}>
+                      <Users size={12} />
+                      <span>No volunteers</span>
+                    </div>
+                  )}
 
                   <span className={`inline-block mt-3 text-xs font-bold px-2 py-1 rounded-lg
                     ${selectedCampId === camp._id
@@ -261,15 +274,28 @@ const Dashboard = () => {
                 <span>{camp.time || "No time"}</span>
               </div>
 
-              {/* <div className={`mt-1 flex items-start gap-2 text-sm
-                ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
-                <Users size={14} className="mt-0.5" />
-                <span className="truncate max-w-[150px]" title={camp.volunteers?.join(", ")}>
-                  {camp.volunteers && camp.volunteers.length > 0
-                    ? camp.volunteers.join(", ")
-                    : "No volunteers"}
-                </span>
-              </div> */}
+              {/* Volunteers Display - Grid Layout */}
+              {camp.volunteers && camp.volunteers.length > 0 ? (
+                <div className={`mt-2 text-xs ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-600"}`}>
+                  <div className="flex items-center gap-1 mb-1">
+                    <Users size={12} />
+                    <span className="font-semibold">Volunteers:</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 pl-4">
+                    {camp.volunteers.map((volunteer, idx) => (
+                      <div key={idx} className="truncate" title={volunteer}>
+                        • {volunteer}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className={`mt-2 flex items-center gap-2 text-xs
+                  ${selectedCampId === camp._id ? "text-indigo-200" : "text-gray-400"}`}>
+                  <Users size={12} />
+                  <span>No volunteers</span>
+                </div>
+              )}
 
               <span className={`inline-block mt-3 text-xs font-bold px-2 py-1 rounded-lg
                 ${selectedCampId === camp._id
