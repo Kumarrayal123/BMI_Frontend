@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Stethoscope } from 'lucide-react';
 import { useState } from 'react';
+import config from '../config';
 
 const HealthForm = ({ onReportGenerated }) => {
     const [formData, setFormData] = useState({
@@ -21,8 +22,8 @@ const HealthForm = ({ onReportGenerated }) => {
         setLoading(true);
         setError('');
         try {
-            // Assuming backend runs on 5000
-            const response = await axios.post('https://bmi-backend-1-nnpo.onrender.com/api/patients', formData);
+            // Assuming backend runs on Local
+            const response = await axios.post(`${config.API_BASE_URL}/patients`, formData);
             onReportGenerated(response.data);
         } catch (err) {
             setError(err.response?.data?.error || 'Error processing request');

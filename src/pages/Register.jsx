@@ -2,6 +2,7 @@ import axios from "axios";
 import { Loader2, UserPlus } from "lucide-react";
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import config from "../config";
 
 const Register = () => {
     const navigate = useNavigate();
@@ -28,18 +29,12 @@ const Register = () => {
         setError("");
 
         try {
-            // ✅ Adjust URL to your local backend
-            const url = "https://attendancebackend-5cgn.onrender.com/api/auth/register";
-            // NOTE: User requested this feature in BMI_Backend but Login.jsx implies remote backend.
-            // I am pointing to the EXPECTED local endpoint if we were running cleanly.
-            // However, if the user works on the deployed backend, I cannot push there.
-            // Assuming localhost for now:
-            const localUrl = "https://bmi-backend-1-nnpo.onrender.com/api/auth/register";
+            const url = `${config.API_BASE_URL}/auth/register`;
 
             const payload = { ...formData, role };
             if (role !== "partner") delete payload.clinicName;
 
-            await axios.post(localUrl, payload);
+            await axios.post(url, payload);
             navigate("/"); // Redirect to Login
             alert("Registration successful! Please login.");
 

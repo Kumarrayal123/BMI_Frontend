@@ -1,6 +1,7 @@
 import axios from "axios";
 import { CheckCircle, Clock, Mail, Phone, User, XCircle } from "lucide-react";
 import React, { useEffect, useState } from "react";
+import config from "../config";
 
 const AdminApplications = () => {
     const [applications, setApplications] = useState([]);
@@ -8,7 +9,7 @@ const AdminApplications = () => {
 
     const fetchApplications = async () => {
         try {
-            const res = await axios.get("https://bmi-backend-1-nnpo.onrender.com/api/applications");
+            const res = await axios.get(`${config.API_BASE_URL}/applications`);
             setApplications(res.data);
         } catch (err) {
             console.error("Error fetching applications:", err);

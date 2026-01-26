@@ -650,9 +650,9 @@ const createReportDoc = (patient, tests, bmiData) => {
   doc.setFontSize(9);
   const fields = [
     ["Name", `: ${patient.name}`],
-    ["Age", `: ${patient.id}`],
-    ["Sample ID", `: ${patient.date}`],
-    ["Date", `: ${patient.age}`],
+    ["Age", `: ${patient.age}`],
+    ["Sample ID", `: ${patient.id}`],
+    ["Date", `: ${patient.date}`],
     ["Gender", `: ${patient.gender}`],
     ["Location", `: ${patient.address}`],
   ];

@@ -1,10 +1,15 @@
 import axios from "axios";
 import { Activity, Save } from "lucide-react";
 import { useEffect, useState } from "react";
+import config from "../config";
+import { useNavigate } from "react-router-dom";
+
 
 const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
   const [loading, setLoading] = useState(false);
   const [tests, setTests] = useState([]);
+  const navigate = useNavigate();
+
 
   // Unified Form State
   const [values, setValues] = useState({
@@ -13,7 +18,7 @@ const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
     sugar: "",
     sugarType: "Random", // Default sugar type
     systolic: "",
-    diastolic: "",
+    diastolic: "80", // Default Dia as requested
     temperature: "",
   });
 
@@ -24,7 +29,7 @@ const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
   const fetchTests = async () => {
     try {
       const res = await axios.get(
-        `https://bmi-backend-1-nnpo.onrender.com/api/patients/${patientId}/tests`
+        `${config.API_BASE_URL}/patients/${patientId}/tests`
       );
       const testHistory = res.data || [];
       setTests(testHistory);
@@ -55,7 +60,7 @@ const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
       sugar: latestSugar ? latestSugar.value : "",
       sugarType: latestSugar?.sugarType || "Random",
       systolic: latestBP ? latestBP.value : "",
-      diastolic: latestBP ? latestBP.value2 : "",
+      diastolic: latestBP ? latestBP.value2 : "80",
     }));
   };
 
@@ -65,7 +70,7 @@ const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
       const loadData = async () => {
         try {
           const res = await axios.get(
-            `https://bmi-backend-1-nnpo.onrender.com/api/patients/${patientId}/tests`
+            `${config.API_BASE_URL}/patients/${patientId}/tests`
           );
           const testHistory = res.data || [];
           setTests(testHistory);
@@ -90,7 +95,7 @@ const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
       sugar: "",
       sugarType: "Random",
       systolic: "",
-      diastolic: "",
+      diastolic: "80",
       temperature: "",
     });
   };
@@ -103,57 +108,44 @@ const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
 
     const requests = [];
 
-    // 1. Check Weight
+    const payloads = [];
+
     if (values.weight) {
-      requests.push(
-        axios.post(`https://bmi-backend-1-nnpo.onrender.com/api/patients/${patientId}/test`, {
-          type: "weight",
-          value: parseFloat(values.weight),
-        })
-      );
+      payloads.push({ type: "weight", value: parseFloat(values.weight) });
     }
-
-    // 2. Check Height
     if (values.height) {
-      requests.push(
-        axios.post(`https://bmi-backend-1-nnpo.onrender.com/api/patients/${patientId}/test`, {
-          type: "height",
-          value: parseFloat(values.height),
-        })
-      );
+      payloads.push({ type: "height", value: parseFloat(values.height) });
     }
-
-    // 3. Check Sugar
     if (values.sugar) {
-      requests.push(
-        axios.post(`https://bmi-backend-1-nnpo.onrender.com/api/patients/${patientId}/test`, {
-          type: "sugar",
-          value: parseFloat(values.sugar),
-          sugarType: values.sugarType,
-        })
-      );
+      payloads.push({
+        type: "sugar",
+        value: parseFloat(values.sugar),
+        sugarType: values.sugarType,
+      });
     }
-
-    // 4. Check BP
     if (values.systolic && values.diastolic) {
-      requests.push(
-        axios.post(`https://bmi-backend-1-nnpo.onrender.com/api/patients/${patientId}/test`, {
-          type: "bp",
-          value: parseInt(values.systolic),
-          value2: parseInt(values.diastolic),
-        })
-      );
+      payloads.push({
+        type: "bp",
+        value: parseInt(values.systolic),
+        value2: parseInt(values.diastolic),
+      });
     }
 
-    if (requests.length === 0) {
+    if (payloads.length === 0) {
       setError("Please enter at least one value to save.");
       setLoading(false);
       return;
     }
 
     try {
-      await Promise.all(requests);
-      setSuccessMsg(`Successfully updated ${requests.length} record(s)!`);
+      console.log("Submitting Payloads Sequentially:", payloads);
+      for (const payload of payloads) {
+        console.log(`Sending ${payload.type} update...`, payload);
+        const res = await axios.post(`${config.API_BASE_URL}/patients/${patientId}/test`, payload);
+        console.log(`${payload.type} update response:`, res.data);
+      }
+
+      setSuccessMsg(`Successfully updated ${payloads.length} record(s)!`);
 
       // Clear the form after successful submission
       clearForm();
@@ -161,8 +153,13 @@ const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
       // Fetch updated tests to refresh history
       fetchTests();
       onSuccess();
+
+      // Navigate after success
+      setTimeout(() => {
+        navigate("/my-camps");
+      }, 1500);
     } catch (err) {
-      console.error(err);
+      console.error("Submission Error:", err.response?.data || err);
       setError("Failed to save some records. Please try again.");
     } finally {
       setLoading(false);
@@ -286,7 +283,7 @@ const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
                 type="number"
                 value={values.systolic}
                 onChange={handleInputChange}
-                placeholder="120"
+                placeholder="Sys"
                 className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-center"
               />
               <span className="self-center text-gray-400">/</span>
@@ -295,7 +292,7 @@ const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
                 type="number"
                 value={values.diastolic}
                 onChange={handleInputChange}
-                placeholder="80"
+                placeholder="Dia"
                 className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-center"
               />
             </div>
@@ -304,7 +301,7 @@ const AddTestForm = ({ patientId, onSuccess = () => { } }) => {
 
         {/* Action Bar */}
         <div className="flex items-center gap-4">
-          <button
+          <button onClick={(()=>("/my-camps"))}
             type="submit"
             disabled={loading}
             className="flex-[2] bg-indigo-600 text-white py-3 px-6 rounded-xl font-bold hover:bg-indigo-700 transition flex justify-center items-center gap-2 shadow-lg shadow-indigo-200"

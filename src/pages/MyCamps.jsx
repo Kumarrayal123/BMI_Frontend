@@ -1,0 +1,885 @@
+import axios from "axios";
+import JSZip from "jszip";
+import {
+    Activity,
+    MapPin,
+    Search,
+    Users,
+    Calendar,
+    Clock,
+    Filter,
+    Plus,
+    Eye,
+    Edit,
+    FileText,
+    MessageCircle,
+    Copy,
+    ChevronRight,
+    CheckCircle,
+    X,
+    FileSpreadsheet,
+    Download
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { createPortal } from "react-dom";
+import config from "../config";
+import { generateMedicalReport, generateMedicalReportFile } from "../utils/pdfGenerator";
+import { CampStatusBadge, sortCampsByStatus } from "../utils/campStatus";
+import VolunteerDisplay from "../components/VolunteerDisplay";
+import PartnerDisplay from "../components/PartnerDisplay";
+
+const API_BASE = config.API_BASE_URL;
+
+/* ================= UTILS ================= */
+
+// Local getCampStatus replaced by centralized utility in ../utils/campStatus
+
+const calculateBMI = (weight, heightCm) => {
+    if (!weight || !heightCm) return null;
+    const h = heightCm / 100;
+    return +(weight / (h * h)).toFixed(1);
+};
+
+const getBMICategory = (bmi) => {
+    if (!bmi) return "-";
+    if (bmi < 18.5) return "Underweight";
+    if (bmi < 25) return "Healthy";
+    if (bmi < 30) return "Overweight";
+    return "Obese";
+};
+
+const extractLatestVitals = (tests = []) => {
+    const r = {};
+    if (!tests) return r;
+
+    tests.forEach(t => {
+        r.date = t.date;
+        if (t.type === "weight") r.weight = t.value;
+        if (t.type === "height") r.height = t.value;
+        if (t.type === "sugar") r.sugar = t.value;
+        if (t.type === "sugarType") r.sugarType = t.value;
+        if (t.type === "bp") {
+            r.systolic = t.value;
+            r.diastolic = t.value2;
+        }
+    });
+    return r;
+};
+
+/* ================= COMPONENTS ================= */
+
+const StatsCard = ({ title, value, icon: Icon, iconBg, onClick }) => (
+    <div
+        onClick={onClick}
+        className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 transition-transform hover:scale-[1.02] cursor-pointer"
+    >
+        <div className={`p-4 rounded-xl ${iconBg}`}>
+            <Icon size={24} className="text-white" />
+        </div>
+        <div>
+            <p className="text-sm font-medium text-gray-500">{title}</p>
+            <h3 className="text-2xl font-bold text-gray-800">{value}</h3>
+        </div>
+    </div>
+);
+
+export default function MyCamps() {
+    const navigate = useNavigate();
+    const role = localStorage.getItem("role"); // Fix: Define role here
+    const [patients, setPatients] = useState([]);
+    const [camps, setCamps] = useState([]);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [selectedCampId, setSelectedCampId] = useState("all");
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [currentPatient, setCurrentPatient] = useState(null);
+    const [downloadLink, setDownloadLink] = useState("");
+    const [copied, setCopied] = useState(false);
+    const [viewCamp, setViewCamp] = useState(null);
+
+    const patientsSectionRef = useRef(null);
+    const campsSectionRef = useRef(null);
+
+    const scrollToSection = (ref) => {
+        if (ref.current) {
+            ref.current.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+    };
+
+    useEffect(() => {
+        const role = localStorage.getItem("role");
+        if (role !== "employee") {
+            navigate("/dashboard");
+            return;
+        }
+
+        const fetchData = async () => {
+            try {
+                setLoading(true);
+                const [patientsRes, campsRes] = await Promise.all([
+                    axios.get(`${API_BASE}/patients`).catch(() => ({ data: [] })),
+                    axios.get(`${API_BASE}/camps/allcamps`).catch(() => ({ data: [] }))
+                ]);
+                setPatients(patientsRes.data || []);
+                setCamps(sortCampsByStatus(campsRes.data || []));
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, [navigate]);
+
+    const myAssignedCamps = useMemo(() => {
+        const name = localStorage.getItem("employeeName") || localStorage.getItem("userName") || "";
+        const empId = localStorage.getItem("employeeId");
+        return camps.filter(camp =>
+            camp.volunteers?.some(v =>
+                v.toLowerCase() === name.toLowerCase() ||
+                (empId && v === empId)
+            )
+        );
+    }, [camps]);
+
+    const campsWithCount = useMemo(() => {
+        return myAssignedCamps.map(camp => {
+            const count = patients.filter(p => p.campId?._id === camp._id).length;
+            return { ...camp, count };
+        });
+    }, [myAssignedCamps, patients]);
+
+    const filteredPatients = useMemo(() => {
+        return patients.filter(p => {
+            // 1. Filter by Camp - only from assigned camps
+            const isAssigned = myAssignedCamps.some(c => c._id === p.campId?._id);
+            if (!isAssigned) return false;
+
+            if (selectedCampId !== "all") {
+                if (p.campId?._id !== selectedCampId) return false;
+            }
+
+            // 2. Filter by Search
+            if (searchQuery) {
+                const q = searchQuery.toLowerCase();
+                const matchesName = p.name?.toLowerCase().includes(q);
+                const matchesPhone = p.contact?.includes(q);
+                const matchesCamp = p.campId?.name?.toLowerCase().includes(q);
+                if (!matchesName && !matchesPhone && !matchesCamp) return false;
+            }
+
+            return true;
+        });
+    }, [patients, myAssignedCamps, selectedCampId, searchQuery]);
+
+    const totalCamps = myAssignedCamps.length;
+    const activeCampsCount = myAssignedCamps.filter(c => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        let campDate = new Date(c.date);
+        if (isNaN(campDate.getTime())) {
+            const parts = c.date.split('-');
+            if (parts.length === 3) {
+                campDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+            }
+        }
+        if (isNaN(campDate.getTime())) return false;
+        campDate.setHours(0, 0, 0, 0);
+        return campDate.getTime() === today.getTime();
+    }).length;
+
+    const totalPatientsCount = patients.filter(p => myAssignedCamps.some(c => c._id === p.campId?._id)).length;
+    const upcomingCampsCount = myAssignedCamps.filter(c => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        let campDate = new Date(c.date);
+        if (isNaN(campDate.getTime())) {
+            const parts = c.date.split('-');
+            if (parts.length === 3) {
+                campDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+            }
+        }
+        if (isNaN(campDate.getTime())) return false;
+        campDate.setHours(0, 0, 0, 0);
+        return campDate.getTime() > today.getTime();
+    }).length;
+
+    const viewReport = (patient) => {
+        navigate(`/patient/${patient._id}`);
+    };
+
+    const downloadPDF = async (patient) => {
+        try {
+            const res = await axios.get(`${API_BASE}/patients/${patient._id}`);
+            const fullPatient = res.data;
+
+            if (!fullPatient?.tests?.length) {
+                alert("No test data available for this patient.");
+                return;
+            }
+
+            const reportData = {
+                name: fullPatient.name,
+                age: fullPatient.age,
+                gender: fullPatient.gender,
+                id: fullPatient._id.slice(-6).toUpperCase(),
+                date: new Date().toLocaleDateString(),
+                phone: fullPatient.contact,
+                address: fullPatient.address,
+            };
+
+            const testsData = {
+                weight: fullPatient.vitals?.weight || "-",
+                height: fullPatient.vitals?.height || "-",
+                sugar: fullPatient.vitals?.sugar || "-",
+                sugarType: fullPatient.vitals?.sugarType || "Random",
+                systolic: fullPatient.vitals?.bpSys || "-",
+                diastolic: fullPatient.vitals?.bpDia || "-",
+            };
+
+            const bmiData = {
+                bmi: fullPatient.vitals?.bmi || "-",
+                category: fullPatient.vitals?.bmiCategory || "-",
+            };
+
+            generateMedicalReport(reportData, testsData, bmiData);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to download report");
+        }
+    };
+
+    const shareReport = async (patient) => {
+        try {
+            setCurrentPatient(patient);
+            const message = `*Health Checkup Report* 🩺\n\nHello ${patient.name},\nYour medical health report is ready.\n\n📄 View Details:\n${window.location.origin}/patient/${patient._id}\n\n(Generated by BIM Medical)`;
+            setDownloadLink(message);
+            setShowShareModal(true);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to generate sharing link");
+        }
+    };
+
+    // View modal helper - filter patients for selected camp
+    const viewCampPatients = useMemo(() => {
+        if (!viewCamp) return [];
+        return patients.filter(p => String(p.campId?._id || p.campId) === String(viewCamp._id));
+    }, [viewCamp, patients]);
+
+    const handleDownloadCampCSV = () => {
+        if (!viewCamp || viewCampPatients.length === 0) {
+            alert("No data to download");
+            return;
+        }
+
+        const headers = ["Patient Name", "Age", "Gender", "Contact", "Camp Name", "Date", "Location", "BMI", "BP (Sys/Dia)", "Sugar"];
+        const rows = viewCampPatients.map(p => {
+            let bmi = "-", bp = "-", sugar = "-";
+            if (p.tests && p.tests.length > 0) {
+                const weight = p.tests.find(t => t.type === 'weight')?.value;
+                const height = p.tests.find(t => t.type === 'height')?.value;
+                if (weight && height) {
+                    const hM = height / 100;
+                    bmi = (weight / (hM * hM)).toFixed(1);
+                }
+
+                const bpTest = p.tests.find(t => t.type === 'bp');
+                if (bpTest) bp = `${bpTest.value}/${bpTest.value2}`;
+
+                const sugarTest = p.tests.find(t => t.type === 'sugar');
+                if (sugarTest) sugar = `${sugarTest.value} (${sugarTest.type || 'Random'})`;
+            }
+
+            return [
+                p.name,
+                p.age,
+                p.gender,
+                p.contact,
+                viewCamp.name,
+                viewCamp.date,
+                viewCamp.location,
+                bmi,
+                bp,
+                sugar
+            ].map(v => `"${v || '-'}"`).join(",");
+        });
+
+        const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Camp_Report_${viewCamp.name.replace(/\s+/g, '_')}_${viewCamp.date}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+
+
+    /* -------- HELPER: PREPARE REPORT DATA -------- */
+
+    const prepareReportData = async (patientId) => {
+        try {
+            const res = await axios.get(`${API_BASE}/patients/${patientId}`);
+            const fullPatient = res.data;
+
+            if (!fullPatient?.tests?.length) {
+                return null;
+            }
+
+            const test = extractLatestVitals(fullPatient.tests);
+            const bmiValue = calculateBMI(test.weight, test.height);
+
+            const patientData = {
+                name: fullPatient.name,
+                age: fullPatient.age,
+                gender: fullPatient.gender,
+                id: fullPatient._id.slice(-6).toUpperCase(),
+                date: new Date(test.date || Date.now()).toLocaleDateString(),
+                phone: fullPatient.contact,
+                address: fullPatient.address,
+            };
+
+            const testsData = {
+                weight: test.weight,
+                height: test.height,
+                sugar: test.sugar,
+                sugarType: test.sugarType || "Random",
+                systolic: test.systolic,
+                diastolic: test.diastolic,
+                heartRate: "-",
+            };
+
+            const bmiData = {
+                bmi: bmiValue,
+                category: getBMICategory(bmiValue),
+            };
+
+            return { patientData, testsData, bmiData };
+
+        } catch (err) {
+            console.error(err);
+            return null;
+        }
+    };
+
+    /* -------- BULK ZIP DOWNLOAD -------- */
+    const handleBulkDownload = async () => {
+        if (selectedCampId === "all") {
+            alert("Please select a specific camp to download reports.");
+            return;
+        }
+
+        const campPatients = patients.filter(p => String(p.campId?._id || p.campId) === String(selectedCampId));
+
+        if (campPatients.length === 0) {
+            alert("No patients found in this camp.");
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const zip = new JSZip();
+            const selectedCamp = camps.find(c => String(c._id) === String(selectedCampId));
+            const campName = selectedCamp?.name || "Camp";
+
+            // Generate PDFs for all patients
+            for (let i = 0; i < campPatients.length; i++) {
+                const patient = campPatients[i];
+
+                try {
+                    const data = await prepareReportData(patient._id);
+                    if (data) {
+                        const pdfBlob = await generateMedicalReportFile(
+                            data.patientData,
+                            data.testsData,
+                            data.bmiData
+                        );
+
+                        // Add PDF to ZIP with patient name and ID
+                        const fileName = `${patient.name.replace(/[^a-z0-9]/gi, '_')}_${patient._id.slice(-6)}.pdf`;
+                        zip.file(fileName, pdfBlob);
+                    }
+                } catch (err) {
+                    console.error(`Failed to generate report for ${patient.name}:`, err);
+                }
+            }
+
+            // Generate and download ZIP file
+            const zipBlob = await zip.generateAsync({ type: "blob" });
+            const url = URL.createObjectURL(zipBlob);
+            const link = document.createElement("a");
+            link.href = url;
+            const date = new Date().toISOString().split('T')[0];
+            link.download = `${campName.replace(/[^a-z0-9]/gi, '_')}_Reports_${date}.zip`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            alert(`Successfully downloaded ${campPatients.length} patient reports!`);
+        } catch (err) {
+            console.error("Bulk download error:", err);
+            alert("Failed to generate ZIP file. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="min-h-screen p-0 space-y-4 bg-gray-50/50 animate-fade-in">
+            {/* HEADER Section */}
+            {/* <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">My Assigned Camps</h1>
+                    <p className="mt-1 text-gray-500">View and manage patients in your assigned camps.</p>
+                </div>
+                <div className="flex items-center gap-3 px-4 py-2 bg-white border border-gray-100 shadow-sm rounded-xl">
+                    <Calendar size={18} className="text-indigo-600" />
+                    <span className="text-sm font-medium text-gray-700">
+                        {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                    </span>
+                </div>
+            </div> */}
+
+            {/* STATS Section */}
+            <div style={{ marginBottom: '2px' }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <StatsCard style={{ colour: 'white' }}
+                    title="Total Camps"
+                    value={role === "employee" ? myAssignedCamps.length : totalCamps}
+                    icon={MapPin}
+                    iconBg="bg-gradient-to-br from-purple-500 to-indigo-500"
+                    onClick={() => scrollToSection(campsSectionRef)}
+                />
+                <StatsCard
+                    title="Active Camps"
+                    value={role === "employee" ? myAssignedCamps.filter(c => {
+                        if (!c.date) return false;
+                        let campDate = new Date(c.date);
+                        if (isNaN(campDate.getTime())) {
+                            const parts = c.date.split('-');
+                            if (parts.length === 3) {
+                                campDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+                            }
+                        }
+                        if (isNaN(campDate.getTime())) return false;
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        campDate.setHours(0, 0, 0, 0);
+                        return campDate.getTime() === today.getTime();
+                    }).length : activeCampsCount}
+                    icon={Activity}
+                    iconBg="bg-gradient-to-br from-indigo-500 to-blue-500"
+                    onClick={() => scrollToSection(campsSectionRef)}
+                />
+                <StatsCard
+                    title="Total Patients"
+                    value={role === "employee" ? patients.filter(p => myAssignedCamps.some(c => c._id === p.campId?._id)).length : totalPatientsCount}
+                    icon={Users}
+                    iconBg="bg-gradient-to-br from-sky-500 to-cyan-500"
+                    onClick={() => scrollToSection(patientsSectionRef)}
+                />
+                <StatsCard
+                    title="Upcoming Camps"
+                    value={role === "employee" ? myAssignedCamps.filter(c => {
+                        if (!c.date) return false;
+                        let campDate = new Date(c.date);
+                        if (isNaN(campDate.getTime())) {
+                            const parts = c.date.split('-');
+                            if (parts.length === 3) {
+                                campDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+                            }
+                        }
+                        if (isNaN(campDate.getTime())) return false;
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        campDate.setHours(0, 0, 0, 0);
+                        return campDate.getTime() > today.getTime();
+                    }).length : upcomingCampsCount}
+                    icon={Activity}
+                    iconBg="bg-gradient-to-br from-emerald-500 to-teal-500"
+                    onClick={() => scrollToSection(campsSectionRef)}
+                />
+            </div>
+
+            {/* MAIN CONTENT AREA - Matches Camp.jsx Grid Layout */}
+            <div className="space-y-8">
+                {/* CAMPS SECTION */}
+                <div className="space-y-4" ref={campsSectionRef}>
+                    <div className="flex items-center pt-2.5 justify-between">
+                        <h3 className="text-lg font-bold text-gray-800">Assigned Camps</h3>
+                        <div className="flex items-center gap-3">
+                            <span className="px-2 py-1 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-full">
+                                {myAssignedCamps.length} Active
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                        {/* ALL CAMPS CARD */}
+                        {/* <div
+                            onClick={() => {
+                                setSelectedCampId("all");
+                                scrollToSection(patientsSectionRef);
+                            }}
+                            className={`cursor-pointer p-4 rounded-2xl border transition-all ${selectedCampId === "all"
+                                ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
+                                : "bg-white hover:border-indigo-300 hover:shadow-md text-gray-700"
+                                }`}
+                        >
+                            <div className="flex items-center justify-between">
+                                <span className="font-semibold">All Patients</span>
+                                {selectedCampId === "all" && <ChevronRight size={18} />}
+                            </div>
+                            <p className={`text-sm mt-1 ${selectedCampId === "all" ? "text-indigo-100" : "text-gray-500"}`}>
+                                Viewing all assigned context
+                            </p>
+                        </div> */}
+
+                        {/* CAMP CARDS */}
+                        {campsWithCount.map(camp => (
+                            <div
+                                key={camp._id}
+                                onClick={() => {
+                                    setSelectedCampId(camp._id);
+                                    scrollToSection(patientsSectionRef);
+                                }}
+                                className={`cursor-pointer p-4 rounded-2xl border transition-all ${selectedCampId === camp._id
+                                    ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
+                                    : "bg-white hover:border-indigo-300 hover:shadow-md"
+                                    }`}
+                            >
+                                <div className="flex items-center justify-between gap-2 mb-1">
+                                    <h4 className="font-bold truncate">{camp.name}</h4>
+                                    <CampStatusBadge date={camp.date} time={camp.time} />
+                                </div>
+
+                                <div className={`mt-2 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                                    <MapPin size={14} />
+                                    <span className="truncate">{camp.location}</span>
+                                </div>
+
+                                <div className={`mt-1 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                                    <Calendar size={14} />
+                                    <span>{camp.date || "Date TBD"}</span>
+                                </div>
+
+                                <div className={`mt-1 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                                    <Clock size={14} />
+                                    <span>{camp.time || "Time TBD"}</span>
+                                </div>
+
+                                <VolunteerDisplay
+                                    volunteers={camp.volunteers}
+                                    isSelected={selectedCampId === camp._id}
+                                />
+
+                                <PartnerDisplay
+                                    partners={camp.partners}
+                                    isSelected={selectedCampId === camp._id}
+                                />
+
+                                <span className={`inline-block mt-3 text-xs font-bold px-2 py-1 rounded-lg ${selectedCampId === camp._id
+                                    ? "bg-white/20 text-white"
+                                    : "bg-gray-100 text-gray-600"
+                                    }`}>
+                                    {camp.count} Patients
+                                </span>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setViewCamp(camp);
+                                    }}
+                                    className="float-right mt-3 flex items-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors"
+                                >
+                                    <Eye size={12} /> View
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* PATIENTS SECTION */}
+                <div className="space-y-6 pt-4" ref={patientsSectionRef}>
+                    <div className="flex flex-col items-center justify-between gap-4 p-2 bg-white border border-gray-100 shadow-sm rounded-2xl lg:flex-row">
+                        <div className="relative w-full lg:max-w-md">
+                            <Search className="absolute text-gray-400 -translate-y-1/2 left-4 top-1/2" size={18} />
+                            <input
+                                type="text"
+                                placeholder="Search by name, phone or camp..."
+                                className="w-full pl-11 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium text-gray-700"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex items-center gap-2 mr-2 text-sm text-gray-500">
+                                <Filter size={16} />
+                                <span>Showing {filteredPatients.length} participants</span>
+                            </div>
+                            <button
+                                onClick={() => navigate("/add-patient", { state: { campId: selectedCampId === "all" ? "" : selectedCampId } })}
+                                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition bg-indigo-600 rounded-xl hover:bg-indigo-700"
+                            >
+                                <Plus size={16} />
+                                Add Patient
+                            </button>
+                            <button
+                                // onClick={() => navigate("/add-patient", { state: { campId: selectedCampId === "all" ? "" : selectedCampId } })}
+                                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition bg-emerald-600 rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <Download size={16} />
+                                {loading ? "Generating..." : "Download ZIP"}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="overflow-hidden bg-white border border-gray-100 shadow-sm rounded-2xl">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="border-b border-gray-100 bg-gray-50/50">
+                                        <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Name</th>
+                                        <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Phone</th>
+                                        <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Camp</th>
+                                        <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {loading ? (
+                                        <tr>
+                                            <td colSpan={4} className="p-8 text-center text-gray-500">
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <div className="w-6 h-6 border-2 border-indigo-500 rounded-full border-t-transparent animate-spin"></div>
+                                                    <span>Loading participants...</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : filteredPatients.length > 0 ? (
+                                        filteredPatients.map(patient => (
+                                            <tr key={patient._id} className="transition-colors group hover:bg-gray-50/80">
+                                                <td className="p-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-indigo-700 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100">
+                                                            {patient.name?.charAt(0)?.toUpperCase()}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-semibold text-gray-900">{patient.name}</p>
+                                                            <p className="text-xs text-gray-500">{patient.age} Y • {patient.gender}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4">
+                                                    <span className="text-sm font-medium text-gray-700">{patient.contact || "N/A"}</span>
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="inline-flex items-center gap-2 px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-50 rounded-lg border border-indigo-100">
+                                                        <MapPin size={12} />
+                                                        {patient.campId?.name || "N/A"}
+                                                    </div>
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <button
+                                                            onClick={() => viewReport(patient)}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                                        >
+                                                            <Eye size={14} />
+                                                            View
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => navigate(`/patient/${patient._id}`)}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors"
+                                                        >
+                                                            <Edit size={14} />
+                                                            Edit
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => downloadPDF(patient)}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                                                        >
+                                                            <FileText size={14} />
+                                                            Download
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => shareReport(patient)}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                                                        >
+                                                            <MessageCircle size={14} />
+                                                            WhatsApp
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={4} className="p-20 text-center">
+                                                <div className="flex flex-col items-center gap-4 text-gray-400">
+                                                    <Users size={48} className="opacity-20" />
+                                                    <div>
+                                                        <p className="text-lg font-bold text-gray-800">No participants found</p>
+                                                        <p className="text-sm mt-1">Try adjusting your filters or selection.</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* SHARE MODAL */}
+            {showShareModal && currentPatient && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="w-full max-w-md bg-white shadow-2xl rounded-3xl overflow-hidden animate-scale-in">
+                        <div className="p-6 text-center text-white bg-green-600">
+                            <MessageCircle size={32} className="mx-auto mb-2" />
+                            <h3 className="text-xl font-bold">Share Health Report</h3>
+                            <p className="text-sm text-green-100 mt-1">Ready to send via WhatsApp</p>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="p-4 bg-gray-50 rounded-2xl flex items-center gap-3">
+                                <div className="w-12 h-12 flex items-center justify-center text-lg font-bold text-green-700 rounded-full bg-green-100 uppercase border border-green-200">
+                                    {currentPatient.name?.charAt(0)}
+                                </div>
+                                <div>
+                                    <p className="font-bold text-gray-900">{currentPatient.name}</p>
+                                    <p className="text-sm text-gray-600">{currentPatient.contact}</p>
+                                </div>
+                            </div>
+                            <div className="p-4 border-2 border-green-200 border-dashed rounded-2xl bg-green-50/50">
+                                <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{downloadLink}</p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    const phone = currentPatient.contact.replace(/\D/g, '');
+                                    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(downloadLink)}`, "_blank");
+                                    setShowShareModal(false);
+                                }}
+                                className="w-full py-3.5 bg-green-600 text-white rounded-2xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-100 flex items-center justify-center gap-2"
+                            >
+                                <MessageCircle size={18} /> Open WhatsApp
+                            </button>
+                            <button
+                                onClick={() => {
+                                    navigator.clipboard.writeText(downloadLink);
+                                    setCopied(true);
+                                    setTimeout(() => setCopied(false), 2000);
+                                }}
+                                className="w-full py-2 flex items-center justify-center gap-2 text-sm text-gray-600 hover:text-indigo-600 transition-colors"
+                            >
+                                {copied ? <CheckCircle size={16} className="text-green-600" /> : <Copy size={16} />}
+                                {copied ? "Copied!" : "Copy Full Message"}
+                            </button>
+                            <button onClick={() => setShowShareModal(false)} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* VIEW CAMP MODAL */}
+            {viewCamp && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-900">{viewCamp.name}</h3>
+                                <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                                    <div className="flex items-center gap-1.5">
+                                        <MapPin size={14} className="text-indigo-500" />
+                                        <span>{viewCamp.location}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <Calendar size={14} className="text-indigo-500" />
+                                        <span>{viewCamp.date}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <Clock size={14} className="text-indigo-500" />
+                                        <span>{viewCamp.time}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onClick={() => setViewCamp(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition shadow-sm">
+                                <X size={16} />
+                            </button>
+                        </div>
+                        <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-4 bg-white">
+                            <div className="flex items-center gap-2">
+                                <span className="px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">{viewCampPatients.length} Participants</span>
+                                <CampStatusBadge date={viewCamp.date} time={viewCamp.time} />
+                            </div>
+                            <button onClick={handleDownloadCampCSV} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 active:scale-95">
+                                <FileSpreadsheet size={16} /> Download Report
+                            </button>
+                        </div>
+                        <div className="overflow-auto flex-1 p-0">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-gray-50 sticky top-0 z-10">
+                                    <tr>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">Patient Name</th>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">Contact</th>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">Age / Gender</th>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">Health Check</th>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {viewCampPatients.length > 0 ? (
+                                        viewCampPatients.map(patient => (
+                                            <tr key={patient._id} className="hover:bg-gray-50/80 transition-colors">
+                                                <td className="p-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs border border-indigo-100">
+                                                            {patient.name.charAt(0).toUpperCase()}
+                                                        </div>
+                                                        <span className="font-semibold text-gray-900">{patient.name}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-sm text-gray-600 font-medium font-mono">{patient.contact}</td>
+                                                <td className="p-4 text-sm text-gray-500">{patient.age} Y <span className="mx-1">•</span> {patient.gender}</td>
+                                                <td className="p-4">
+                                                    {patient.tests && patient.tests.length > 0 ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-green-50 text-green-700 text-xs font-bold border border-green-100">
+                                                            <CheckCircle size={12} /> Screened
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-50 text-gray-400 text-xs font-bold border border-gray-200">Pending</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <button onClick={() => navigate(`/patient/${patient._id}`)} className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline">
+                                                        View Details <ChevronRight size={12} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={5} className="p-12 text-center text-gray-400 flex flex-col items-center gap-3">
+                                                <Users size={32} className="opacity-20" />
+                                                <span className="text-sm font-medium">No patients found in this camp yet.</span>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                            <button onClick={() => setViewCamp(null)} className="px-6 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition shadow-sm">Close</button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+        </div>
+    );
+}

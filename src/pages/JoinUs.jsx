@@ -2,6 +2,7 @@ import axios from "axios";
 import { Send, User, UserPlus } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
+import config from "../config";
 
 const JoinUs = () => {
     const location = useLocation();
@@ -40,7 +41,7 @@ const JoinUs = () => {
 
             const payload = { ...formData, userId };
 
-            await axios.post("https://bmi-backend-1-nnpo.onrender.com/api/applications", payload);
+            await axios.post(`${config.API_BASE_URL}/applications`, payload);
 
             alert("Application submitted successfully! We will contact you soon.");
             setFormData({ name: "", mobile: "", location: "", type: "volunteer", message: "" });
@@ -135,7 +136,7 @@ const JoinUs = () => {
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                             Message / Details (Optional)
                         </label>
-                        <textarea 
+                        <textarea
                             className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-[#2563EB] outline-none h-32 resize-none"
                             placeholder="Tell us more about your interest..."
                             value={formData.message}

@@ -708,11 +708,12 @@
 
 
 import axios from "axios";
-import { ArrowLeft, FileDown } from "lucide-react";
+import { Activity, ArrowLeft, FileDown } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import AddTestForm from "../components/AddTestForm";
 import { generateMedicalReport } from "../utils/pdfGenerator";
+import config from "../config";
 
 /* ================= HELPERS ================= */
 
@@ -735,6 +736,7 @@ const getBMICategory = (bmi) => {
 
 /* 🔥 Latest vitals extractor */
 const extractLatestVitals = (tests = []) => {
+  console.log("Extracting latest vitals from tests:", tests);
   const result = {
     weight: null,
     height: null,
@@ -748,6 +750,7 @@ const extractLatestVitals = (tests = []) => {
 
   tests.forEach((t) => {
     result.date = t.date;
+    console.log(`Processing test: type=${t.type}, value=${t.value}, value2=${t.value2}`);
 
     if (t.type === "weight") result.weight = t.value;
     if (t.type === "height") result.height = t.value;
@@ -755,6 +758,7 @@ const extractLatestVitals = (tests = []) => {
     if (t.type === "bp") {
       result.systolic = t.value;
       result.diastolic = t.value2;
+      console.log(`Found BP: ${result.systolic}/${result.diastolic}`);
     }
     if (t.type === "bmi") {
       result.bmi = t.value;
@@ -762,6 +766,7 @@ const extractLatestVitals = (tests = []) => {
     }
   });
 
+  console.log("Final Extracted Vitals:", result);
   return result;
 };
 
@@ -774,7 +779,7 @@ const PatientDetails = () => {
 
   const fetchPatient = async () => {
     try {
-      const res = await axios.get(`https://bmi-backend-1-nnpo.onrender.com/api/patients/${id}`);
+      const res = await axios.get(`${config.API_BASE_URL}/patients/${id}`);
       setPatient(res.data);
     } catch (err) {
       console.error(err);
@@ -843,7 +848,7 @@ const PatientDetails = () => {
   return (
     <div className="max-w-5xl mx-auto space-y-8">
       <div className="flex items-center gap-4 bg-white p-6 rounded-2xl shadow border">
-        <Link to="/" className="p-2 hover:bg-gray-100 rounded-full">
+        <Link to="/dashboard" className="p-2 hover:bg-gray-100 rounded-full">
           <ArrowLeft />
         </Link>
         <div>
@@ -856,6 +861,32 @@ const PatientDetails = () => {
       </div>
 
       <AddTestForm patientId={patient._id} onSuccess={fetchPatient} />
+
+      {/* History section added for visibility */}
+      <h3 className="text-xl font-bold text-gray-800 border-b pb-2">Medical History</h3>
+      <div className="space-y-4">
+        {patient.tests?.length > 0 ? (
+          patient.tests.slice().reverse().map((test) => (
+            <div key={test._id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center transition hover:shadow-md">
+              <div className="flex gap-4 items-center">
+                <div className="bg-indigo-50 text-indigo-600 p-2 rounded-lg">
+                  <Activity size={24} />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">{new Date(test.date).toLocaleString()}</div>
+                  <div className="font-bold">
+                    {test.type === "bp" ? `BP: ${test.value || "-"}/${test.value2 || "-"}` :
+                      test.type === "sugar" ? `Sugar: ${test.value} (${test.sugarType || 'Random'})` :
+                        `${test.type.charAt(0).toUpperCase() + test.type.slice(1)}: ${test.value} ${test.unit || ''}`}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="text-center text-gray-400 py-10">No records found.</div>
+        )}
+      </div>
 
       <div className="flex justify-end">
         <button

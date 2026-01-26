@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Mail, Lock, LogIn, AlertCircle, Loader2 } from "lucide-react";
+import config from "../config";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [loginType, setLoginType] = useState("employee"); // 'employee' | 'admin' | 'partner'
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
@@ -15,61 +15,53 @@ const Login = () => {
     setIsLoading(true);
     setError("");
 
-    try {
-      let url = "";
-      const BMI_BACKEND = "https://bmi-backend-1-nnpo.onrender.com/api";
+    const BMI_BACKEND = config.API_BASE_URL;
 
-      if (loginType === "admin") {
-        // Use proxy endpoint for admin login
-        url = `${BMI_BACKEND}/proxy/admin/login`;
-      } else if (loginType === "employee") {
-        // Use proxy endpoint for employee login
-        url = `${BMI_BACKEND}/proxy/employees/login`;
-      } else {
-        // Partner / User (Direct BMI Backend)
-        url = `${BMI_BACKEND}/auth/login`;
-      }
-
-
-
-
+    // Define login attempts
+    const loginAttempt = async (url, type) => {
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-
       const data = await response.json();
-
       if (!response.ok) throw new Error(data.message || "Login failed");
+      return { type, data };
+    };
 
-      if (loginType === "admin") {
+    try {
+      // Try all login endpoints in parallel
+      const result = await Promise.any([
+        loginAttempt(`${BMI_BACKEND}/proxy/admin/login`, "admin"),
+        loginAttempt(`${BMI_BACKEND}/proxy/employees/login`, "employee"),
+        loginAttempt(`${BMI_BACKEND}/auth/login`, "partner")
+      ]);
+
+      const { type, data } = result;
+
+      if (type === "admin") {
         localStorage.setItem("adminData", JSON.stringify(data.admin));
         localStorage.setItem("role", "admin");
-        navigate("/dashboard");
-      } else if (loginType === "employee") {
+        navigate("/admin/dashboard");
+      } else if (type === "employee") {
         localStorage.setItem("employeeData", JSON.stringify(data.employee));
         localStorage.setItem("employeeId", data.employee._id);
         localStorage.setItem("employeeEmail", data.employee.email);
         localStorage.setItem("employeeName", data.employee.name);
-        localStorage.setItem("role", "employee"); // It's good practice to store the role
+        localStorage.setItem("role", "employee");
         localStorage.setItem("loginMessage", data.message || "Login successful");
         navigate("/dashboard", { state: { email: data.employee.email } });
-      } else {
-        // Partner / User
+      } else if (type === "partner") {
         localStorage.setItem("userData", JSON.stringify(data.user));
+        localStorage.setItem("userId", data.user.id);
         localStorage.setItem("role", data.user.role || "user");
         localStorage.setItem("token", data.token);
-
-        // Redirect: Partners might go to a different dashboard? 
-        // For now, same dashboard or maybe '/camp' for partners?
-        // navigate("/dashboard"); 
-        // User requested "Partner / Normal User" login. 
-        // Let's send them to Dashboard for now.
-        navigate("/dashboard");
+        navigate("/doctor");
       }
-    } catch (err) {
-      setError(err.message);
+
+    } catch (aggregateError) {
+      console.error("All login attempts failed", aggregateError);
+      setError("Invalid Email or Password");
     } finally {
       setIsLoading(false);
     }
@@ -84,7 +76,7 @@ const Login = () => {
             <LogIn className="h-8 w-8 text-white" />
           </div>
           <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-            {loginType === "admin" ? "Admin Login" : loginType === "employee" ? "Login" : "Partner Login"}
+            Login
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             Welcome! Please login to your account.
@@ -101,34 +93,7 @@ const Login = () => {
           )}
 
 
-          <div className="mb-6 flex flex-col gap-2">
-            <div className="flex bg-gray-100 p-1 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setLoginType("employee")}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${loginType === "employee" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
-              >
-                Employee
-              </button>
-              <button
-                type="button"
-                onClick={() => setLoginType("partner")}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${loginType === "partner" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
-              >
-                Partner/Doctor
-              </button>
-              <button
-                type="button"
-                onClick={() => setLoginType("admin")}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${loginType === "admin" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
-              >
-                Admin
-              </button>
-            </div>
-          </div>
+
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
@@ -149,7 +114,7 @@ const Login = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-11 pr-4 py-3.5 bg-gray-50/50 border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all duration-200"
-                  placeholder={loginType === "admin" ? "admin@example.com" : "name@company.com"}
+                  placeholder="name@company.com"
                 />
               </div>
             </div>

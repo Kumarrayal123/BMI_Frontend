@@ -13,7 +13,13 @@ const Layout = ({ children }) => {
   const navigate = useNavigate();
 
   const role = localStorage.getItem("role");
-  const dashboardPath = role === "user" ? "/user-camps" : "/dashboard";
+  const dashboardPath = role === "user"
+    ? "/user-camps"
+    : role === "admin"
+      ? "/admin/dashboard"
+      : role === "partner"
+        ? "/doctor"
+        : "/dashboard";
 
   // Hide Navbar on Login (path '/') and Register (path '/register')
   const isAuthPage = location.pathname === "/" || location.pathname === "/register";
@@ -61,24 +67,38 @@ const Layout = ({ children }) => {
           </>
         ) : (
           <>
-            <NavLink to="/dashboard" className={getLinkClass} onClick={close}>
+            <NavLink
+              to={role === "admin" ? "/admin/dashboard" : role === "partner" ? "/doctor" : "/dashboard"}
+              className={getLinkClass}
+              onClick={close}
+            >
               <span>Dashboard</span>
             </NavLink>
-            {role === "admin" && (
+            {/* {role === "admin" && (
               <NavLink to="/admin/applications" className={getLinkClass} onClick={close}>
                 <span>Requests</span>
               </NavLink>
+            )} */}
+            {role === "employee" ? (
+              <NavLink to="/my-camps" className={getLinkClass} onClick={close}>
+                <span>My Camps</span>
+              </NavLink>
+            ) : role === "partner" ? (
+              <NavLink to="/doctor-camps" className={getLinkClass} onClick={close}>
+                <span>My Camps</span>
+              </NavLink>
+            ) : (
+              <NavLink to="/camp" className={getLinkClass} onClick={close}>
+                <span>Camps</span>
+              </NavLink>
             )}
-            <NavLink to="/camp" className={getLinkClass} onClick={close}>
-              <span>Camps</span>
-            </NavLink>
-            <NavLink to="/add-patient" className={getLinkClass} onClick={close}>
+            {/* <NavLink to="/add-patient" className={getLinkClass} onClick={close}>
               <span>Add Patient</span>
-            </NavLink>
+            </NavLink> */}
             {/* Only show Partner Panel to partners and admins, not employees */}
-            {(role === "partner" || role === "admin") && (
-              <NavLink to="/doctor" className={getLinkClass} onClick={close}>
-                <span>Partner Panel</span>
+            {role === "admin" && (
+              <NavLink to="/partners" className={getLinkClass} onClick={close}>
+                <span>Partners</span>
               </NavLink>
             )}
           </>
@@ -99,7 +119,7 @@ const Layout = ({ children }) => {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* ================= TOP NAVBAR ================= */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
 
             {/* Logo - Clickable to Dashboard */}
@@ -140,7 +160,7 @@ const Layout = ({ children }) => {
       </header>
 
       {/* ================= MAIN CONTENT ================= */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Mail, Phone, User, Briefcase, Calendar } from "lucide-react";
+import config from "../config";
 
 const OurVolunteers = () => {
   const [volunteers, setVolunteers] = useState([]);
@@ -11,14 +12,14 @@ const OurVolunteers = () => {
     const fetchVolunteers = async () => {
       try {
         const response = await axios.get(
-          "https://attendancebackend-5cgn.onrender.com/api/employees/get-employees"
+          `${config.API_BASE_URL}/proxy/employees/get-employees`
         );
         // Handle if response.data is the array or response.data.employees etc.
         // Based on typical express apis and the node output which showed a direct object interaction
         // likely the array is response.data or response.data.employees
         // We will assume response.data is the array based on "get-employees" endpoint naming convention often returning list directly or in .data
         // Let's safe check common patterns
-        const data = Array.isArray(response.data) ? response.data : response.data.employees || response.data.data || [];
+        const data = Array.isArray(response.data) ? response.data : response.data.employees || response.data.data || response.data.value || [];
 
         // Filter only specific roles: Phlebotomist, Staff Nurse, Consultant
         const allowedRoles = ["Phlebotomist", "Staff Nurse", "Consultant"];

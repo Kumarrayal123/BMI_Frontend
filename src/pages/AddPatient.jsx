@@ -115,7 +115,7 @@
 //     e.preventDefault();
 //     setLoading(true);
 //     try {
-//       await axios.post(`${API}/patients`, formData);
+//       await axios.post(`${config.API_BASE_URL}/patients`, formData);
 //       navigate("/");
 //     } catch (err) {
 //       alert("Error adding patient");
@@ -211,8 +211,7 @@ import axios from "axios";
 import { ArrowLeft, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-
-const API = "https://bmi-backend-1-nnpo.onrender.com/api";
+import config from "../config";
 
 const AddPatient = () => {
   const navigate = useNavigate();
@@ -256,9 +255,18 @@ const AddPatient = () => {
 
   const fetchCamps = async () => {
     try {
-      const res = await axios.get(`${API}/camps/allcamps`);
+      const role = localStorage.getItem("role");
+      const partnerId = localStorage.getItem("userId") || (localStorage.getItem("userData") ? JSON.parse(localStorage.getItem("userData")).id : null);
+
+      let res;
+      if (role === "partner" && partnerId) {
+        res = await axios.get(`${config.API_BASE_URL}/camps/assigned-camps/${partnerId}`);
+      } else {
+        res = await axios.get(`${config.API_BASE_URL}/camps/allcamps`);
+      }
+
       console.log("CAMPS DATA 👉", res.data); // DEBUG
-      setCamps(res.data);
+      setCamps(res.data || []);
     } catch (err) {
       console.error("Error fetching camps", err);
     }
@@ -291,8 +299,9 @@ const AddPatient = () => {
 
     try {
       setLoading(true);
-      await axios.post(`${API}/patients`, formData);
-      navigate("/");
+      const res = await axios.post(`${config.API_BASE_URL}/patients`, formData);
+      const newPatientId = res.data._id;
+      navigate(`/patient/${newPatientId}`);
     } catch (err) {
       console.error("ADD PATIENT ERROR 👉", err.response?.data || err);
       alert(err.response?.data?.error || "Error adding patient");
@@ -304,9 +313,16 @@ const AddPatient = () => {
   return (
     <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow border">
       <div className="flex items-center gap-4 mb-8">
-        <Link to="/" className="p-2 hover:bg-gray-100 rounded-full">
+        {/* <Link to="/camp" className="p-2 hover:bg-gray-100 rounded-full">
           <ArrowLeft />
-        </Link>
+        </Link> */}
+        <button
+          onClick={() => window.history.length > 1 ? navigate(-1) : navigate("/camp")}
+          className="p-2 hover:bg-gray-100 rounded-full"
+        >
+          <ArrowLeft />
+        </button>
+
         <h2 className="text-2xl font-bold">Add New Patient</h2>
       </div>
 
@@ -362,6 +378,7 @@ const AddPatient = () => {
           >
             <option value="male">Male</option>
             <option value="female">Female</option>
+              <option value="others">Others</option>
           </select>
         </div>
 
@@ -383,6 +400,8 @@ const AddPatient = () => {
           className="w-full p-3 border rounded-xl"
           onChange={handleChange}
         />
+
+
 
         <button
           disabled={loading}

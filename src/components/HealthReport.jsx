@@ -353,7 +353,7 @@ const HealthReport = () => {
           <div className="mt-3 text-xs opacity-90">
             <p className="font-semibold uppercase tracking-wide">Office Address: 3rd Floor, Sri Sai Balaji Avenue,VIP Hills, Madhapur,Hyderabad – 500081</p>
             <p>
-             
+
             </p>
           </div>
         </div>
@@ -413,7 +413,7 @@ const HealthReport = () => {
               </span>
             </div>
 
-            
+
 
             <div>
               <span className="text-gray-600">Gender</span>
@@ -543,7 +543,7 @@ const HealthReport = () => {
                   <tr className="bg-gray-50">
                     <td className="p-3 font-semibold">BLOOD PRESSURE</td>
                     <td className="p-3 font-bold text-center">
-                      {tests.systolic}/{tests.diastolic}
+                      {tests.systolic || "-"}/{tests.diastolic || "-"}
                     </td>
                     <td className="p-3 text-center">mmHg</td>
                     <td className="p-3 text-center">120/80</td>
