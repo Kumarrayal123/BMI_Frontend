@@ -1,10 +1,75 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background-color: #f3f4f6;
-  font-family: 'Inter', sans-serif;
+@layer base {
+  /* Global Font */
+  html {
+    font-family: 'Poppins', sans-serif;
+  }
+
+  body {
+    @apply text-sm antialiased text-gray-800 bg-gray-50;
+    font-family: 'Poppins', sans-serif;
+  }
+
+  /* Headings */
+  h1 {
+    @apply text-2xl font-semibold;
+  }
+
+  h2 {
+    @apply text-xl font-semibold;
+  }
+
+  h3 {
+    @apply text-lg font-medium;
+  }
+
+  h4, h5, h6 {
+    @apply text-base font-medium;
+  }
+
+  /* Paragraph */
+  p {
+    @apply text-sm;
+  }
+
+  /* Tables */
+  table {
+    @apply text-xs;
+  }
+
+  th {
+    @apply text-xs font-semibold text-white uppercase;
+  }
+
+  td {
+    @apply text-xs text-gray-800;
+  }
+
+  /* Forms */
+  input,
+  select,
+  textarea {
+    @apply text-xs;
+  }
+
+  label {
+    @apply text-xs font-medium text-gray-700;
+  }
+
+  /* Buttons */
+  button {
+    @apply text-xs font-medium;
+  }
+}
+
+.font-black {
+  /* Make heavy 'font-black' appearance closer to 'font-bold' to match UserActivity visual weight */
+  font-weight: 700 !important;
 }
 
 @layer utilities {
