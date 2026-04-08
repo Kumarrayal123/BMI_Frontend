@@ -17,25 +17,15 @@ const Login = () => {
 
     const BMI_BACKEND = config.API_BASE_URL;
 
-    // Define login attempts
-    const loginAttempt = async (url, type) => {
-      const response = await fetch(url, {
+    try {
+      const response = await fetch(`${BMI_BACKEND}/auth/unified-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Login failed");
-      return { type, data };
-    };
 
-    try {
-      // Try all login endpoints in parallel
-      const result = await Promise.any([
-        loginAttempt(`${BMI_BACKEND}/proxy/admin/login`, "admin"),
-        loginAttempt(`${BMI_BACKEND}/proxy/employees/login`, "employee"),
-        loginAttempt(`${BMI_BACKEND}/auth/login`, "partner")
-      ]);
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || "Login failed");
 
       const { type, data } = result;
 

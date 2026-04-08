@@ -743,9 +743,9 @@ import {
   Eye,
   FileSpreadsheet,
   MapPin,
+  PenTool,
   Search,
   Trash2,
-
   Users,
   X
 } from "lucide-react";
@@ -801,6 +801,7 @@ const Dashboard = () => {
 
   const campsSectionRef = useRef(null);
   const patientsSectionRef = useRef(null);
+  const esignSectionRef = useRef(null);
 
   const scrollToSection = (ref) => {
     if (ref.current) {
@@ -910,6 +911,8 @@ const Dashboard = () => {
     const { status } = getCampStatus(c.date, c.time);
     return status === 'upcoming';
   }).length;
+
+  const esignCount = patients.filter(p => p.tests && p.tests.length > 0).length;
 
   /* ================= VIEW MODAL HELPERS ================= */
 
