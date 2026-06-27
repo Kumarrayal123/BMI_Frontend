@@ -25,9 +25,10 @@ import { useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
 import config from "../config";
 import { generateMedicalReport, generateMedicalReportFile } from "../utils/pdfGenerator";
-import { CampStatusBadge, sortCampsByStatus } from "../utils/campStatus";
+import { CampStatusBadge, sortCampsByStatus, getCampStatus } from "../utils/campStatus";
 import VolunteerDisplay from "../components/VolunteerDisplay";
 import PartnerDisplay from "../components/PartnerDisplay";
+import "./Dashboard.css";
 
 const API_BASE = config.API_BASE_URL;
 
@@ -67,22 +68,6 @@ const extractLatestVitals = (tests = []) => {
     return r;
 };
 
-/* ================= COMPONENTS ================= */
-
-const StatsCard = ({ title, value, icon: Icon, iconBg, onClick }) => (
-    <div
-        onClick={onClick}
-        className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 transition-transform hover:scale-[1.02] cursor-pointer"
-    >
-        <div className={`p-4 rounded-xl ${iconBg}`}>
-            <Icon size={24} className="text-white" />
-        </div>
-        <div>
-            <p className="text-sm font-medium text-gray-500">{title}</p>
-            <h3 className="text-2xl font-bold text-gray-800">{value}</h3>
-        </div>
-    </div>
-);
 
 export default function MyCamps() {
     const navigate = useNavigate();
@@ -203,6 +188,11 @@ export default function MyCamps() {
         if (isNaN(campDate.getTime())) return false;
         campDate.setHours(0, 0, 0, 0);
         return campDate.getTime() > today.getTime();
+    }).length;
+
+    const completedCampsCount = myAssignedCamps.filter(c => {
+        const { status } = getCampStatus(c.date, c.time);
+        return status === 'completed';
     }).length;
 
     const viewReport = (patient) => {
@@ -429,93 +419,134 @@ export default function MyCamps() {
     };
 
     return (
-        <div className="min-h-screen p-0 space-y-4 bg-gray-50/50 animate-fade-in">
-            {/* HEADER Section */}
-            {/* <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+        <div className="admin-dash">
+            <div className="admin-dash__wrapper">
+            {/* Header */}
+            <div className="admin-dash__header">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">My Assigned Camps</h1>
-                    <p className="mt-1 text-gray-500">View and manage patients in your assigned camps.</p>
+                    <h1 className="admin-dash__greeting">
+                        My Assigned <span>Camps</span>
+                    </h1>
+                    <p className="admin-dash__subtitle">
+                        View and manage patients in your assigned camps.
+                    </p>
                 </div>
-                <div className="flex items-center gap-3 px-4 py-2 bg-white border border-gray-100 shadow-sm rounded-xl">
-                    <Calendar size={18} className="text-indigo-600" />
-                    <span className="text-sm font-medium text-gray-700">
-                        {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                <div className="admin-dash__date-pill">
+                    <Calendar />
+                    <span>
+                        {new Date().toLocaleDateString("en-US", {
+                            weekday: "short",
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                        })}
                     </span>
                 </div>
-            </div> */}
+            </div>
 
             {/* STATS Section */}
-            <div style={{ marginBottom: '2px' }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatsCard style={{ colour: 'white' }}
-                    title="Total Camps"
-                    value={role === "employee" ? myAssignedCamps.length : totalCamps}
-                    icon={MapPin}
-                    iconBg="bg-gradient-to-br from-purple-500 to-indigo-500"
-                    onClick={() => scrollToSection(campsSectionRef)}
-                />
-                <StatsCard
-                    title="Active Camps"
-                    value={role === "employee" ? myAssignedCamps.filter(c => {
-                        if (!c.date) return false;
-                        let campDate = new Date(c.date);
-                        if (isNaN(campDate.getTime())) {
-                            const parts = c.date.split('-');
-                            if (parts.length === 3) {
-                                campDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+            <div className="admin-dash__stats">
+                <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                    <div className="admin-dash__stat-top">
+                        <span className="admin-dash__stat-label">Total Camps</span>
+                        <div className="admin-dash__stat-icon admin-dash__stat-icon--indigo">
+                            <MapPin />
+                        </div>
+                    </div>
+                    <div className="admin-dash__stat-value">{myAssignedCamps.length}</div>
+                    <div className="admin-dash__stat-meta">assigned camps</div>
+                </div>
+
+                <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                    <div className="admin-dash__stat-top">
+                        <span className="admin-dash__stat-label">Active Camps</span>
+                        <div className="admin-dash__stat-icon admin-dash__stat-icon--emerald">
+                            <Activity />
+                        </div>
+                    </div>
+                    <div className="admin-dash__stat-value">
+                        {myAssignedCamps.filter(c => {
+                            if (!c.date) return false;
+                            let campDate = new Date(c.date);
+                            if (isNaN(campDate.getTime())) {
+                                const parts = c.date.split('-');
+                                if (parts.length === 3) {
+                                    campDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+                                }
                             }
-                        }
-                        if (isNaN(campDate.getTime())) return false;
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        campDate.setHours(0, 0, 0, 0);
-                        return campDate.getTime() === today.getTime();
-                    }).length : activeCampsCount}
-                    icon={Activity}
-                    iconBg="bg-gradient-to-br from-indigo-500 to-blue-500"
-                    onClick={() => scrollToSection(campsSectionRef)}
-                />
-                <StatsCard
-                    title="Total Patients"
-                    value={role === "employee" ? patients.filter(p => myAssignedCamps.some(c => c._id === p.campId?._id)).length : totalPatientsCount}
-                    icon={Users}
-                    iconBg="bg-gradient-to-br from-sky-500 to-cyan-500"
-                    onClick={() => scrollToSection(patientsSectionRef)}
-                />
-                <StatsCard
-                    title="Upcoming Camps"
-                    value={role === "employee" ? myAssignedCamps.filter(c => {
-                        if (!c.date) return false;
-                        let campDate = new Date(c.date);
-                        if (isNaN(campDate.getTime())) {
-                            const parts = c.date.split('-');
-                            if (parts.length === 3) {
-                                campDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+                            if (isNaN(campDate.getTime())) return false;
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            campDate.setHours(0, 0, 0, 0);
+                            return campDate.getTime() === today.getTime();
+                        }).length}
+                    </div>
+                    <div className="admin-dash__stat-meta">currently running</div>
+                </div>
+
+                <div className="admin-dash__stat" onClick={() => scrollToSection(patientsSectionRef)}>
+                    <div className="admin-dash__stat-top">
+                        <span className="admin-dash__stat-label">Patients</span>
+                        <div className="admin-dash__stat-icon admin-dash__stat-icon--amber">
+                            <Users />
+                        </div>
+                    </div>
+                    <div className="admin-dash__stat-value">
+                        {patients.filter(p => myAssignedCamps.some(c => c._id === p.campId?._id)).length}
+                    </div>
+                    <div className="admin-dash__stat-meta">total patients</div>
+                </div>
+
+                <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                    <div className="admin-dash__stat-top">
+                        <span className="admin-dash__stat-label">Upcoming</span>
+                        <div className="admin-dash__stat-icon admin-dash__stat-icon--cyan">
+                            <Calendar />
+                        </div>
+                    </div>
+                    <div className="admin-dash__stat-value">
+                        {myAssignedCamps.filter(c => {
+                            if (!c.date) return false;
+                            let campDate = new Date(c.date);
+                            if (isNaN(campDate.getTime())) {
+                                const parts = c.date.split('-');
+                                if (parts.length === 3) {
+                                    campDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+                                }
                             }
-                        }
-                        if (isNaN(campDate.getTime())) return false;
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        campDate.setHours(0, 0, 0, 0);
-                        return campDate.getTime() > today.getTime();
-                    }).length : upcomingCampsCount}
-                    icon={Activity}
-                    iconBg="bg-gradient-to-br from-emerald-500 to-teal-500"
-                    onClick={() => scrollToSection(campsSectionRef)}
-                />
+                            if (isNaN(campDate.getTime())) return false;
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            campDate.setHours(0, 0, 0, 0);
+                            return campDate.getTime() > today.getTime();
+                        }).length}
+                    </div>
+                    <div className="admin-dash__stat-meta">scheduled camps</div>
+                </div>
+
+                <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                    <div className="admin-dash__stat-top">
+                        <span className="admin-dash__stat-label">Completed</span>
+                        <div className="admin-dash__stat-icon admin-dash__stat-icon--rose">
+                            <CheckCircle />
+                        </div>
+                    </div>
+                    <div className="admin-dash__stat-value">{completedCampsCount}</div>
+                    <div className="admin-dash__stat-meta">finished camps</div>
+                </div>
             </div>
 
             {/* MAIN CONTENT AREA - Matches Camp.jsx Grid Layout */}
             <div className="space-y-8">
                 {/* CAMPS SECTION */}
-                <div className="space-y-4" ref={campsSectionRef}>
-                    <div className="flex items-center pt-2.5 justify-between">
-                        <h3 className="text-lg font-bold text-gray-800">Assigned Camps</h3>
-                        <div className="flex items-center gap-3">
-                            <span className="px-2 py-1 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-full">
-                                {myAssignedCamps.length} Active
-                            </span>
-                        </div>
+                <div ref={campsSectionRef} className="admin-dash__card">
+                    <div className="admin-dash__card-header">
+                        <h3 className="admin-dash__card-title">Assigned Camps</h3>
+                        <span className="px-2 py-1 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-full">
+                            {myAssignedCamps.length} Active
+                        </span>
                     </div>
+                    <div className="admin-dash__card-body">
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                         {/* ALL CAMPS CARD */}
@@ -599,45 +630,54 @@ export default function MyCamps() {
                             </div>
                         ))}
                     </div>
+                    </div>
                 </div>
 
                 {/* PATIENTS SECTION */}
-                <div className="space-y-6 pt-4" ref={patientsSectionRef}>
-                    <div className="flex flex-col items-center justify-between gap-4 p-2 bg-white border border-gray-100 shadow-sm rounded-2xl lg:flex-row">
-                        <div className="relative w-full lg:max-w-md">
-                            <Search className="absolute text-gray-400 -translate-y-1/2 left-4 top-1/2" size={18} />
+                <div ref={patientsSectionRef} className="admin-dash__card">
+                    <div className="admin-dash__card-header">
+                        <h3 className="admin-dash__card-title">Patients</h3>
+                        <div className="relative w-full sm:w-72">
+                            <Search
+                                size={18}
+                                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                            />
                             <input
                                 type="text"
                                 placeholder="Search by name, phone or camp..."
-                                className="w-full pl-11 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium text-gray-700"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full py-2 pl-10 pr-4 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20"
                             />
                         </div>
-                        <div className="flex flex-wrap items-center gap-3">
-                            <div className="flex items-center gap-2 mr-2 text-sm text-gray-500">
+                    </div>
+                    <div className="admin-dash__card-body">
+                        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
                                 <Filter size={16} />
                                 <span>Showing {filteredPatients.length} participants</span>
                             </div>
-                            <button
-                                onClick={() => navigate("/add-patient", { state: { campId: selectedCampId === "all" ? "" : selectedCampId } })}
-                                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition bg-indigo-600 rounded-xl hover:bg-indigo-700"
-                            >
-                                <Plus size={16} />
-                                Add Patient
-                            </button>
-                            <button
-                                // onClick={() => navigate("/add-patient", { state: { campId: selectedCampId === "all" ? "" : selectedCampId } })}
-                                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition bg-emerald-600 rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <Download size={16} />
-                                {loading ? "Generating..." : "Download ZIP"}
-                            </button>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <button
+                                    onClick={() => navigate("/add-patient", { state: { campId: selectedCampId === "all" ? "" : selectedCampId } })}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition bg-indigo-600 rounded-xl hover:bg-indigo-700"
+                                >
+                                    <Plus size={16} />
+                                    Add Patient
+                                </button>
+                                <button
+                                    onClick={handleBulkDownload}
+                                    disabled={selectedCampId === "all" || loading}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition bg-emerald-600 rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <Download size={16} />
+                                    {loading ? "Generating..." : "Download ZIP"}
+                                </button>
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="overflow-hidden bg-white border border-gray-100 shadow-sm rounded-2xl">
-                        <div className="overflow-x-auto">
+                        <div className="overflow-hidden bg-white border border-gray-100 shadow-sm rounded-2xl">
+                            <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead>
                                     <tr className="border-b border-gray-100 bg-gray-50/50">
@@ -734,6 +774,7 @@ export default function MyCamps() {
                             </table>
                         </div>
                     </div>
+                </div>
                 </div>
             </div>
 
@@ -880,6 +921,7 @@ export default function MyCamps() {
                 </div>,
                 document.body
             )}
+            </div>
         </div>
     );
 }

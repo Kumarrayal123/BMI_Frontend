@@ -43,6 +43,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import Partners from "./pages/Partners";
 
 import AIChatBox from "./components/AIChatBox";
+import ADashboard from "./pages/ADashboard";
 
 function App() {
   return (
@@ -67,6 +68,7 @@ function App() {
           <Route path="/admin/applications" element={<AdminApplications />} /> {/* ✅ Admin Applications */}
           <Route path="/partners" element={<Partners />} /> {/* ✅ Partners Page */}
           <Route path="/employeedashboard" element={<EmployeeDashboard />} />
+          <Route path="/adashboard" element={<ADashboard />} />
         </Routes>
       </Layout>
       {/* <AIChatBox /> */}

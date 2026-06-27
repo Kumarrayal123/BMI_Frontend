@@ -1,30 +1,31 @@
 ﻿import axios from "axios";
 import {
-    Activity,
-    MapPin,
-    Phone,
-    Search,
-    Trash2,
-    Users,
-    Calendar,
-    Clock,
-    Settings,
-    UserCog,
-    BarChart3,
-    Download,
-    Eye,
-    X,
-    FileSpreadsheet,
-    FileText,
-    CheckCircle,
-    ChevronRight,
-    Edit,
-} from "lucide-react";
+    FiActivity,
+    FiMapPin,
+    FiPhone,
+    FiSearch,
+    FiTrash2,
+    FiUsers,
+    FiCalendar,
+    FiClock,
+    FiSettings,
+    FiUserCheck,
+    FiBarChart,
+    FiDownload,
+    FiEye,
+    FiX,
+    FiFileText,
+    FiCheckCircle,
+    FiChevronRight,
+    FiEdit,
+    FiTrendingUp,
+} from "react-icons/fi";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import React from "react";
 import config from "../config";
 import { Link } from "react-router-dom";
+import "./Dashboard.css";
 import { CampStatusBadge, getCampStatus } from "../utils/campStatus";
 import {
     CampPieChart,
@@ -252,62 +253,100 @@ const AdminDashboard = () => {
     };
 
     return (
-        <div>
-            <div className="space-y-10">
-
-                {/* ================= ADMIN HEADER ================= */}
-                {/* <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
-                <div className="flex items-center gap-3 mb-2">
-                    <Settings size={28} />
-                    <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-                </div>
-                <p className="text-indigo-100">Complete system overview and management</p>
-            </div> */}
-
-                {/* ================= ANALYTICS ================= */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <StatsCard
-                        title="Total Camps"
-                        value={totalCamps}
-                        icon={MapPin}
-                        iconBg="bg-gradient-to-br from-purple-500 to-indigo-500"
-                        onClick={() => scrollToSection(campsSectionRef)}
-                    />
-                    <StatsCard
-                        title="Active Camps"
-                        value={activeCampsCount}
-                        icon={Activity}
-                        iconBg="bg-gradient-to-br from-indigo-500 to-blue-500"
-                        onClick={() => scrollToSection(campsSectionRef)}
-                    />
-                    <StatsCard
-                        title="Upcoming Camps"
-                        value={upcomingCampsCount}
-                        icon={Activity}
-                        iconBg="bg-gradient-to-br from-emerald-500 to-teal-500"
-                        onClick={() => scrollToSection(campsSectionRef)}
-                    />
-                    <StatsCard
-                        title="Total Partners"
-                        value={partners.length}
-                        icon={UserCog}
-                        iconBg="bg-gradient-to-br from-violet-500 to-purple-500"
-                        onClick={() => scrollToSection(partnersSectionRef)}
-                    />
+        <div className="admin-dash">
+            
+                {/* Header */}
+                <div className="admin-dash__header">
+                    <div>
+                        <h1 className="admin-dash__greeting">
+                            Health Camp <span>Dashboard</span>
+                        </h1>
+                        <p className="admin-dash__subtitle">
+                            Manage camps, patients, and health analytics in one place.
+                        </p>
+                    </div>
+                    <div className="admin-dash__date-pill">
+                        <FiCalendar />
+                        <span>
+                            {new Date().toLocaleDateString("en-US", {
+                                weekday: "short",
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                            })}
+                        </span>
+                    </div>
                 </div>
 
-                {/* ================= DATE FILTER ================= */}
-                <div style={{ marginTop: '10px' }} className="bg-white  rounded-2xl border shadow-sm w-full p-2">
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
-                                <Calendar size={20} />
-                            </div>
-                            <div>
-                                <h4 className="text-sm font-bold text-gray-800">Filter Analytics</h4>
-                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Select Date Range</p>
+                <div className="space-y-10">
+
+                {/* Top Summary Stats */}
+                <div className="admin-dash__stats">
+                    <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                        <div className="admin-dash__stat-top">
+                            <span className="admin-dash__stat-label">Total Camps</span>
+                            <div className="admin-dash__stat-icon admin-dash__stat-icon--indigo">
+                                <FiMapPin />
                             </div>
                         </div>
+                        <div className="admin-dash__stat-value">{totalCamps}</div>
+                        <div className="admin-dash__stat-meta">health camps</div>
+                    </div>
+                    <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                        <div className="admin-dash__stat-top">
+                            <span className="admin-dash__stat-label">Active Camps</span>
+                            <div className="admin-dash__stat-icon admin-dash__stat-icon--emerald">
+                                <FiActivity />
+                            </div>
+                        </div>
+                        <div className="admin-dash__stat-value">{activeCampsCount}</div>
+                        <div className="admin-dash__stat-meta">currently running</div>
+                    </div>
+                    <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                        <div className="admin-dash__stat-top">
+                            <span className="admin-dash__stat-label">Upcoming</span>
+                            <div className="admin-dash__stat-icon admin-dash__stat-icon--cyan">
+                                <FiCalendar />
+                            </div>
+                        </div>
+                        <div className="admin-dash__stat-value">{upcomingCampsCount}</div>
+                        <div className="admin-dash__stat-meta">scheduled camps</div>
+                    </div>
+                    <div className="admin-dash__stat" onClick={() => scrollToSection(partnersSectionRef)}>
+                        <div className="admin-dash__stat-top">
+                            <span className="admin-dash__stat-label">Partners</span>
+                            <div className="admin-dash__stat-icon admin-dash__stat-icon--rose">
+                                <FiUserCheck />
+                            </div>
+                        </div>
+                        <div className="admin-dash__stat-value">{partners.length}</div>
+                        <div className="admin-dash__stat-meta">registered partners</div>
+                    </div>
+                    <div className="admin-dash__stat" onClick={() => scrollToSection(patientsSectionRef)}>
+                        <div className="admin-dash__stat-top">
+                            <span className="admin-dash__stat-label">Patients</span>
+                            <div className="admin-dash__stat-icon admin-dash__stat-icon--amber">
+                                <FiUsers />
+                            </div>
+                        </div>
+                        <div className="admin-dash__stat-value">{totalPatients}</div>
+                        <div className="admin-dash__stat-meta">total patients</div>
+                    </div>
+                </div>
+
+                {/* Date Filter */}
+                <div className="admin-dash__card">
+                    <div className="admin-dash__card-body">
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                                    <FiCalendar size={20} />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-bold text-gray-800">Filter Analytics</h4>
+                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Select Date Range</p>
+                                </div>
+                            </div>
 
                         <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
                             <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border flex-1 md:flex-none">
@@ -340,31 +379,59 @@ const AdminDashboard = () => {
 
 
 
-                {/* ================= CHARTS SECTION ================= */}
-                <div style={{ marginTop: '10px' }} className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
-                    <CampPieChart
-                        camps={filteredCamps}
-                        patients={chartFilteredPatients}
-                        totalCamps={totalCamps}
-                        liveCamps={liveCampsCount}
-                        todayCamps={todayCampsCount}
-                        upcomingCamps={upcomingCampsCount}
-                        completedCamps={completedCampsCount}
-                    />
+                {/* Charts Section */}
+                <div className="admin-dash__charts-grid">
+                    <div className="admin-dash__card admin-dash__chart-wrap">
+                        <div className="admin-dash__card-header">
+                            <h3 className="admin-dash__card-title">Camp Status Overview</h3>
+                        </div>
+                        <div className="admin-dash__card-body flex-1">
+                            <CampPieChart
+                                camps={filteredCamps}
+                                patients={chartFilteredPatients}
+                                totalCamps={totalCamps}
+                                liveCamps={liveCampsCount}
+                                todayCamps={todayCampsCount}
+                                upcomingCamps={upcomingCampsCount}
+                                completedCamps={completedCampsCount}
+                            />
+                        </div>
+                    </div>
 
-                    <CampParticipationChart camps={filteredCamps} patients={chartFilteredPatients} />
+                    <div className="admin-dash__card admin-dash__chart-wrap">
+                        <div className="admin-dash__card-header">
+                            <h3 className="admin-dash__card-title">Camp Participation</h3>
+                        </div>
+                        <div className="admin-dash__card-body flex-1">
+                            <CampParticipationChart camps={filteredCamps} patients={chartFilteredPatients} />
+                        </div>
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full mt-6">
-                    <CampBMIChart camps={filteredCamps} patients={chartFilteredPatients} />
+                <div className="admin-dash__charts-grid">
+                    <div className="admin-dash__card admin-dash__chart-wrap">
+                        <div className="admin-dash__card-header">
+                            <h3 className="admin-dash__card-title">BMI Distribution</h3>
+                        </div>
+                        <div className="admin-dash__card-body flex-1">
+                            <CampBMIChart camps={filteredCamps} patients={chartFilteredPatients} />
+                        </div>
+                    </div>
 
-                    <HealthMetricChart
-                        type={healthMetric}
-                        patients={chartFilteredPatients}
-                        selectedCampName={null}
-                        onToggle={(v) => setHealthMetric(v)}
-                        currentMetric={healthMetric}
-                    />
+                    <div className="admin-dash__card admin-dash__chart-wrap">
+                        <div className="admin-dash__card-header">
+                            <h3 className="admin-dash__card-title">Health Metrics</h3>
+                        </div>
+                        <div className="admin-dash__card-body flex-1">
+                            <HealthMetricChart
+                                type={healthMetric}
+                                patients={chartFilteredPatients}
+                                selectedCampName={null}
+                                onToggle={(v) => setHealthMetric(v)}
+                                currentMetric={healthMetric}
+                            />
+                        </div>
+                    </div>
                 </div>
 
 
@@ -389,11 +456,13 @@ const AdminDashboard = () => {
                     />
                 </div> */}
 
-                {/* ================= CAMPS SECTION ================= */}
-                <div ref={campsSectionRef}>
-                    <h3 className="text-lg font-semibold mb-4">All Camps</h3>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* Camps Section */}
+                <div ref={campsSectionRef} className="admin-dash__card">
+                    <div className="admin-dash__card-header">
+                        <h3 className="admin-dash__card-title">All Camps</h3>
+                    </div>
+                    <div className="admin-dash__card-body">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         {camps.map((camp) => (
                             <div
                                 key={camp._id}
@@ -411,19 +480,19 @@ const AdminDashboard = () => {
 
                                 <div className={`mt-2 flex items-center gap-2 text-sm
                 ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
-                                    <MapPin size={14} />
+                                    <FiMapPin size={14} />
                                     <span className="truncate">{camp.location}</span>
                                 </div>
 
                                 <div className={`mt-1 flex items-center gap-2 text-sm
                 ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
-                                    <Calendar size={14} />
+                                    <FiCalendar size={14} />
                                     <span>{camp.date || "No date"}</span>
                                 </div>
 
                                 <div className={`mt-1 flex items-center gap-2 text-sm
                 ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
-                                    <Clock size={14} />
+                                    <FiClock size={14} />
                                     <span>{camp.time || "No time"}</span>
                                 </div>
 
@@ -451,24 +520,24 @@ const AdminDashboard = () => {
                                     }}
                                     className="float-right mt-3 flex items-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors"
                                 >
-                                    <Eye size={12} /> View
+                                    <FiEye size={12} /> View
                                 </button>
                             </div>
                         ))}
+                        </div>
                     </div>
                 </div>
 
-                {/* ================= PATIENTS ================= */}
+                {/* Patients Section */}
                 {
                     loading ? (
                         <p className="text-center text-gray-500">Loading...</p>
                     ) : (
-                        <div ref={patientsSectionRef}>
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-                                <h3 className="text-lg font-semibold">Patients</h3>
-
+                        <div ref={patientsSectionRef} className="admin-dash__card">
+                            <div className="admin-dash__card-header">
+                                <h3 className="admin-dash__card-title">Patients</h3>
                                 <div className="relative w-full sm:w-72">
-                                    <Search
+                                    <FiSearch
                                         size={18}
                                         className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
                                     />
@@ -484,7 +553,7 @@ const AdminDashboard = () => {
                             </div>
 
                             {/* Table Container */}
-                            <div className="overflow-hidden bg-white border border-gray-100 shadow-sm rounded-2xl">
+                            <div className="admin-dash__card-body p-0">
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left">
                                         <thead>
@@ -524,13 +593,13 @@ const AdminDashboard = () => {
                                                                     to={`/patient/${patient._id}`}
                                                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors"
                                                                 >
-                                                                    <Edit size={14} /> Edit
+                                                                    <FiEdit size={14} /> Edit
                                                                 </Link>
                                                                 <button
                                                                     onClick={() => deletePatient(patient._id)}
                                                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
                                                                 >
-                                                                    <Trash2 size={14} /> Delete
+                                                                    <FiTrash2 size={14} /> Delete
                                                                 </button>
                                                             </div>
                                                         </td>
@@ -540,7 +609,7 @@ const AdminDashboard = () => {
                                                 <tr>
                                                     <td colSpan={4} className="p-12 text-center">
                                                         <div className="flex flex-col items-center justify-center gap-3 text-gray-400">
-                                                            <Users size={48} className="opacity-20" />
+                                                            <FiUsers size={48} className="opacity-20" />
                                                             <p className="text-lg font-medium">No patients found</p>
                                                             <p className="text-sm">Try adjusting your search or filters.</p>
                                                         </div>
@@ -555,13 +624,12 @@ const AdminDashboard = () => {
                     )
                 }
 
-                {/* ================= PARTNERS ================= */}
-                <div ref={partnersSectionRef} className="mt-10">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-                        <h3 className="text-lg font-semibold">Registered Partners</h3>
-
+                {/* Partners Section */}
+                <div ref={partnersSectionRef} className="admin-dash__card">
+                    <div className="admin-dash__card-header">
+                        <h3 className="admin-dash__card-title">Registered Partners</h3>
                         <div className="relative w-full sm:w-72">
-                            <Search
+                            <FiSearch
                                 size={18}
                                 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
                             />
@@ -577,7 +645,7 @@ const AdminDashboard = () => {
                     </div>
 
                     {/* Partners Table */}
-                    <div className="overflow-hidden bg-white border border-gray-100 shadow-sm rounded-2xl">
+                    <div className="admin-dash__card-body p-0">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead>
@@ -621,13 +689,13 @@ const AdminDashboard = () => {
                                                             onClick={() => alert(`View partner: ${partner.name}`)}
                                                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
                                                         >
-                                                            <Eye size={14} /> View
+                                                            <FiEye size={14} /> View
                                                         </button>
                                                         <button
                                                             onClick={() => alert(`Edit partner: ${partner.name}`)}
                                                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors"
                                                         >
-                                                            <Edit size={14} /> Edit
+                                                            <FiEdit size={14} /> Edit
                                                         </button>
                                                     </div>
                                                 </td>
@@ -637,7 +705,7 @@ const AdminDashboard = () => {
                                         <tr>
                                             <td colSpan={5} className="p-12 text-center">
                                                 <div className="flex flex-col items-center justify-center gap-3 text-gray-400">
-                                                    <UserCog size={48} className="opacity-20" />
+                                                    <FiUserCheck size={48} className="opacity-20" />
                                                     <p className="text-lg font-medium">No partners found</p>
                                                     <p className="text-sm">Try adjusting your search.</p>
                                                 </div>
@@ -649,9 +717,9 @@ const AdminDashboard = () => {
                         </div>
                     </div>
                 </div>
-            </div>
+            
 
-            {/* ================= VIEW CAMP MODAL ================= */}
+            {/* View Camp Modal */}
             {
                 viewCamp && createPortal(
                     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -662,15 +730,15 @@ const AdminDashboard = () => {
                                     <h3 className="text-xl font-bold text-gray-900">{viewCamp.name}</h3>
                                     <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                                         <div className="flex items-center gap-1.5">
-                                            <MapPin size={14} className="text-indigo-500" />
+                                            <FiMapPin size={14} className="text-indigo-500" />
                                             <span>{viewCamp.location}</span>
                                         </div>
                                         <div className="flex items-center gap-1.5">
-                                            <Calendar size={14} className="text-indigo-500" />
+                                            <FiCalendar size={14} className="text-indigo-500" />
                                             <span>{viewCamp.date}</span>
                                         </div>
                                         <div className="flex items-center gap-1.5">
-                                            <Clock size={14} className="text-indigo-500" />
+                                            <FiClock size={14} className="text-indigo-500" />
                                             <span>{viewCamp.time}</span>
                                         </div>
                                     </div>
@@ -679,7 +747,7 @@ const AdminDashboard = () => {
                                     onClick={() => setViewCamp(null)}
                                     className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition shadow-sm"
                                 >
-                                    <X size={16} />
+                                    <FiX size={16} />
                                 </button>
                             </div>
 
@@ -696,7 +764,7 @@ const AdminDashboard = () => {
                                     onClick={handleDownloadCampCSV}
                                     className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 active:scale-95"
                                 >
-                                    <FileSpreadsheet size={16} />
+                                    <FiFileText size={16} />
                                     Download Report
                                 </button>
                             </div>
@@ -732,7 +800,7 @@ const AdminDashboard = () => {
                                                     <td className="p-4">
                                                         {patient.tests && patient.tests.length > 0 ? (
                                                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-green-50 text-green-700 text-xs font-bold border border-green-100">
-                                                                <CheckCircle size={12} /> Screened
+                                                                <FiCheckCircle size={12} /> Screened
                                                             </span>
                                                         ) : (
                                                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-50 text-gray-400 text-xs font-bold border border-gray-200">
@@ -745,7 +813,7 @@ const AdminDashboard = () => {
                                                             to={`/patient/${patient._id}`}
                                                             className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
                                                         >
-                                                            View Details <ChevronRight size={12} />
+                                                            View Details <FiChevronRight size={12} />
                                                         </Link>
                                                     </td>
                                                 </tr>
@@ -753,7 +821,7 @@ const AdminDashboard = () => {
                                         ) : (
                                             <tr>
                                                 <td colSpan={5} className="p-12 text-center text-gray-400 flex flex-col items-center gap-3">
-                                                    <Users size={32} className="opacity-20" />
+                                                    <FiUsers size={32} className="opacity-20" />
                                                     <span className="text-sm font-medium">No patients found in this camp yet.</span>
                                                 </td>
                                             </tr>
@@ -776,7 +844,9 @@ const AdminDashboard = () => {
                     document.body
                 )
             }
-        </div >
+        </div>
+         </div>
+         </div>
     );
 };
 

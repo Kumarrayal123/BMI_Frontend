@@ -1,28 +1,24 @@
 import axios from "axios";
 import {
-    Activity,
-    Calendar,
-    ChevronRight,
-    Clock,
-    Filter,
-    MapPin,
-    Plus,
-    Search,
-    Stethoscope,
-    Users,
-    MessageCircle,
-    CheckCircle,
-    Copy,
-    Link as LinkIcon,
-    XCircle,
-    CheckCircle2,
-    Eye,
-    Edit,
-    FileText,
-    Download,
-    X,
-    FileSpreadsheet
-} from "lucide-react";
+    FiActivity,
+    FiCalendar,
+    FiChevronRight,
+    FiClock,
+    FiFilter,
+    FiMapPin,
+    FiPlus,
+    FiSearch,
+    FiUsers,
+    FiMessageCircle,
+    FiCheckCircle,
+    FiCopy,
+    FiXCircle,
+    FiEye,
+    FiEdit,
+    FiFileText,
+    FiDownload,
+    FiX
+} from "react-icons/fi";
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -33,6 +29,7 @@ import VolunteerDisplay from "../components/VolunteerDisplay";
 import PartnerDisplay from "../components/PartnerDisplay";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import "./Dashboard.css";
 
 const API_BASE = config.API_BASE_URL;
 
@@ -484,58 +481,94 @@ const DoctorCamps = () => {
     }
 
     return (
-        <div className="min-h-screen p-0 space-y-6 bg-gray-50/50 animate-fade-in text-gray-800">
-            {/* HEADER Section */}
-            {/* <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+        <div className="admin-dash">
+            {/* Header */}
+            <div className="admin-dash__header">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">Medical Camps Dashboard</h1>
-                    <p className="mt-1 text-gray-500">Manage your assigned medical camps and patient screened data.</p>
+                    <h1 className="admin-dash__greeting">
+                        Camp <span>Assignments</span>
+                    </h1>
+                    <p className="admin-dash__subtitle">
+                        Manage your assigned medical camps and patient data.
+                    </p>
                 </div>
-                <div className="flex items-center gap-3 px-4 py-2 bg-white border border-gray-100 shadow-sm rounded-xl">
-                    <Calendar size={18} className="text-indigo-600" />
-                    <span className="text-sm font-medium text-gray-700">
-                        {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                <div className="admin-dash__date-pill">
+                    <FiCalendar />
+                    <span>
+                        {new Date().toLocaleDateString("en-US", {
+                            weekday: "short",
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                        })}
                     </span>
                 </div>
-            </div> */}
+            </div>
 
-            {/* STATS Section */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatsCard
-                    title="Assigned Camps"
-                    value={camps.length}
-                    icon={MapPin}
-                    colorClass="bg-gradient-to-br from-indigo-500 to-purple-600"
-                />
-                <StatsCard
-                    title="Total Patients"
-                    value={patients.length}
-                    icon={Users}
-                    colorClass="bg-gradient-to-br from-blue-500 to-cyan-500"
-                />
-                <StatsCard
-                    title="Upcoming Camps"
-                    value={camps.filter(c => getCampStatus(c.date, c.time).status === 'upcoming').length}
-                    icon={Activity}
-                    colorClass="bg-gradient-to-br from-emerald-500 to-teal-500"
-                />
-                <StatsCard
-                    title="Live Screening"
-                    value={camps.filter(c => getCampStatus(c.date, c.time).status === 'live').length}
-                    icon={Activity}
-                    colorClass="bg-gradient-to-br from-rose-500 to-pink-500"
-                />
+            <div className="space-y-10">
+
+            {/* Top Summary Stats */}
+            <div className="admin-dash__stats">
+                <div className="admin-dash__stat">
+                    <div className="admin-dash__stat-top">
+                        <span className="admin-dash__stat-label">Assigned Camps</span>
+                        <div className="admin-dash__stat-icon admin-dash__stat-icon--indigo">
+                            <FiMapPin />
+                        </div>
+                    </div>
+                    <div className="admin-dash__stat-value">{camps.length}</div>
+                    <div className="admin-dash__stat-meta">total assignments</div>
+                </div>
+                <div className="admin-dash__stat">
+                    <div className="admin-dash__stat-top">
+                        <span className="admin-dash__stat-label">Total Patients</span>
+                        <div className="admin-dash__stat-icon admin-dash__stat-icon--amber">
+                            <FiUsers />
+                        </div>
+                    </div>
+                    <div className="admin-dash__stat-value">{patients.length}</div>
+                    <div className="admin-dash__stat-meta">total patients</div>
+                </div>
+                <div className="admin-dash__stat">
+                    <div className="admin-dash__stat-top">
+                        <span className="admin-dash__stat-label">Upcoming</span>
+                        <div className="admin-dash__stat-icon admin-dash__stat-icon--emerald">
+                            <FiCalendar />
+                        </div>
+                    </div>
+                    <div className="admin-dash__stat-value">{camps.filter(c => getCampStatus(c.date, c.time).status === 'upcoming').length}</div>
+                    <div className="admin-dash__stat-meta">upcoming camps</div>
+                </div>
+                <div className="admin-dash__stat">
+                    <div className="admin-dash__stat-top">
+                        <span className="admin-dash__stat-label">Live</span>
+                        <div className="admin-dash__stat-icon admin-dash__stat-icon--rose">
+                            <FiActivity />
+                        </div>
+                    </div>
+                    <div className="admin-dash__stat-value">{camps.filter(c => getCampStatus(c.date, c.time).status === 'live').length}</div>
+                    <div className="admin-dash__stat-meta">live screenings</div>
+                </div>
+                <div className="admin-dash__stat">
+                    <div className="admin-dash__stat-top">
+                        <span className="admin-dash__stat-label">Completed</span>
+                        <div className="admin-dash__stat-icon admin-dash__stat-icon--cyan">
+                            <FiCheckCircle />
+                        </div>
+                    </div>
+                    <div className="admin-dash__stat-value">{camps.filter(c => getCampStatus(c.date, c.time).status === 'completed').length}</div>
+                    <div className="admin-dash__stat-meta">completed camps</div>
+                </div>
             </div>
 
             {/* CAMPS Section */}
-            <div className="space-y-4">
-                <div className="flex items-center pt-2.5 justify-between">
-                    <h3 className="text-lg font-bold text-gray-800">My Assignments</h3>
-
+            <div className="admin-dash__card">
+                <div className="admin-dash__card-header">
+                    <h3 className="admin-dash__card-title">My Assignments</h3>
                     <div className="flex items-center gap-3">
                         <button
-                            onClick={() => setSelectedCampId(selectedCampId === "all" ? "all" : "all")}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-indigo-700 transition ${selectedCampId === "all" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"}`}
+                            onClick={() => setSelectedCampId("all")}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${selectedCampId === "all" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"}`}
                         >
                             All Assignments
                         </button>
@@ -543,11 +576,12 @@ const DoctorCamps = () => {
                             onClick={() => setShowCampModal(true)}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition"
                         >
-                            <Calendar size={14} />
+                            <FiCalendar size={14} />
                             Create Camp
                         </button>
                     </div>
                 </div>
+                <div className="admin-dash__card-body">
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     {campsWithCount.map(camp => {
@@ -578,15 +612,15 @@ const DoctorCamps = () => {
 
                                 <div className="space-y-2 text-sm font-medium mt-3">
                                     <div className={`flex items-center gap-2 ${isSelected ? "text-indigo-100" : "text-gray-500"}`}>
-                                        <MapPin size={14} className={isSelected ? "text-indigo-200" : "text-indigo-500"} />
+                                        <FiMapPin size={14} className={isSelected ? "text-indigo-200" : "text-indigo-500"} />
                                         <span className="truncate">{camp.location}</span>
                                     </div>
                                     <div className={`flex items-center gap-2 ${isSelected ? "text-indigo-100" : "text-gray-500"}`}>
-                                        <Calendar size={14} className={isSelected ? "text-indigo-200" : "text-indigo-400"} />
+                                        <FiCalendar size={14} className={isSelected ? "text-indigo-200" : "text-indigo-400"} />
                                         <span>{camp.date || "No date"}</span>
                                     </div>
                                     <div className={`flex items-center gap-2 ${isSelected ? "text-indigo-100" : "text-gray-500"}`}>
-                                        <Clock size={14} className={isSelected ? "text-indigo-200" : "text-indigo-500"} />
+                                        <FiClock size={14} className={isSelected ? "text-indigo-200" : "text-indigo-500"} />
                                         <span>{camp.time || "No time"}</span>
                                     </div>
 
@@ -602,24 +636,21 @@ const DoctorCamps = () => {
                                 </div>
 
                                 {(() => {
-                                    // 1. Check if taken by ANOTHER doctor
                                     const acceptedPartner = camp.partners.find(p => p.status === 'accepted');
                                     const istakenByOther = acceptedPartner && String(acceptedPartner.partnerId?._id || acceptedPartner.partnerId) !== String(partnerId);
 
                                     if (istakenByOther) {
                                         return (
                                             <div className="mt-4 pt-3 border-t border-gray-100 flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-2 rounded-lg">
-                                                <Clock size={14} />
+                                                <FiClock size={14} />
                                                 <span className="text-[10px] font-bold uppercase">Allocated to another doctor</span>
                                             </div>
                                         );
                                     }
 
-                                    // 2. Check Camp Status (must be Upcoming)
                                     const { status: timeStatus } = getCampStatus(camp.date, camp.time);
                                     if (timeStatus !== 'upcoming') return null;
 
-                                    // 3. Check 12 Hour Window
                                     const start = getCampStartTime(camp.date, camp.time);
                                     const now = new Date();
                                     const hoursDiff = start ? (start - now) / (1000 * 60 * 60) : 0;
@@ -627,41 +658,13 @@ const DoctorCamps = () => {
                                     if (hoursDiff < 12) {
                                         return (
                                             <div className="mt-4 pt-3 border-t border-gray-100 flex items-center gap-2 text-gray-400 bg-gray-50 px-3 py-2 rounded-lg">
-                                                <Clock size={14} />
+                                                <FiClock size={14} />
                                                 <span className="text-[10px] font-bold uppercase">Actions Closed (Less than 12h)</span>
                                             </div>
                                         );
                                     }
 
-                                    // 4. Render Actions (Allow editing decision)
                                     return (
-                                        // <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100/10">
-                                        //     {status !== 'rejected' && (
-                                        //         <button
-                                        //             onClick={(e) => {
-                                        //                 e.stopPropagation();
-                                        //                 handleUpdateStatus(camp._id, status === 'accepted' ? 'pending' : 'accepted');
-                                        //             }}
-                                        //             className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition border 
-                                        //                 ${status === 'accepted' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white/20 hover:bg-white/30 text-white border-white/20'}`}
-                                        //         >
-                                        //             {status === 'accepted' ? 'Accepted' : 'Accept'}
-                                        //         </button>
-                                        //     )}
-
-                                        //     {status !== 'accepted' && (
-                                        //         <button
-                                        //             onClick={(e) => {
-                                        //                 e.stopPropagation();
-                                        //                 handleUpdateStatus(camp._id, status === 'rejected' ? 'pending' : 'rejected');
-                                        //             }}
-                                        //             className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition border 
-                                        //                 ${status === 'rejected' ? 'bg-rose-500 text-white border-rose-500' : 'bg-rose-500/20 hover:bg-rose-500/30 text-white border-white/20'}`}
-                                        //         >
-                                        //             {status === 'rejected' ? 'Passed' : 'Pass'}
-                                        //         </button>
-                                        //     )}
-                                        // </div>
                                         <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100/10">
                                             {status !== 'rejected' && (
                                                 <button
@@ -701,13 +704,12 @@ const DoctorCamps = () => {
                                                 </button>
                                             )}
                                         </div>
-
                                     );
                                 })()}
 
                                 <div className={`mt-5 pt-4 border-t flex items-center justify-between ${isSelected ? "border-white/20" : "border-gray-50"}`}>
                                     <div className={`flex items-center gap-2 text-xs font-bold ${isSelected ? "text-indigo-200" : "text-gray-400"}`}>
-                                        <Users size={14} />
+                                        <FiUsers size={14} />
                                         <span>{camp.count} Patients</span>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -721,10 +723,10 @@ const DoctorCamps = () => {
                                                     ? "bg-white/20 text-white hover:bg-white/30"
                                                     : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"}`}
                                         >
-                                            <Eye size={12} className="inline mr-1" /> View
+                                            <FiEye size={12} className="inline mr-1" /> View
                                         </button>
                                         <div className={`${isSelected ? "text-white" : "text-indigo-600"} opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0`}>
-                                            <ChevronRight size={18} />
+                                            <FiChevronRight size={18} />
                                         </div>
                                     </div>
                                 </div>
@@ -732,25 +734,27 @@ const DoctorCamps = () => {
                         );
                     })}
                 </div>
+                </div>
             </div>
 
             {/* PATIENTS Section */}
-            <div className="space-y-6">
-                <div className="flex flex-col items-center justify-between gap-4 p-2 bg-white border border-gray-100 shadow-sm rounded-2xl lg:flex-row">
-                    <div className="relative w-full lg:max-w-md">
-                        <Search className="absolute text-gray-400 -translate-y-1/2 left-4 top-1/2" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Search by name, phone or camp..."
-                            className="w-full pl-11 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
+            <div className="admin-dash__card">
+                <div className="admin-dash__card-header">
+                    <h3 className="admin-dash__card-title">Participants</h3>
                     <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex items-center gap-2 mr-2 text-sm text-gray-500">
-                            <Filter size={16} />
-                            <span>Showing {filteredPatients.length} participants</span>
+                        <div className="relative w-full lg:max-w-md">
+                            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                            <input
+                                type="text"
+                                placeholder="Search by name, phone or camp..."
+                                className="w-full pl-10 pr-4 py-2 text-sm border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <FiFilter size={16} />
+                            <span>{filteredPatients.length} participants</span>
                         </div>
                         <button
                             onClick={handleBulkDownload}
@@ -759,12 +763,11 @@ const DoctorCamps = () => {
                                 ${downloadingBulk || selectedCampId === "all"
                                     ? 'bg-gray-300 cursor-not-allowed opacity-60'
                                     : 'bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100 active:scale-95'}`}
-                            title={selectedCampId === "all" ? "Select a specific camp to download bulk reports" : "Download all patient reports for this camp as a ZIP"}
                         >
                             {downloadingBulk ? (
                                 <div className="w-4 h-4 border-2 border-white rounded-full border-t-transparent animate-spin"></div>
                             ) : (
-                                <Download size={16} />
+                                <FiDownload size={16} />
                             )}
                             {downloadingBulk ? "Generating..." : "Download ZIP"}
                         </button>
@@ -772,12 +775,11 @@ const DoctorCamps = () => {
                             onClick={() => navigate("/add-patient", { state: { campId: selectedCampId !== "all" ? selectedCampId : "" } })}
                             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition bg-indigo-600 rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 active:scale-95"
                         >
-                            <Plus size={16} /> Add Patient
+                            <FiPlus size={16} /> Add Patient
                         </button>
                     </div>
                 </div>
-
-                <div className="overflow-hidden bg-white border border-gray-100 shadow-sm rounded-2xl">
+                <div className="admin-dash__card-body p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left">
                             <thead>
@@ -812,39 +814,32 @@ const DoctorCamps = () => {
                                         </td>
                                         <td className="p-4">
                                             <div className="flex items-center gap-2">
-                                                {/* VIEW */}
                                                 <button
                                                     onClick={() => viewReport(patient)}
                                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
                                                 >
-                                                    <Eye size={14} />
+                                                    <FiEye size={14} />
                                                     View
                                                 </button>
-
-                                                {/* EDIT */}
                                                 <button
                                                     onClick={() => navigate(`/patient/${patient._id}`)}
                                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors"
                                                 >
-                                                    <Edit size={14} />
+                                                    <FiEdit size={14} />
                                                     Edit
                                                 </button>
-
-                                                {/* DOWNLOAD */}
                                                 <button
                                                     onClick={() => downloadPDF(patient)}
                                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
                                                 >
-                                                    <FileText size={14} />
+                                                    <FiFileText size={14} />
                                                     Download
                                                 </button>
-
-                                                {/* WHATSAPP */}
                                                 <button
                                                     onClick={() => shareReport(patient)}
                                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
                                                 >
-                                                    <MessageCircle size={14} />
+                                                    <FiMessageCircle size={14} />
                                                     WhatsApp
                                                 </button>
                                             </div>
@@ -854,7 +849,7 @@ const DoctorCamps = () => {
                                     <tr>
                                         <td colSpan={4} className="p-12 text-center text-gray-400">
                                             <div className="flex flex-col items-center justify-center gap-3">
-                                                <Users size={48} className="opacity-20" />
+                                                <FiUsers size={48} className="opacity-20" />
                                                 <p className="text-lg font-medium italic">No records found</p>
                                             </div>
                                         </td>
@@ -874,7 +869,7 @@ const DoctorCamps = () => {
                             <div className="flex items-center justify-between mb-2">
                                 <h2 className="text-xl font-bold text-gray-800">Create New Camp</h2>
                                 <button onClick={() => setShowCampModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
-                                    <XCircle size={20} />
+                                    <FiXCircle size={20} />
                                 </button>
                             </div>
                             <p className="text-sm text-gray-500 font-medium">Schedule a new screening event and assign staff.</p>
@@ -907,7 +902,7 @@ const DoctorCamps = () => {
                                 <div className="flex flex-wrap gap-2 mb-2">
                                     {campForm.volunteers.map(vol => (
                                         <span key={vol} className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold border border-indigo-100 flex items-center gap-1 shadow-sm">
-                                            {vol} <XCircle size={14} className="cursor-pointer opacity-60 hover:opacity-100" onClick={() => handleRemoveVolunteer(vol)} />
+                                            {vol} <FiXCircle size={14} className="cursor-pointer opacity-60 hover:opacity-100" onClick={() => handleRemoveVolunteer(vol)} />
                                         </span>
                                     ))}
                                 </div>
@@ -924,7 +919,7 @@ const DoctorCamps = () => {
                                         const p = partnerList.find(pl => pl._id === pid);
                                         return p ? (
                                             <span key={pid} className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold border border-emerald-100 flex items-center gap-1 shadow-sm">
-                                                {p.clinicName || p.name} <XCircle size={14} className="cursor-pointer opacity-60 hover:opacity-100" onClick={() => handleRemovePartner(pid)} />
+                                                {p.clinicName || p.name} <FiXCircle size={14} className="cursor-pointer opacity-60 hover:opacity-100" onClick={() => handleRemovePartner(pid)} />
                                             </span>
                                         ) : null;
                                     })}
@@ -951,7 +946,7 @@ const DoctorCamps = () => {
                         <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-300">
                             <div className="bg-green-600 p-6 text-white text-center">
                                 <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-                                    <MessageCircle size={32} />
+                                    <FiMessageCircle size={32} />
                                 </div>
                                 <h3 className="text-xl font-bold">Share Report Link</h3>
                                 <p className="text-sm text-green-100 mt-1 opacity-90">WhatsApp message generated successfully!</p>
@@ -976,10 +971,10 @@ const DoctorCamps = () => {
 
                                 <div className="space-y-3">
                                     <button onClick={handleWhatsAppShare} className="w-full py-3.5 bg-green-600 text-white rounded-2xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-100 flex items-center justify-center gap-2">
-                                        <MessageCircle size={18} /> Open WhatsApp
+                                        <FiMessageCircle size={18} /> Open WhatsApp
                                     </button>
                                     <button onClick={handleCopyMessage} className="w-full py-3 bg-blue-50 text-blue-700 rounded-2xl font-bold hover:bg-blue-100 flex items-center justify-center gap-2 transition-all">
-                                        {copied ? <CheckCircle2 size={18} /> : <Copy size={18} />}
+                                        {copied ? <FiCheckCircle size={18} /> : <FiCopy size={18} />}
                                         {copied ? "Copied!" : "Copy Link"}
                                     </button>
                                     <button onClick={() => setShowShareModal(false)} className="w-full py-2 text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors">
@@ -992,25 +987,24 @@ const DoctorCamps = () => {
                     , document.body)
             )}
 
-            {/* ================= VIEW CAMP MODAL ================= */}
+            {/* VIEW CAMP MODAL */}
             {viewCamp && createPortal(
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-                        {/* Header */}
                         <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                             <div>
                                 <h3 className="text-xl font-bold text-gray-900">{viewCamp.name}</h3>
                                 <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                                     <div className="flex items-center gap-1.5">
-                                        <MapPin size={14} className="text-indigo-500" />
+                                        <FiMapPin size={14} className="text-indigo-500" />
                                         <span>{viewCamp.location}</span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
-                                        <Calendar size={14} className="text-indigo-500" />
+                                        <FiCalendar size={14} className="text-indigo-500" />
                                         <span>{viewCamp.date}</span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
-                                        <Clock size={14} className="text-indigo-500" />
+                                        <FiClock size={14} className="text-indigo-500" />
                                         <span>{viewCamp.time}</span>
                                     </div>
                                 </div>
@@ -1019,11 +1013,10 @@ const DoctorCamps = () => {
                                 onClick={() => setViewCamp(null)}
                                 className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition shadow-sm"
                             >
-                                <X size={16} />
+                                <FiX size={16} />
                             </button>
                         </div>
 
-                        {/* Toolbar */}
                         <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-4 bg-white">
                             <div className="flex items-center gap-3">
                                 <span className="px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
@@ -1036,12 +1029,11 @@ const DoctorCamps = () => {
                                 onClick={handleDownloadCampCSV}
                                 className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 active:scale-95"
                             >
-                                <FileSpreadsheet size={16} />
+                                <FiFileText size={16} />
                                 Download Report
                             </button>
                         </div>
 
-                        {/* Table */}
                         <div className="overflow-auto flex-1 p-0 custom-scrollbar">
                             <table className="w-full text-left border-collapse">
                                 <thead className="bg-gray-50 sticky top-0 z-10">
@@ -1072,7 +1064,7 @@ const DoctorCamps = () => {
                                                 <td className="p-4">
                                                     {patient.tests && patient.tests.length > 0 ? (
                                                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-green-50 text-green-700 text-xs font-bold border border-green-100">
-                                                            <CheckCircle size={12} /> Screened
+                                                            <FiCheckCircle size={12} /> Screened
                                                         </span>
                                                     ) : (
                                                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-50 text-gray-400 text-xs font-bold border border-gray-200">
@@ -1085,7 +1077,7 @@ const DoctorCamps = () => {
                                                         onClick={() => navigate(`/patient/${patient._id}`)}
                                                         className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
                                                     >
-                                                        Details <ChevronRight size={12} />
+                                                        Details <FiChevronRight size={12} />
                                                     </button>
                                                 </td>
                                             </tr>
@@ -1094,7 +1086,7 @@ const DoctorCamps = () => {
                                         <tr>
                                             <td colSpan={5} className="p-12 text-center text-gray-400">
                                                 <div className="flex flex-col items-center gap-3">
-                                                    <Users size={32} className="opacity-20" />
+                                                    <FiUsers size={32} className="opacity-20" />
                                                     <span className="text-sm font-medium">No patients found in this camp yet.</span>
                                                 </div>
                                             </td>
@@ -1104,7 +1096,6 @@ const DoctorCamps = () => {
                             </table>
                         </div>
 
-                        {/* Footer */}
                         <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
                             <button
                                 onClick={() => setViewCamp(null)}
@@ -1117,26 +1108,9 @@ const DoctorCamps = () => {
                 </div>,
                 document.body
             )}
-
-            <style dangerouslySetInnerHTML={{
-                __html: `
-                .pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-                @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
-            `}} />
+            </div>
         </div>
     );
 };
-
-const StatsCard = ({ title, value, icon: Icon, colorClass }) => (
-    <div className={`bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4 transition-transform hover:scale-[1.02]`}>
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${colorClass}`}>
-            <Icon size={22} className="text-white" />
-        </div>
-        <div>
-            <p className="text-sm font-medium text-gray-500">{title}</p>
-            <h3 className="text-2xl font-bold text-gray-800">{value}</h3>
-        </div>
-    </div>
-);
 
 export default DoctorCamps;

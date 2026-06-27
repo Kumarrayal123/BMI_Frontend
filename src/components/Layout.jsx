@@ -24,6 +24,11 @@ const Layout = ({ children }) => {
   // Hide Navbar on Login (path '/') and Register (path '/register')
   const isAuthPage = location.pathname === "/" || location.pathname === "/register";
 
+  // Pages with full-screen admin dashboard styling (no padding)
+  const isAdminDashPage = location.pathname === "/dashboard" || 
+                          location.pathname === "/my-camps" ||
+                          location.pathname === "/admin/dashboard";
+
   if (isAuthPage) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -116,7 +121,7 @@ const Layout = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className={`min-h-screen flex flex-col ${isAdminDashPage ? 'bg-gray-50' : 'bg-gray-50'}`}>
       {/* ================= TOP NAVBAR ================= */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
         <div className="w-full mx-auto px-4 sm:px-6 lg:px-8">
@@ -160,7 +165,7 @@ const Layout = ({ children }) => {
       </header>
 
       {/* ================= MAIN CONTENT ================= */}
-      <main className="flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className={`flex-1 w-full mx-auto ${isAdminDashPage ? 'bg-gray-50 p-0 min-h-full' : 'px-4 sm:px-6 lg:px-8 py-8'}`}>
         {children}
       </main>
 
