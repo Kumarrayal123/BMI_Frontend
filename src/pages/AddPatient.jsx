@@ -210,7 +210,7 @@
 import axios from "axios";
 import { FiArrowLeft, FiSave, FiCalendar } from "react-icons/fi";
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import config from "../config";
 import "./Dashboard.css";
 
@@ -222,6 +222,7 @@ const AddPatient = () => {
   const [camps, setCamps] = useState([]);
   const [campId, setCampId] = useState(defaultCampId);
   const [loading, setLoading] = useState(false);
+  const [isLoadingCamps, setIsLoadingCamps] = useState(true);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -229,10 +230,8 @@ const AddPatient = () => {
     gender: "female",
     contact: "",
     address: "",
-    campId: "" // ✅ REQUIRED
+    campId: ""
   });
-
-
 
   /* -------------------------
      FETCH CAMPS
@@ -256,8 +255,10 @@ const AddPatient = () => {
 
   const fetchCamps = async () => {
     try {
+      setIsLoadingCamps(true);
       const role = localStorage.getItem("role");
-      const partnerId = localStorage.getItem("userId") || (localStorage.getItem("userData") ? JSON.parse(localStorage.getItem("userData")).id : null);
+      const partnerId = localStorage.getItem("userId") || 
+        (localStorage.getItem("userData") ? JSON.parse(localStorage.getItem("userData")).id : null);
 
       let res;
       if (role === "partner" && partnerId) {
@@ -266,10 +267,36 @@ const AddPatient = () => {
         res = await axios.get(`${config.API_BASE_URL}/camps/allcamps`);
       }
 
-      console.log("CAMPS DATA 👉", res.data); // DEBUG
-      setCamps(res.data || []);
+      console.log("CAMPS DATA 👉", res.data);
+      
+      // ✅ Properly extract array from response
+      let campsData = [];
+      
+      if (res.data) {
+        if (Array.isArray(res.data)) {
+          campsData = res.data;
+        } else if (res.data.data && Array.isArray(res.data.data)) {
+          campsData = res.data.data;
+        } else if (res.data.camps && Array.isArray(res.data.camps)) {
+          campsData = res.data.camps;
+        } else {
+          // Try to convert object to array if it has keys
+          const values = Object.values(res.data);
+          if (values.some(v => v && typeof v === 'object' && v._id)) {
+            campsData = values;
+          } else {
+            campsData = [];
+          }
+        }
+      }
+      
+      console.log("Processed camps data:", campsData);
+      setCamps(campsData);
     } catch (err) {
       console.error("Error fetching camps", err);
+      setCamps([]);
+    } finally {
+      setIsLoadingCamps(false);
     }
   };
 
@@ -278,7 +305,6 @@ const AddPatient = () => {
   ------------------------- */
   const handleChange = (e) => {
     const { name, value } = e.target;
-
     setFormData((prev) => ({
       ...prev,
       [name]: value
@@ -296,7 +322,7 @@ const AddPatient = () => {
       return;
     }
 
-    console.log("FINAL PAYLOAD 👉", formData); // ✅ MUST SEE campId here
+    console.log("FINAL PAYLOAD 👉", formData);
 
     try {
       setLoading(true);
@@ -350,7 +376,7 @@ const AddPatient = () => {
           <div className="admin-dash__card-body">
             <form onSubmit={handleSubmit} className="space-y-6">
 
-              {/* CAMP DROPDOWN */}
+              {/* CAMP DROPDOWN - FIXED */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
                   Select Camp
@@ -360,16 +386,30 @@ const AddPatient = () => {
                   value={campId}
                   onChange={(e) => setCampId(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                  disabled={isLoadingCamps}
                 >
-                  <option value="">Select Camp</option>
+                  <option value="">
+                    {isLoadingCamps ? "Loading camps..." : "Select Camp"}
+                  </option>
 
-                  {camps.map((camp) => (
-                    <option key={camp._id} value={camp._id}>
-                      {camp.name}
-                    </option>
-                  ))}
+                  {!isLoadingCamps && camps && camps.length > 0 && 
+                    camps.map((camp) => (
+                      <option key={camp._id || camp.id} value={camp._id || camp.id}>
+                        {camp.name || camp.campName || "Unnamed Camp"}
+                      </option>
+                    ))
+                  }
+
+                  {!isLoadingCamps && (!camps || camps.length === 0) && (
+                    <option value="" disabled>No camps available</option>
+                  )}
                 </select>
 
+                {!isLoadingCamps && (!camps || camps.length === 0) && (
+                  <p className="text-amber-600 text-sm mt-1">
+                    ⚠️ No camps found. Please create a camp first.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -397,7 +437,7 @@ const AddPatient = () => {
                     type="number"
                     value={formData.age}
                     placeholder="Years"
-                    className="p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                    className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none"
                     onChange={handleChange}
                   />
                 </div>
@@ -409,7 +449,7 @@ const AddPatient = () => {
                   <select
                     name="gender"
                     value={formData.gender}
-                    className="p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                    className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none"
                     onChange={handleChange}
                   >
                     <option value="male">Male</option>
@@ -449,8 +489,9 @@ const AddPatient = () => {
               </div>
 
               <button
-                disabled={loading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-xl font-bold flex justify-center gap-2 transition-colors shadow-lg shadow-indigo-200"
+                type="submit"
+                disabled={loading || isLoadingCamps}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-xl font-bold flex justify-center gap-2 transition-colors shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <FiSave /> {loading ? "Saving..." : "Register Patient"}
               </button>

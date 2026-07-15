@@ -1,4 +1,4 @@
-// import axios from "axios";
+﻿// import axios from "axios";
 // import {
 //     FiActivity,
 //     FiMapPin,
@@ -1332,11 +1332,18 @@ const AdminDashboard = () => {
         return partner ? partner.name || partner.clinicName || "Unknown Partner" : "Unknown Partner";
     };
 
-    // 🔥 FIX: Get creator info with proper names
+    // ✅ FIXED: Get creator info with proper handling for objects
     const getCreatorInfo = (camp) => {
         if (camp.creatorRole === "admin") {
+            let creatorName = adminName;
+            // If createdBy is an object, extract name
+            if (camp.createdBy && typeof camp.createdBy === "object") {
+                creatorName = camp.createdBy.name || camp.createdBy.clinicName || adminName;
+            } else if (camp.createdBy && typeof camp.createdBy === "string") {
+                creatorName = camp.createdBy;
+            }
             return { 
-                label: `Created by Admin: ${camp.createdBy || adminName}`, 
+                label: `Created by Admin: ${creatorName}`, 
                 color: "bg-blue-100 text-blue-700" 
             };
         } else if (camp.creatorRole === "partner") {
@@ -1345,14 +1352,17 @@ const AdminDashboard = () => {
             // Check if createdBy is populated as an object
             if (camp.createdBy && typeof camp.createdBy === "object") {
                 partnerName = camp.createdBy.name || camp.createdBy.clinicName || "Unknown Partner";
-            } else if (camp.createdBy && String(camp.createdBy).match(/^[0-9a-fA-F]{24}$/)) {
-                const partner = partners.find(p => String(p._id) === String(camp.createdBy));
-                if (partner) {
-                    partnerName = partner.name || partner.clinicName || "Unknown Partner";
+            } else if (camp.createdBy && typeof camp.createdBy === "string") {
+                // Check if it's an ObjectId
+                if (String(camp.createdBy).match(/^[0-9a-fA-F]{24}$/)) {
+                    const partner = partners.find(p => String(p._id) === String(camp.createdBy));
+                    if (partner) {
+                        partnerName = partner.name || partner.clinicName || "Unknown Partner";
+                    }
+                } else {
+                    // Agar string hai toh directly use karo
+                    partnerName = camp.createdBy;
                 }
-            } else {
-                // Agar string hai toh directly use karo
-                partnerName = camp.createdBy || "Unknown Partner";
             }
             
             return { 
@@ -1361,6 +1371,31 @@ const AdminDashboard = () => {
             };
         }
         return { label: "Unknown", color: "bg-gray-100 text-gray-700" };
+    };
+
+    // ✅ FIXED: Get creator name for display in view modal
+    const getCreatorDisplayName = (camp) => {
+        if (camp.creatorRole === "admin") {
+            if (camp.createdBy && typeof camp.createdBy === "object") {
+                return camp.createdBy.name || camp.createdBy.clinicName || adminName;
+            }
+            return camp.createdBy || adminName;
+        } else if (camp.creatorRole === "partner") {
+            if (camp.createdBy && typeof camp.createdBy === "object") {
+                return camp.createdBy.name || camp.createdBy.clinicName || "Unknown Partner";
+            }
+            if (camp.createdBy && typeof camp.createdBy === "string") {
+                if (String(camp.createdBy).match(/^[0-9a-fA-F]{24}$/)) {
+                    const partner = partners.find(p => String(p._id) === String(camp.createdBy));
+                    if (partner) {
+                        return partner.name || partner.clinicName || "Unknown Partner";
+                    }
+                }
+                return camp.createdBy;
+            }
+            return "Unknown Partner";
+        }
+        return "Unknown";
     };
 
     return (
@@ -2162,23 +2197,7 @@ const AdminDashboard = () => {
                                                 ? "bg-blue-100 text-blue-700" 
                                                 : "bg-emerald-100 text-emerald-700"
                                         }`}>
-                                            {viewCamp.creatorRole === "admin" 
-                                                ? (viewCamp.createdBy || adminName)
-                                                : (() => {
-                                                    let partnerName = "Unknown Partner";
-                                                    if (viewCamp.createdBy) {
-                                                        if (String(viewCamp.createdBy).match(/^[0-9a-fA-F]{24}$/)) {
-                                                            const partner = partners.find(p => String(p._id) === String(viewCamp.createdBy));
-                                                            if (partner) {
-                                                                partnerName = partner.name || partner.clinicName || "Unknown Partner";
-                                                            }
-                                                        } else {
-                                                            partnerName = viewCamp.createdBy;
-                                                        }
-                                                    }
-                                                    return partnerName;
-                                                })()
-                                            }
+                                            {getCreatorDisplayName(viewCamp)}
                                         </span>
                                     </div>
                                     {viewCamp.partners && viewCamp.partners.length > 0 && (
