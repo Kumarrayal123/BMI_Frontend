@@ -1,9 +1,51 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Briefcase, Eye, X, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import axios from 'axios';
+import config from '../config';
 
 const PartnerDisplay = ({ partners = [], isSelected = false }) => {
     const [showModal, setShowModal] = useState(false);
+    const [partnerMap, setPartnerMap] = useState({});
+
+    useEffect(() => {
+        const loadPartners = async () => {
+            try {
+                const res = await axios.get(`${config.API_BASE_URL}/auth/partners`);
+                let partnersData = res.data || [];
+                if (!Array.isArray(partnersData)) {
+                    partnersData = partnersData.data || partnersData.partners || [];
+                }
+                const map = {};
+                if (Array.isArray(partnersData)) {
+                    partnersData.forEach(p => {
+                        if (p && p._id) map[String(p._id)] = p.name || p.clinicName;
+                    });
+                }
+                setPartnerMap(map);
+            } catch (err) {
+                console.error("PartnerDisplay error fetching partners:", err);
+            }
+        };
+        loadPartners();
+    }, []);
+
+    const getPartName = (p) => {
+        if (!p) return "";
+        if (typeof p === "object") {
+            if (p.name) return p.name;
+            if (p.clinicName) return p.clinicName;
+            if (p.partnerId && typeof p.partnerId === 'object') {
+                return p.partnerId.name || p.partnerId.clinicName;
+            }
+            if (p.partnerId) return partnerMap[String(p.partnerId)] || String(p.partnerId);
+            return p.name || p.clinicName || "Partner";
+        }
+        if (typeof p === "string" && !p.match(/^[0-9a-fA-F]{24}$/)) {
+            return p;
+        }
+        return partnerMap[String(p)] || String(p);
+    };
 
     if (!partners || partners.length === 0) {
         return null; // Don't show anything if no partners
@@ -21,7 +63,7 @@ const PartnerDisplay = ({ partners = [], isSelected = false }) => {
 
                         <div className="flex items-center -space-x-1.5 ml-1">
                             {partners.slice(0, 3).map((p, i) => {
-                                const name = p.partnerId?.clinicName || p.partnerId?.name || "P";
+                                const name = getPartName(p) || "P";
                                 const status = p.status || "pending";
                                 return (
                                     <div
@@ -83,7 +125,7 @@ const PartnerDisplay = ({ partners = [], isSelected = false }) => {
                         </div>
                         <div className="p-6 max-h-[50vh] overflow-y-auto space-y-3 custom-scrollbar">
                             {partners.map((p, i) => {
-                                const name = p.partnerId?.clinicName || p.partnerId?.name || "Partner";
+                                const name = getPartName(p) || "Partner";
                                 const status = p.status || "pending";
                                 return (
                                     <div key={i} className="flex items-center justify-between p-3 rounded-2xl bg-gray-50 border border-gray-100 group">

@@ -6,7 +6,7 @@ import config from "../config";
 
 const Register = () => {
     const navigate = useNavigate();
-    const [role, setRole] = useState("user"); // 'user' | 'partner'
+    const [role, setRole] = useState("partner"); // 'user' | 'partner'
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
 

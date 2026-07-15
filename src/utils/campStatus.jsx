@@ -106,7 +106,30 @@ export const CampStatusBadge = ({ date, time, className = "" }) => {
 };
 
 /**
- * Sorts an array of camps by status priority: Live > Today > Upcoming > Completed
+ * Robustly parses a date string in DD-MM-YYYY or YYYY-MM-DD format numerically
+ * into a JavaScript Date object, avoiding NaN and timezone shifting bugs.
+ */
+const parseDateString = (dateStr) => {
+    if (!dateStr) return new Date(0);
+    const dateDigits = dateStr.match(/\d+/g);
+    if (!dateDigits || dateDigits.length < 3) return new Date(0);
+
+    const d1 = parseInt(dateDigits[0], 10);
+    const d2 = parseInt(dateDigits[1], 10);
+    const d3 = parseInt(dateDigits[2], 10);
+
+    if (d1 > 1000) { // YYYY-MM-DD
+        return new Date(d1, d2 - 1, d3);
+    } else if (d3 > 1000) { // DD-MM-YYYY
+        return new Date(d3, d2 - 1, d1);
+    }
+    return new Date(0);
+};
+
+/**
+ * Sorts an array of camps by status priority: Live > Today > Upcoming > Completed.
+ * Upcoming camps are sorted ascending by date (earliest first).
+ * Completed camps are sorted descending by date (most recently completed first).
  */
 export const sortCampsByStatus = (camps) => {
     if (!camps || !Array.isArray(camps)) return [];
@@ -127,8 +150,15 @@ export const sortCampsByStatus = (camps) => {
             return priority[statusA] - priority[statusB];
         }
 
-        // Secondary sort: Date (Ascending for Upcoming, Descending for others?)
-        // For simplicity and consistency, let's keep it simple or sort by date ascending.
-        return new Date(a.date) - new Date(b.date);
+        const dateA = parseDateString(a.date);
+        const dateB = parseDateString(b.date);
+
+        if (statusA === 'completed') {
+            // Newest completed camps first
+            return dateB - dateA;
+        }
+
+        // Upcoming/Today/Live: earliest first
+        return dateA - dateB;
     });
 };

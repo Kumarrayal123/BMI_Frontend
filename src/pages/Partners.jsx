@@ -4,12 +4,16 @@ import {
     FiUserCheck,
     FiMail,
     FiPhone,
-    FiBuilding,
+    FiHome,
     FiCalendar,
     FiEye,
     FiEdit,
     FiMessageCircle,
-    FiMapPin
+    FiMapPin,
+    FiX,
+    FiSave,
+    FiUser,
+    FiBriefcase
 } from "react-icons/fi";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
@@ -21,15 +25,44 @@ const Partners = () => {
     const [partners, setPartners] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
+    const [selectedPartner, setSelectedPartner] = useState(null);
+    const [showViewModal, setShowViewModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editFormData, setEditFormData] = useState({
+        name: '',
+        email: '',
+        mobile: '',
+        clinicName: '',
+        specialization: '',
+        address: '',
+        bio: ''
+    });
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [updateMessage, setUpdateMessage] = useState('');
+    const [updateSuccess, setUpdateSuccess] = useState(false);
 
     useEffect(() => {
         fetchPartners();
     }, []);
 
+    // 🔒 SCROLL LOCK FUNCTION
+    const lockScroll = () => {
+        document.body.style.overflow = 'hidden';
+        document.body.style.position = 'fixed';
+        document.body.style.width = '100%';
+    };
+
+    const unlockScroll = () => {
+        document.body.style.overflow = 'auto';
+        document.body.style.position = 'static';
+        document.body.style.width = 'auto';
+    };
+
     const fetchPartners = async () => {
         try {
             setLoading(true);
             const res = await axios.get(`${config.API_BASE_URL}/auth/partners`);
+            console.log("Fetched partners:", res.data);
             setPartners(res.data || []);
         } catch (err) {
             console.error("Failed to fetch partners:", err);
@@ -45,7 +78,7 @@ const Partners = () => {
                 p.name?.toLowerCase().includes(searchLower) ||
                 p.email?.toLowerCase().includes(searchLower) ||
                 p.clinicName?.toLowerCase().includes(searchLower) ||
-                p.phone?.includes(searchLower)
+                (p.mobile && String(p.mobile).includes(searchLower))
             );
         });
     }, [partners, searchQuery]);
@@ -58,6 +91,434 @@ const Partners = () => {
             month: 'short',
             day: 'numeric'
         });
+    };
+
+    // Handle View Partner
+    const handleViewPartner = (partner) => {
+        lockScroll(); // 🔒 Lock scroll
+        setSelectedPartner(partner);
+        setShowViewModal(true);
+    };
+
+    // Handle Edit Partner
+    const handleEditPartner = (partner) => {
+        lockScroll(); // 🔒 Lock scroll
+        setSelectedPartner(partner);
+        setEditFormData({
+            name: partner.name || '',
+            email: partner.email || '',
+            mobile: partner.mobile || '',
+            clinicName: partner.clinicName || '',
+            specialization: partner.specialization || '',
+            address: partner.address || '',
+            bio: partner.bio || ''
+        });
+        setShowEditModal(true);
+        setUpdateMessage('');
+        setUpdateSuccess(false);
+    };
+
+    // Handle Input Change
+    const handleEditInputChange = (e) => {
+        const { name, value } = e.target;
+        setEditFormData(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
+
+    // Handle Update Partner
+    const handleUpdatePartner = async () => {
+        if (!selectedPartner) {
+            console.error("No partner selected");
+            return;
+        }
+
+        setIsUpdating(true);
+        setUpdateMessage('');
+        setUpdateSuccess(false);
+
+        try {
+            const updateData = {
+                name: editFormData.name,
+                email: editFormData.email,
+                mobile: editFormData.mobile || '',
+                clinicName: editFormData.clinicName,
+                specialization: editFormData.specialization || '',
+                address: editFormData.address || '',
+                bio: editFormData.bio || ''
+            };
+
+            console.log("Updating partner:", selectedPartner._id);
+            console.log("Update data:", updateData);
+
+            const response = await axios.put(
+                `${config.API_BASE_URL}/auth/update-partner/${selectedPartner._id}`,
+                updateData
+            );
+
+            console.log("Update response:", response);
+
+            if (response.data) {
+                setUpdateSuccess(true);
+                setUpdateMessage('Partner updated successfully! ✅');
+                
+                // Refresh partners list
+                await fetchPartners();
+                
+                setTimeout(() => {
+                    closeEditModal();
+                }, 2000);
+            }
+        } catch (err) {
+            console.error("Update error:", err);
+            setUpdateSuccess(false);
+            setUpdateMessage(
+                err.response?.data?.message || 
+                err.response?.data?.error || 
+                'Failed to update partner. Please try again.'
+            );
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    // Close Edit Modal
+    const closeEditModal = () => {
+        unlockScroll(); // 🔓 Unlock scroll
+        setShowEditModal(false);
+        setSelectedPartner(null);
+        setEditFormData({
+            name: '',
+            email: '',
+            mobile: '',
+            clinicName: '',
+            specialization: '',
+            address: '',
+            bio: ''
+        });
+        setUpdateMessage('');
+        setUpdateSuccess(false);
+    };
+
+    // Close View Modal
+    const closeViewModal = () => {
+        unlockScroll(); // 🔓 Unlock scroll
+        setShowViewModal(false);
+        setSelectedPartner(null);
+    };
+
+    // Handle WhatsApp
+    const handleWhatsAppChat = (mobile) => {
+        if (mobile) {
+            const cleanPhone = String(mobile).replace(/\D/g, '');
+            window.open(`https://wa.me/${cleanPhone}`, '_blank');
+        }
+    };
+
+    // View Modal Component
+    const ViewPartnerModal = () => {
+        if (!showViewModal || !selectedPartner) return null;
+
+        const partner = selectedPartner;
+
+        return (
+            <div 
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                        closeViewModal();
+                    }
+                }}
+            >
+                <div 
+                    className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="p-6 bg-gradient-to-br from-purple-600 to-indigo-600 text-white sticky top-0 z-10">
+                        <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center text-2xl font-bold text-white backdrop-blur-sm">
+                                    {partner.name?.charAt(0)?.toUpperCase() || 'P'}
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-bold">{partner.name || 'N/A'}</h3>
+                                    <p className="text-sm text-purple-100">{partner.specialization || 'Healthcare Professional'}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={closeViewModal}
+                                className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                            >
+                                <FiX size={20} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Body */}
+                    <div className="p-6 space-y-6">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="p-4 bg-gray-50 rounded-xl">
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Email</p>
+                                <p className="mt-1 font-medium text-gray-700 flex items-center gap-2 break-all">
+                                    <FiMail className="text-gray-400 flex-shrink-0" size={16} />
+                                    <span className="break-all">{partner.email || 'N/A'}</span>
+                                </p>
+                            </div>
+                            <div className="p-4 bg-gray-50 rounded-xl">
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Mobile</p>
+                                <p className="mt-1 font-medium text-gray-700 flex items-center gap-2">
+                                    <FiPhone className="text-gray-400 flex-shrink-0" size={16} />
+                                    <span>{partner.mobile || 'N/A'}</span>
+                                </p>
+                            </div>
+                            <div className="p-4 bg-gray-50 rounded-xl">
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Clinic</p>
+                                <p className="mt-1 font-medium text-gray-700 flex items-center gap-2">
+                                    <FiHome className="text-gray-400 flex-shrink-0" size={16} />
+                                    {partner.clinicName || 'N/A'}
+                                </p>
+                            </div>
+                            <div className="p-4 bg-gray-50 rounded-xl">
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Joined</p>
+                                <p className="mt-1 font-medium text-gray-700 flex items-center gap-2">
+                                    <FiCalendar className="text-gray-400 flex-shrink-0" size={16} />
+                                    {formatDate(partner.createdAt)}
+                                </p>
+                            </div>
+                        </div>
+
+                        {partner.address && (
+                            <div className="p-4 bg-gray-50 rounded-xl">
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Address</p>
+                                <p className="mt-1 text-gray-700 flex items-start gap-2">
+                                    <FiMapPin className="text-gray-400 flex-shrink-0 mt-1" size={16} />
+                                    <span className="whitespace-pre-line">{partner.address}</span>
+                                </p>
+                            </div>
+                        )}
+
+                        {partner.bio && (
+                            <div className="p-4 bg-gray-50 rounded-xl">
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">About</p>
+                                <p className="mt-1 text-gray-700">{partner.bio}</p>
+                            </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
+                            <button
+                                onClick={() => {
+                                    closeViewModal();
+                                    setTimeout(() => handleEditPartner(partner), 100);
+                                }}
+                                className="flex-1 min-w-[120px] py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition shadow-sm active:scale-[0.98]"
+                            >
+                                <FiEdit size={16} className="inline mr-2" />
+                                Edit Partner
+                            </button>
+                            {partner.mobile && (
+                                <button
+                                    onClick={() => handleWhatsAppChat(partner.mobile)}
+                                    className="flex-1 min-w-[120px] py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition shadow-sm active:scale-[0.98]"
+                                >
+                                    <FiMessageCircle size={16} className="inline mr-2" />
+                                    WhatsApp
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Edit Modal Component
+    const EditPartnerModal = () => {
+        if (!showEditModal || !selectedPartner) return null;
+
+        return (
+            <div 
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                        closeEditModal();
+                    }
+                }}
+            >
+                <div 
+                    className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="p-6 bg-gradient-to-br from-purple-600 to-indigo-600 text-white sticky top-0 z-10">
+                        <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-white/20 rounded-xl">
+                                    <FiEdit size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-bold">Edit Partner</h3>
+                                    <p className="text-sm text-purple-100">Update partner information</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={closeEditModal}
+                                className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                            >
+                                <FiX size={20} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Form */}
+                    <div className="p-6 space-y-6">
+                        {updateMessage && (
+                            <div className={`p-4 rounded-xl text-sm font-medium ${
+                                updateSuccess 
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                    : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}>
+                                {updateMessage}
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="col-span-1">
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                    <FiUser className="inline mr-1" size={14} />
+                                    Full Name *
+                                </label>
+                                <input
+                                    type="text"
+                                    name="name"
+                                    value={editFormData.name}
+                                    onChange={handleEditInputChange}
+                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
+                                    placeholder="Enter full name"
+                                />
+                            </div>
+                            <div className="col-span-1">
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                    <FiMail className="inline mr-1" size={14} />
+                                    Email *
+                                </label>
+                                <input
+                                    type="email"
+                                    name="email"
+                                    value={editFormData.email}
+                                    onChange={handleEditInputChange}
+                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
+                                    placeholder="Enter email address"
+                                />
+                            </div>
+                            <div className="col-span-1">
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                    <FiPhone className="inline mr-1" size={14} />
+                                    Mobile *
+                                </label>
+                                <input
+                                    type="text"
+                                    name="mobile"
+                                    value={editFormData.mobile}
+                                    onChange={handleEditInputChange}
+                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
+                                    placeholder="Enter mobile number"
+                                />
+                            </div>
+                            <div className="col-span-1">
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                    <FiBriefcase className="inline mr-1" size={14} />
+                                    Specialization
+                                </label>
+                                <input
+                                    type="text"
+                                    name="specialization"
+                                    value={editFormData.specialization}
+                                    onChange={handleEditInputChange}
+                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
+                                    placeholder="e.g., Cardiologist"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                <FiHome className="inline mr-1" size={14} />
+                                Clinic Name *
+                            </label>
+                            <input
+                                type="text"
+                                name="clinicName"
+                                value={editFormData.clinicName}
+                                onChange={handleEditInputChange}
+                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
+                                placeholder="Enter clinic name"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                <FiMapPin className="inline mr-1" size={14} />
+                                Address
+                            </label>
+                            <textarea
+                                name="address"
+                                value={editFormData.address}
+                                onChange={handleEditInputChange}
+                                rows="3"
+                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition resize-none"
+                                placeholder="Enter clinic address"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                About / Bio
+                            </label>
+                            <textarea
+                                name="bio"
+                                value={editFormData.bio}
+                                onChange={handleEditInputChange}
+                                rows="3"
+                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition resize-none"
+                                placeholder="Enter bio or description"
+                            />
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
+                            <button
+                                type="button"
+                                onClick={closeEditModal}
+                                className="flex-1 min-w-[120px] py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition shadow-sm active:scale-[0.98]"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleUpdatePartner}
+                                disabled={isUpdating}
+                                className="flex-1 min-w-[120px] py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-bold hover:from-purple-700 hover:to-indigo-700 transition shadow-sm active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isUpdating ? (
+                                    <>
+                                        <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
+                                        Updating...
+                                    </>
+                                ) : (
+                                    <>
+                                        <FiSave size={16} className="inline mr-2" />
+                                        Update Partner
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
     };
 
     return (
@@ -86,119 +547,126 @@ const Partners = () => {
             </div>
 
             <div className="space-y-10">
-
-            {/* Partners Table Section */}
-            <div className="admin-dash__card">
-                <div className="admin-dash__card-header">
-                    <h3 className="admin-dash__card-title">Registered Partners</h3>
-                    <div className="relative w-full sm:w-72">
-                        <FiSearch
-                            size={18}
-                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                        />
-                        <input
-                            type="text"
-                            placeholder="Search partners by name, email, or clinic..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20"
-                        />
-                    </div>
-                </div>
-
-                {/* Table Container */}
-                <div className="admin-dash__card-body p-0">
-                    {loading ? (
-                        <div className="flex flex-col items-center justify-center gap-3 py-20">
-                            <div className="w-12 h-12 border-4 border-indigo-500 rounded-full border-t-transparent animate-spin"></div>
-                            <p className="text-gray-500">Loading partners...</p>
+                {/* Partners Table Section */}
+                <div className="admin-dash__card">
+                    <div className="admin-dash__card-header">
+                        <h3 className="admin-dash__card-title">Registered Partners</h3>
+                        <div className="relative w-full sm:w-72">
+                            <FiSearch
+                                size={18}
+                                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                            />
+                            <input
+                                type="text"
+                                placeholder="Search partners by name, email, or clinic..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20"
+                            />
                         </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead>
-                                    <tr className="border-b border-gray-100 bg-gray-50/50">
-                                        <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Name</th>
-                                        <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Email</th>
-                                        <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Clinic</th>
-                                        <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Phone</th>
-                                        <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Joined</th>
-                                        <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    {filteredPartners.length > 0 ? (
-                                        filteredPartners.map((partner) => (
-                                            <tr key={partner._id} className="transition-colors group hover:bg-gray-50/80">
-                                                <td className="p-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-violet-700 rounded-full bg-gradient-to-br from-violet-100 to-purple-100">
-                                                            {partner.name?.charAt(0)?.toUpperCase() || 'P'}
+                    </div>
+
+                    {/* Table Container */}
+                    <div className="admin-dash__card-body p-0">
+                        {loading ? (
+                            <div className="flex flex-col items-center justify-center gap-3 py-20">
+                                <div className="w-12 h-12 border-4 border-indigo-500 rounded-full border-t-transparent animate-spin"></div>
+                                <p className="text-gray-500">Loading partners...</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="border-b border-gray-100 bg-gray-50/50">
+                                            <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Name</th>
+                                            <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Email</th>
+                                            <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Clinic</th>
+                                            <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Mobile</th>
+                                            <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Joined</th>
+                                            <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {filteredPartners.length > 0 ? (
+                                            filteredPartners.map((partner) => (
+                                                <tr key={partner._id} className="transition-colors group hover:bg-gray-50/80">
+                                                    <td className="p-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-violet-700 rounded-full bg-gradient-to-br from-violet-100 to-purple-100">
+                                                                {partner.name?.charAt(0)?.toUpperCase() || 'P'}
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-semibold text-gray-900">{partner.name || 'N/A'}</p>
+                                                                <p className="text-xs text-gray-500">{partner.specialization || 'Healthcare Professional'}</p>
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <p className="font-semibold text-gray-900">{partner.name || 'N/A'}</p>
-                                                            <p className="text-xs text-gray-500">{partner.specialization || 'Healthcare Professional'}</p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4">
-                                                    <span className="text-sm font-medium text-gray-700">{partner.email || "N/A"}</span>
-                                                </td>
-                                                <td className="p-4">
-                                                    <span className="px-3 py-1 text-sm text-purple-700 bg-purple-100 rounded-full">
-                                                        {partner.clinicName || "N/A"}
-                                                    </span>
-                                                </td>
-                                                <td className="p-4">
-                                                    <span className="text-sm font-medium text-gray-700">{partner.phone || "N/A"}</span>
-                                                </td>
-                                                <td className="p-4">
-                                                    <span className="text-sm text-gray-500">{formatDate(partner.createdAt)}</span>
-                                                </td>
-                                                <td className="p-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <button
-                                                            onClick={() => alert(`View partner: ${partner.name}`)}
-                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
-                                                        >
-                                                            <FiEye size={14} /> View
-                                                        </button>
-                                                        <button
-                                                            onClick={() => alert(`Edit partner: ${partner.name}`)}
-                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors"
-                                                        >
-                                                            <FiEdit size={14} /> Edit
-                                                        </button>
-                                                        {partner.phone && (
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className="text-sm font-medium text-gray-700">{partner.email || "N/A"}</span>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className="px-3 py-1 text-sm text-purple-700 bg-purple-100 rounded-full">
+                                                            {partner.clinicName || "N/A"}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className="text-sm font-medium text-gray-700">
+                                                            {partner.mobile || "N/A"}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className="text-sm text-gray-500">{formatDate(partner.createdAt)}</span>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <div className="flex items-center gap-2">
                                                             <button
-                                                                onClick={() => window.open(`https://wa.me/${partner.phone.replace(/\D/g, '')}`, '_blank')}
-                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                                                                onClick={() => handleViewPartner(partner)}
+                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
                                                             >
-                                                                <FiMessageCircle size={14} />
+                                                                <FiEye size={14} /> View
                                                             </button>
-                                                        )}
+                                                            <button
+                                                                onClick={() => handleEditPartner(partner)}
+                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors"
+                                                            >
+                                                                <FiEdit size={14} /> Edit
+                                                            </button>
+                                                            {partner.mobile && (
+                                                                <button
+                                                                    onClick={() => handleWhatsAppChat(partner.mobile)}
+                                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                                                                >
+                                                                    <FiMessageCircle size={14} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan={6} className="p-12 text-center">
+                                                    <div className="flex flex-col items-center justify-center gap-3 text-gray-400">
+                                                        <FiUserCheck size={48} className="opacity-20" />
+                                                        <p className="text-lg font-medium">No partners found</p>
+                                                        <p className="text-sm">Try adjusting your search.</p>
                                                     </div>
                                                 </td>
                                             </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td colSpan={6} className="p-12 text-center">
-                                                <div className="flex flex-col items-center justify-center gap-3 text-gray-400">
-                                                    <FiUserCheck size={48} className="opacity-20" />
-                                                    <p className="text-lg font-medium">No partners found</p>
-                                                    <p className="text-sm">Try adjusting your search.</p>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
-            </div>
+
+            {/* View Modal */}
+            <ViewPartnerModal />
+
+            {/* Edit Modal */}
+            <EditPartnerModal />
         </div>
     );
 };

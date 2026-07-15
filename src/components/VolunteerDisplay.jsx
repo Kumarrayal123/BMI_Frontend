@@ -1,9 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, Eye, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import axios from 'axios';
+import config from '../config';
 
 const VolunteerDisplay = ({ volunteers = [], isSelected = false }) => {
     const [showModal, setShowModal] = useState(false);
+    const [employeeMap, setEmployeeMap] = useState({});
+
+    useEffect(() => {
+        const loadEmployees = async () => {
+            try {
+                const res = await axios.get(`${config.API_BASE_URL}/proxy/employees/get-employees`);
+                const empData = res.data || [];
+                const allEmployees = Array.isArray(empData) ? empData : empData.employees || empData.data || empData.value || [];
+                const map = {};
+                allEmployees.forEach(emp => {
+                    if (emp && emp._id) map[String(emp._id)] = emp.name;
+                });
+                setEmployeeMap(map);
+            } catch (err) {
+                console.error("VolunteerDisplay error fetching employees:", err);
+            }
+        };
+        loadEmployees();
+    }, []);
+
+    const getVolName = (v) => {
+        if (!v) return "";
+        if (typeof v === "object") {
+            if (v.name) return v.name;
+            if (v.volunteerId && typeof v.volunteerId === 'object' && v.volunteerId.name) return v.volunteerId.name;
+            if (v.volunteerId) return employeeMap[String(v.volunteerId)] || String(v.volunteerId);
+            return v.name || v.email || String(v);
+        }
+        if (typeof v === "string" && !v.match(/^[0-9a-fA-F]{24}$/)) {
+            return v;
+        }
+        return employeeMap[String(v)] || String(v);
+    };
 
     if (!volunteers || volunteers.length === 0) {
         return (
@@ -25,15 +60,18 @@ const VolunteerDisplay = ({ volunteers = [], isSelected = false }) => {
                         </span>
 
                         <div className="flex items-center -space-x-1.5 ml-1">
-                            {volunteers.slice(0, 3).map((v, i) => (
-                                <div
-                                    key={i}
-                                    className={`w-6 h-6 rounded-full border-2 ${isSelected ? "border-indigo-600 bg-white text-indigo-600" : "border-white bg-indigo-50 text-indigo-600"} flex items-center justify-center font-bold text-[9px] shadow-sm transition-transform group-hover/vols:-translate-y-0.5`}
-                                    title={v}
-                                >
-                                    {v.charAt(0).toUpperCase()}
-                                </div>
-                            ))}
+                            {volunteers.slice(0, 3).map((v, i) => {
+                                const name = getVolName(v) || "V";
+                                return (
+                                    <div
+                                        key={i}
+                                        className={`w-6 h-6 rounded-full border-2 ${isSelected ? "border-indigo-600 bg-white text-indigo-600" : "border-white bg-indigo-50 text-indigo-600"} flex items-center justify-center font-bold text-[9px] shadow-sm transition-transform group-hover/vols:-translate-y-0.5`}
+                                        title={name}
+                                    >
+                                        {name.charAt(0).toUpperCase()}
+                                    </div>
+                                );
+                            })}
                             {volunteers.length > 3 && (
                                 <div className={`w-6 h-6 rounded-full border-2 ${isSelected ? "border-indigo-600 bg-indigo-800 text-white" : "border-white bg-gray-100 text-gray-500"} flex items-center justify-center font-bold text-[9px] shadow-sm transition-transform group-hover/vols:-translate-y-0.5`}>
                                     +{volunteers.length - 3}
@@ -79,14 +117,17 @@ const VolunteerDisplay = ({ volunteers = [], isSelected = false }) => {
                             </button>
                         </div>
                         <div className="p-6 max-h-[50vh] overflow-y-auto space-y-3 custom-scrollbar">
-                            {volunteers.map((v, i) => (
-                                <div key={i} className="flex items-center gap-4 p-3 rounded-2xl bg-gray-50 border border-gray-100 group">
-                                    <div className="w-10 h-10 rounded-full bg-white text-indigo-600 flex items-center justify-center font-bold text-sm shadow-sm border border-gray-100 group-hover:border-indigo-200 transition-colors">
-                                        {v.charAt(0).toUpperCase()}
+                            {volunteers.map((v, i) => {
+                                const name = getVolName(v) || "Volunteer";
+                                return (
+                                    <div key={i} className="flex items-center gap-4 p-3 rounded-2xl bg-gray-50 border border-gray-100 group">
+                                        <div className="w-10 h-10 rounded-full bg-white text-indigo-600 flex items-center justify-center font-bold text-sm shadow-sm border border-gray-100 group-hover:border-indigo-200 transition-colors">
+                                            {name.charAt(0).toUpperCase()}
+                                        </div>
+                                        <span className="text-gray-700 font-bold">{name}</span>
                                     </div>
-                                    <span className="text-gray-700 font-bold">{v}</span>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                         <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
                             <button

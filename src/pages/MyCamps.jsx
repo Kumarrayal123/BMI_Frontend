@@ -18,7 +18,8 @@ import {
     CheckCircle,
     X,
     FileSpreadsheet,
-    Download
+    Download,
+    AlertCircle  
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -33,8 +34,6 @@ import "./Dashboard.css";
 const API_BASE = config.API_BASE_URL;
 
 /* ================= UTILS ================= */
-
-// Local getCampStatus replaced by centralized utility in ../utils/campStatus
 
 const calculateBMI = (weight, heightCm) => {
     if (!weight || !heightCm) return null;
@@ -68,10 +67,9 @@ const extractLatestVitals = (tests = []) => {
     return r;
 };
 
-
 export default function MyCamps() {
     const navigate = useNavigate();
-    const role = localStorage.getItem("role"); // Fix: Define role here
+    const role = localStorage.getItem("role");
     const [patients, setPatients] = useState([]);
     const [camps, setCamps] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
@@ -94,7 +92,8 @@ export default function MyCamps() {
 
     useEffect(() => {
         const role = localStorage.getItem("role");
-        if (role !== "employee") {
+        // ✅ FIX: Employee and Partner both can access
+        if (role !== "employee" && role !== "partner") {
             navigate("/dashboard");
             return;
         }
@@ -102,12 +101,56 @@ export default function MyCamps() {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const [patientsRes, campsRes] = await Promise.all([
-                    axios.get(`${API_BASE}/patients`).catch(() => ({ data: [] })),
-                    axios.get(`${API_BASE}/camps/allcamps`).catch(() => ({ data: [] }))
-                ]);
+                
+                // Fetch patients
+                const patientsRes = await axios.get(`${API_BASE}/patients`).catch(() => ({ data: [] }));
                 setPatients(patientsRes.data || []);
-                setCamps(sortCampsByStatus(campsRes.data || []));
+                
+                // ✅ FIX: Fetch camps based on role
+                let campsData = [];
+                const employeeName = localStorage.getItem("employeeName") || localStorage.getItem("name");
+                const userId = localStorage.getItem("userId");
+                const userDataStr = localStorage.getItem("userData");
+                const userData = userDataStr ? JSON.parse(userDataStr) : null;
+                const partnerId = userId || (userData ? userData.id : null);
+                
+                console.log("🔍 Role:", role);
+                console.log("🔍 Employee Name:", employeeName);
+                console.log("🔍 Partner ID:", partnerId);
+                
+                if (role === "partner" && partnerId) {
+                    // Partner - fetch assigned camps
+                    const campsRes = await axios.get(`${API_BASE}/camps/assigned-camps/${partnerId}`).catch(() => ({ data: [] }));
+                    campsData = campsRes.data || [];
+                    if (!Array.isArray(campsData)) {
+                        campsData = campsData.data || campsData.camps || [];
+                        if (!Array.isArray(campsData)) campsData = [];
+                    }
+                } else {
+                    // Employee - fetch all camps and filter
+                    const campsRes = await axios.get(`${API_BASE}/camps/allcamps`).catch(() => ({ data: [] }));
+                    let allCamps = campsRes.data || [];
+                    if (!Array.isArray(allCamps)) {
+                        allCamps = allCamps.data || allCamps.camps || [];
+                        if (!Array.isArray(allCamps)) allCamps = [];
+                    }
+                    
+                    // ✅ Filter camps where employee is assigned as volunteer
+                    if (employeeName) {
+                        campsData = allCamps.filter(camp => {
+                            if (!camp.volunteers || camp.volunteers.length === 0) return false;
+                            return camp.volunteers.some(v => {
+                                const nameToCompare = typeof v === 'object' && v ? (v.name || v.email || '') : String(v);
+                                return nameToCompare.toLowerCase().trim() === String(employeeName).toLowerCase().trim();
+                            });
+                        });
+                    } else {
+                        campsData = allCamps;
+                    }
+                }
+                
+                console.log("📦 Assigned Camps:", campsData.length);
+                setCamps(sortCampsByStatus(campsData));
             } catch (err) {
                 console.error(err);
             } finally {
@@ -117,15 +160,9 @@ export default function MyCamps() {
         fetchData();
     }, [navigate]);
 
+    // ✅ FIX: Use assigned camps only
     const myAssignedCamps = useMemo(() => {
-        const name = localStorage.getItem("employeeName") || localStorage.getItem("userName") || "";
-        const empId = localStorage.getItem("employeeId");
-        return camps.filter(camp =>
-            camp.volunteers?.some(v =>
-                v.toLowerCase() === name.toLowerCase() ||
-                (empId && v === empId)
-            )
-        );
+        return camps;
     }, [camps]);
 
     const campsWithCount = useMemo(() => {
@@ -252,7 +289,6 @@ export default function MyCamps() {
         }
     };
 
-    // View modal helper - filter patients for selected camp
     const viewCampPatients = useMemo(() => {
         if (!viewCamp) return [];
         return patients.filter(p => String(p.campId?._id || p.campId) === String(viewCamp._id));
@@ -306,10 +342,6 @@ export default function MyCamps() {
         document.body.removeChild(link);
     };
 
-
-
-    /* -------- HELPER: PREPARE REPORT DATA -------- */
-
     const prepareReportData = async (patientId) => {
         try {
             const res = await axios.get(`${API_BASE}/patients/${patientId}`);
@@ -355,7 +387,6 @@ export default function MyCamps() {
         }
     };
 
-    /* -------- BULK ZIP DOWNLOAD -------- */
     const handleBulkDownload = async () => {
         if (selectedCampId === "all") {
             alert("Please select a specific camp to download reports.");
@@ -375,7 +406,6 @@ export default function MyCamps() {
             const selectedCamp = camps.find(c => String(c._id) === String(selectedCampId));
             const campName = selectedCamp?.name || "Camp";
 
-            // Generate PDFs for all patients
             for (let i = 0; i < campPatients.length; i++) {
                 const patient = campPatients[i];
 
@@ -388,7 +418,6 @@ export default function MyCamps() {
                             data.bmiData
                         );
 
-                        // Add PDF to ZIP with patient name and ID
                         const fileName = `${patient.name.replace(/[^a-z0-9]/gi, '_')}_${patient._id.slice(-6)}.pdf`;
                         zip.file(fileName, pdfBlob);
                     }
@@ -397,7 +426,6 @@ export default function MyCamps() {
                 }
             }
 
-            // Generate and download ZIP file
             const zipBlob = await zip.generateAsync({ type: "blob" });
             const url = URL.createObjectURL(zipBlob);
             const link = document.createElement("a");
@@ -428,8 +456,14 @@ export default function MyCamps() {
                         My Assigned <span>Camps</span>
                     </h1>
                     <p className="admin-dash__subtitle">
-                        View and manage patients in your assigned camps.
+                        {role === "partner" ? "View and manage patients in your partner camps." : "View and manage patients in your assigned camps."}
                     </p>
+                    {myAssignedCamps.length === 0 && (
+                        <div className="mt-2 flex items-center gap-2 text-sm text-amber-600 bg-amber-50 px-3 py-1 rounded-full">
+                            <AlertCircle size={14} />
+                            <span>No camps assigned to you yet. Contact your admin.</span>
+                        </div>
+                    )}
                 </div>
                 <div className="admin-dash__date-pill">
                     <Calendar />
@@ -464,23 +498,7 @@ export default function MyCamps() {
                             <Activity />
                         </div>
                     </div>
-                    <div className="admin-dash__stat-value">
-                        {myAssignedCamps.filter(c => {
-                            if (!c.date) return false;
-                            let campDate = new Date(c.date);
-                            if (isNaN(campDate.getTime())) {
-                                const parts = c.date.split('-');
-                                if (parts.length === 3) {
-                                    campDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-                                }
-                            }
-                            if (isNaN(campDate.getTime())) return false;
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            campDate.setHours(0, 0, 0, 0);
-                            return campDate.getTime() === today.getTime();
-                        }).length}
-                    </div>
+                    <div className="admin-dash__stat-value">{activeCampsCount}</div>
                     <div className="admin-dash__stat-meta">currently running</div>
                 </div>
 
@@ -491,9 +509,7 @@ export default function MyCamps() {
                             <Users />
                         </div>
                     </div>
-                    <div className="admin-dash__stat-value">
-                        {patients.filter(p => myAssignedCamps.some(c => c._id === p.campId?._id)).length}
-                    </div>
+                    <div className="admin-dash__stat-value">{totalPatientsCount}</div>
                     <div className="admin-dash__stat-meta">total patients</div>
                 </div>
 
@@ -504,23 +520,7 @@ export default function MyCamps() {
                             <Calendar />
                         </div>
                     </div>
-                    <div className="admin-dash__stat-value">
-                        {myAssignedCamps.filter(c => {
-                            if (!c.date) return false;
-                            let campDate = new Date(c.date);
-                            if (isNaN(campDate.getTime())) {
-                                const parts = c.date.split('-');
-                                if (parts.length === 3) {
-                                    campDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-                                }
-                            }
-                            if (isNaN(campDate.getTime())) return false;
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            campDate.setHours(0, 0, 0, 0);
-                            return campDate.getTime() > today.getTime();
-                        }).length}
-                    </div>
+                    <div className="admin-dash__stat-value">{upcomingCampsCount}</div>
                     <div className="admin-dash__stat-meta">scheduled camps</div>
                 </div>
 
@@ -536,100 +536,86 @@ export default function MyCamps() {
                 </div>
             </div>
 
-            {/* MAIN CONTENT AREA - Matches Camp.jsx Grid Layout */}
+            {/* MAIN CONTENT AREA */}
             <div className="space-y-8">
                 {/* CAMPS SECTION */}
                 <div ref={campsSectionRef} className="admin-dash__card">
                     <div className="admin-dash__card-header">
                         <h3 className="admin-dash__card-title">Assigned Camps</h3>
                         <span className="px-2 py-1 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-full">
-                            {myAssignedCamps.length} Active
+                            {myAssignedCamps.length} {myAssignedCamps.length === 1 ? 'Camp' : 'Camps'}
                         </span>
                     </div>
                     <div className="admin-dash__card-body">
-
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                        {/* ALL CAMPS CARD */}
-                        {/* <div
-                            onClick={() => {
-                                setSelectedCampId("all");
-                                scrollToSection(patientsSectionRef);
-                            }}
-                            className={`cursor-pointer p-4 rounded-2xl border transition-all ${selectedCampId === "all"
-                                ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
-                                : "bg-white hover:border-indigo-300 hover:shadow-md text-gray-700"
-                                }`}
-                        >
-                            <div className="flex items-center justify-between">
-                                <span className="font-semibold">All Patients</span>
-                                {selectedCampId === "all" && <ChevronRight size={18} />}
+                        {myAssignedCamps.length === 0 ? (
+                            <div className="p-12 text-center text-gray-500">
+                                <MapPin size={48} className="mx-auto text-gray-200 mb-4" />
+                                <p className="font-medium">No camps assigned to you yet.</p>
+                                <p className="text-sm text-gray-400 mt-1">Contact your admin for camp assignments.</p>
                             </div>
-                            <p className={`text-sm mt-1 ${selectedCampId === "all" ? "text-indigo-100" : "text-gray-500"}`}>
-                                Viewing all assigned context
-                            </p>
-                        </div> */}
-
-                        {/* CAMP CARDS */}
-                        {campsWithCount.map(camp => (
-                            <div
-                                key={camp._id}
-                                onClick={() => {
-                                    setSelectedCampId(camp._id);
-                                    scrollToSection(patientsSectionRef);
-                                }}
-                                className={`cursor-pointer p-4 rounded-2xl border transition-all ${selectedCampId === camp._id
-                                    ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
-                                    : "bg-white hover:border-indigo-300 hover:shadow-md"
-                                    }`}
-                            >
-                                <div className="flex items-center justify-between gap-2 mb-1">
-                                    <h4 className="font-bold truncate">{camp.name}</h4>
-                                    <CampStatusBadge date={camp.date} time={camp.time} />
-                                </div>
-
-                                <div className={`mt-2 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
-                                    <MapPin size={14} />
-                                    <span className="truncate">{camp.location}</span>
-                                </div>
-
-                                <div className={`mt-1 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
-                                    <Calendar size={14} />
-                                    <span>{camp.date || "Date TBD"}</span>
-                                </div>
-
-                                <div className={`mt-1 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
-                                    <Clock size={14} />
-                                    <span>{camp.time || "Time TBD"}</span>
-                                </div>
-
-                                <VolunteerDisplay
-                                    volunteers={camp.volunteers}
-                                    isSelected={selectedCampId === camp._id}
-                                />
-
-                                <PartnerDisplay
-                                    partners={camp.partners}
-                                    isSelected={selectedCampId === camp._id}
-                                />
-
-                                <span className={`inline-block mt-3 text-xs font-bold px-2 py-1 rounded-lg ${selectedCampId === camp._id
-                                    ? "bg-white/20 text-white"
-                                    : "bg-gray-100 text-gray-600"
-                                    }`}>
-                                    {camp.count} Patients
-                                </span>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setViewCamp(camp);
+                        ) : (
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                            {campsWithCount.map(camp => (
+                                <div
+                                    key={camp._id}
+                                    onClick={() => {
+                                        setSelectedCampId(camp._id);
+                                        scrollToSection(patientsSectionRef);
                                     }}
-                                    className="float-right mt-3 flex items-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors"
+                                    className={`cursor-pointer p-4 rounded-2xl border transition-all ${selectedCampId === camp._id
+                                        ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
+                                        : "bg-white hover:border-indigo-300 hover:shadow-md"
+                                        }`}
                                 >
-                                    <Eye size={12} /> View
-                                </button>
-                            </div>
-                        ))}
-                    </div>
+                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                        <h4 className="font-bold truncate">{camp.name}</h4>
+                                        <CampStatusBadge date={camp.date} time={camp.time} />
+                                    </div>
+
+                                    <div className={`mt-2 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                                        <MapPin size={14} />
+                                        <span className="truncate">{camp.location}</span>
+                                    </div>
+
+                                    <div className={`mt-1 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                                        <Calendar size={14} />
+                                        <span>{camp.date || "Date TBD"}</span>
+                                    </div>
+
+                                    <div className={`mt-1 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                                        <Clock size={14} />
+                                        <span>{camp.time || "Time TBD"}</span>
+                                    </div>
+
+                                    <VolunteerDisplay
+                                        volunteers={camp.volunteers}
+                                        isSelected={selectedCampId === camp._id}
+                                    />
+
+                                    <PartnerDisplay
+                                        partners={camp.partners}
+                                        isSelected={selectedCampId === camp._id}
+                                    />
+
+                                    <span className={`inline-block mt-3 text-xs font-bold px-2 py-1 rounded-lg ${selectedCampId === camp._id
+                                        ? "bg-white/20 text-white"
+                                        : "bg-gray-100 text-gray-600"
+                                        }`}>
+                                        {camp.count} Patients
+                                    </span>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setViewCamp(camp);
+                                        }}
+                                        className="float-right mt-3 flex items-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors"
+                                    >
+                                        <Eye size={12} /> View
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                        )}
                     </div>
                 </div>
 
