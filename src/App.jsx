@@ -44,6 +44,7 @@ import Partners from "./pages/Partners";
 
 import AIChatBox from "./components/AIChatBox";
 import ADashboard from "./pages/ADashboard";
+import LandingPage from "./pages/LandingPage";
 
 function App() {
   return (
@@ -69,9 +70,9 @@ function App() {
           <Route path="/partners" element={<Partners />} /> {/* ✅ Partners Page */}
           <Route path="/employeedashboard" element={<EmployeeDashboard />} />
           <Route path="/adashboard" element={<ADashboard />} />
+          <Route path="/landing" element={<LandingPage />} />
         </Routes>
       </Layout>
-      {/* <AIChatBox /> */}
     </Router>
   );
 }
