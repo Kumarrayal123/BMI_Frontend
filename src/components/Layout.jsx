@@ -106,6 +106,11 @@ const Layout = ({ children }) => {
                 <span>Partners</span>
               </NavLink>
             )}
+            {role === "admin" && (
+  <NavLink to="/all-reports" className={getLinkClass} onClick={close}>
+    <span>All Reports</span>
+  </NavLink>
+)}
           </>
         )}
 

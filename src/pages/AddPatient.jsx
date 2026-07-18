@@ -208,7 +208,7 @@
 // export default AddPatient;
 
 import axios from "axios";
-import { FiArrowLeft, FiSave, FiCalendar } from "react-icons/fi";
+import { FiArrowLeft, FiSave, FiCalendar, FiUser } from "react-icons/fi";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import config from "../config";
@@ -225,6 +225,7 @@ const AddPatient = () => {
   const [isLoadingCamps, setIsLoadingCamps] = useState(true);
 
   const [formData, setFormData] = useState({
+    salutation: "",
     name: "",
     age: "",
     gender: "female",
@@ -232,6 +233,19 @@ const AddPatient = () => {
     address: "",
     campId: ""
   });
+
+  // Salutation options
+  const salutationOptions = [
+    { value: "", label: "Select Salutation" },
+    { value: "Mr.", label: "Mr." },
+    { value: "Mrs.", label: "Mrs." },
+    { value: "Ms.", label: "Ms." },
+    { value: "Dr.", label: "Dr." },
+    { value: "M/s", label: "M/s" },
+    { value: "Mast.", label: "Mast." },
+    { value: "Miss", label: "Miss" },
+    { value: "N/A", label: "N/A" }
+  ];
 
   /* -------------------------
      FETCH CAMPS
@@ -322,6 +336,22 @@ const AddPatient = () => {
       return;
     }
 
+    // Validate required fields
+    if (!formData.name) {
+      alert("Please enter patient name");
+      return;
+    }
+
+    if (!formData.contact) {
+      alert("Please enter WhatsApp number");
+      return;
+    }
+
+    if (!formData.age) {
+      alert("Please enter age");
+      return;
+    }
+
     console.log("FINAL PAYLOAD 👉", formData);
 
     try {
@@ -376,10 +406,10 @@ const AddPatient = () => {
           <div className="admin-dash__card-body">
             <form onSubmit={handleSubmit} className="space-y-6">
 
-              {/* CAMP DROPDOWN - FIXED */}
+              {/* CAMP DROPDOWN - FIRST */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
-                  Select Camp
+                  Select Camp <span className="text-red-500">*</span>
                 </label>
 
                 <select
@@ -387,6 +417,7 @@ const AddPatient = () => {
                   onChange={(e) => setCampId(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500/20 outline-none"
                   disabled={isLoadingCamps}
+                  required
                 >
                   <option value="">
                     {isLoadingCamps ? "Loading camps..." : "Select Camp"}
@@ -412,56 +443,10 @@ const AddPatient = () => {
                 )}
               </div>
 
+              {/* CONTACT / WHATSAPP NUMBER - SECOND */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
-                  Patient Name
-                </label>
-                <input
-                  required
-                  name="name"
-                  value={formData.name}
-                  placeholder="Enter full name"
-                  className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
-                    Age
-                  </label>
-                  <input
-                    required
-                    name="age"
-                    type="number"
-                    value={formData.age}
-                    placeholder="Years"
-                    className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                    onChange={handleChange}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
-                    Gender
-                  </label>
-                  <select
-                    name="gender"
-                    value={formData.gender}
-                    className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                    onChange={handleChange}
-                  >
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="others">Others</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
-                  WhatsApp Number
+                  WhatsApp Number <span className="text-red-500">*</span>
                 </label>
                 <input
                   required
@@ -473,9 +458,84 @@ const AddPatient = () => {
                 />
               </div>
 
+              {/* SALUTATION - THIRD */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
-                  Address
+                  Salutation
+                </label>
+                <div className="relative">
+                  <select
+                    name="salutation"
+                    value={formData.salutation}
+                    className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none bg-white"
+                    onChange={handleChange}
+                  >
+                    {salutationOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <FiUser className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                </div>
+              </div>
+
+              {/* PATIENT NAME - FOURTH */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
+                  Patient Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  required
+                  name="name"
+                  value={formData.name}
+                  placeholder="Enter full name"
+                  className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                  onChange={handleChange}
+                />
+              </div>
+
+              {/* AGE & GENDER - FIFTH */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
+                    Age <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    required
+                    name="age"
+                    type="number"
+                    min="0"
+                    max="150"
+                    value={formData.age}
+                    placeholder="Years"
+                    className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
+                    Gender <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    name="gender"
+                    value={formData.gender}
+                    className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                    onChange={handleChange}
+                    required
+                  >
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="others">Others</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* ADDRESS - SIXTH */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
+                  Address <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   required

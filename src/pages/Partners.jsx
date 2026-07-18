@@ -13,7 +13,8 @@ import {
     FiX,
     FiSave,
     FiUser,
-    FiBriefcase
+    FiBriefcase,
+    FiFilter
 } from "react-icons/fi";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
@@ -24,7 +25,12 @@ const Partners = () => {
     const navigate = useNavigate();
     const [partners, setPartners] = useState([]);
     const [loading, setLoading] = useState(true);
+    
+    // 🔥 Filter States
+    const [filterType, setFilterType] = useState("name");
     const [searchQuery, setSearchQuery] = useState("");
+    const [showDropdown, setShowDropdown] = useState(false);
+    
     const [selectedPartner, setSelectedPartner] = useState(null);
     const [showViewModal, setShowViewModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
@@ -71,17 +77,77 @@ const Partners = () => {
         }
     };
 
+    // 🔥 Get unique values for dropdown
+    const uniqueNames = useMemo(() => {
+        return [...new Set(partners.map(p => p.name).filter(Boolean))].sort();
+    }, [partners]);
+
+    const uniqueEmails = useMemo(() => {
+        return [...new Set(partners.map(p => p.email).filter(Boolean))].sort();
+    }, [partners]);
+
+    const uniqueCenters = useMemo(() => {
+        return [...new Set(partners.map(p => p.clinicName).filter(Boolean))].sort();
+    }, [partners]);
+
+    const uniquePhones = useMemo(() => {
+        return [...new Set(partners.map(p => p.mobile).filter(Boolean))].sort();
+    }, [partners]);
+
+    // 🔥 Filter Options
+    const filterOptions = [
+        { value: "name", label: "Name" },
+        { value: "email", label: "Email" },
+        { value: "center", label: "Center" },
+        { value: "phone", label: "Phone" }
+    ];
+
+    // 🔥 Get dropdown options based on selected filter
+    const getDropdownOptions = () => {
+        switch(filterType) {
+            case "name": return uniqueNames;
+            case "email": return uniqueEmails;
+            case "center": return uniqueCenters;
+            case "phone": return uniquePhones;
+            default: return [];
+        }
+    };
+
+    // 🔥 Filter dropdown options based on search
+    const filteredDropdownOptions = getDropdownOptions().filter(option =>
+        option.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // 🔥 Filter Partners
     const filteredPartners = useMemo(() => {
+        if (!searchQuery.trim()) return partners;
+        const searchLower = searchQuery.toLowerCase();
         return partners.filter((p) => {
-            const searchLower = searchQuery.toLowerCase();
-            return (
-                p.name?.toLowerCase().includes(searchLower) ||
-                p.email?.toLowerCase().includes(searchLower) ||
-                p.clinicName?.toLowerCase().includes(searchLower) ||
-                (p.mobile && String(p.mobile).includes(searchLower))
-            );
+            switch(filterType) {
+                case "name":
+                    return p.name?.toLowerCase().includes(searchLower);
+                case "email":
+                    return p.email?.toLowerCase().includes(searchLower);
+                case "center":
+                    return p.clinicName?.toLowerCase().includes(searchLower);
+                case "phone":
+                    return p.mobile?.toLowerCase().includes(searchLower);
+                default:
+                    return p.name?.toLowerCase().includes(searchLower);
+            }
         });
-    }, [partners, searchQuery]);
+    }, [partners, searchQuery, filterType]);
+
+    // 🔥 Close dropdown on outside click
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (!e.target.closest('.partner-search-container')) {
+                setShowDropdown(false);
+            }
+        };
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, []);
 
     const formatDate = (dateString) => {
         if (!dateString) return "N/A";
@@ -95,14 +161,14 @@ const Partners = () => {
 
     // Handle View Partner
     const handleViewPartner = (partner) => {
-        lockScroll(); // 🔒 Lock scroll
+        lockScroll();
         setSelectedPartner(partner);
         setShowViewModal(true);
     };
 
     // Handle Edit Partner
     const handleEditPartner = (partner) => {
-        lockScroll(); // 🔒 Lock scroll
+        lockScroll();
         setSelectedPartner(partner);
         setEditFormData({
             name: partner.name || '',
@@ -163,7 +229,6 @@ const Partners = () => {
                 setUpdateSuccess(true);
                 setUpdateMessage('Partner updated successfully! ✅');
                 
-                // Refresh partners list
                 await fetchPartners();
                 
                 setTimeout(() => {
@@ -185,7 +250,7 @@ const Partners = () => {
 
     // Close Edit Modal
     const closeEditModal = () => {
-        unlockScroll(); // 🔓 Unlock scroll
+        unlockScroll();
         setShowEditModal(false);
         setSelectedPartner(null);
         setEditFormData({
@@ -203,7 +268,7 @@ const Partners = () => {
 
     // Close View Modal
     const closeViewModal = () => {
-        unlockScroll(); // 🔓 Unlock scroll
+        unlockScroll();
         setShowViewModal(false);
         setSelectedPartner(null);
     };
@@ -274,7 +339,7 @@ const Partners = () => {
                                 </p>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl">
-                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Clinic</p>
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Center</p>
                                 <p className="mt-1 font-medium text-gray-700 flex items-center gap-2">
                                     <FiHome className="text-gray-400 flex-shrink-0" size={16} />
                                     {partner.clinicName || 'N/A'}
@@ -446,7 +511,7 @@ const Partners = () => {
                         <div>
                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                                 <FiHome className="inline mr-1" size={14} />
-                                Clinic Name *
+                                Center Name *
                             </label>
                             <input
                                 type="text"
@@ -454,7 +519,7 @@ const Partners = () => {
                                 value={editFormData.clinicName}
                                 onChange={handleEditInputChange}
                                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
-                                placeholder="Enter clinic name"
+                                placeholder="Enter center name"
                             />
                         </div>
 
@@ -551,18 +616,57 @@ const Partners = () => {
                 <div className="admin-dash__card">
                     <div className="admin-dash__card-header">
                         <h3 className="admin-dash__card-title">Registered Partners</h3>
-                        <div className="relative w-full sm:w-72">
-                            <FiSearch
-                                size={18}
-                                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                            />
-                            <input
-                                type="text"
-                                placeholder="Search partners by name, email, or clinic..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20"
-                            />
+                        <div className="flex flex-wrap items-center gap-3">
+                            {/* Filter Dropdown */}
+                            <div className="flex items-center gap-2">
+                                <select
+                                    value={filterType}
+                                    onChange={(e) => {
+                                        setFilterType(e.target.value);
+                                        setSearchQuery("");
+                                        setShowDropdown(false);
+                                    }}
+                                    className="px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white"
+                                >
+                                    {filterOptions.map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            {/* Search with Dropdown */}
+                            <div className="relative partner-search-container w-full sm:w-64">
+                                <FiSearch
+                                    size={18}
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10"
+                                />
+                                <input
+                                    type="text"
+                                    placeholder={`Search by ${filterOptions.find(o => o.value === filterType)?.label || 'Name'}...`}
+                                    value={searchQuery}
+                                    onChange={(e) => {
+                                        setSearchQuery(e.target.value);
+                                        setShowDropdown(true);
+                                    }}
+                                    onFocus={() => setShowDropdown(true)}
+                                    className="w-full pl-10 pr-4 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                />
+                                {showDropdown && filteredDropdownOptions.length > 0 && searchQuery.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto z-50">
+                                        {filteredDropdownOptions.map((option, index) => (
+                                            <div
+                                                key={index}
+                                                className="px-4 py-2 text-sm hover:bg-indigo-50 cursor-pointer transition-colors"
+                                                onClick={() => {
+                                                    setSearchQuery(option);
+                                                    setShowDropdown(false);
+                                                }}
+                                            >
+                                                {option}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -580,7 +684,7 @@ const Partners = () => {
                                         <tr className="border-b border-gray-100 bg-gray-50/50">
                                             <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Name</th>
                                             <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Email</th>
-                                            <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Clinic</th>
+                                            <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Center</th>
                                             <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Mobile</th>
                                             <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Joined</th>
                                             <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Actions</th>

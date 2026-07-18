@@ -1066,6 +1066,7 @@
 
 import axios from "axios";
 import JSZip from "jszip";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   FiActivity,
   FiCalendar,
@@ -1090,16 +1091,16 @@ import {
   FiBriefcase,
   FiInfo,
   FiPlusCircle,
-  FiTrash2
+  FiTrash2,
+  FiEyeOff,
+  FiEye as FiEyeShow,
+  FiArchive
 } from "react-icons/fi";
-import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { generateMedicalReport, generateMedicalReportFile } from "../utils/pdfGenerator";
 import config from "../config";
 import { CampStatusBadge, getCampStatus, sortCampsByStatus } from "../utils/campStatus";
-import VolunteerDisplay from "../components/VolunteerDisplay";
-import PartnerDisplay from "../components/PartnerDisplay";
 import "./Dashboard.css";
 
 const API_BASE = config.API_BASE_URL;
@@ -1152,6 +1153,21 @@ export default function CampDashboard() {
   const [currentUserRole, setCurrentUserRole] = useState("");
   const [currentUserId, setCurrentUserId] = useState("");
 
+  // 🔥 Hidden Camps State
+  const [hiddenCamps, setHiddenCamps] = useState([]);
+  const [showHiddenModal, setShowHiddenModal] = useState(false);
+  
+  // 🔥 Camp View Filter
+  const [campViewFilter, setCampViewFilter] = useState("active");
+
+  // 🔥 Stats Modal State
+  const [statsModal, setStatsModal] = useState({
+    show: false,
+    title: "",
+    data: [],
+    type: "" // "camps", "patients", "active", "upcoming", "archived"
+  });
+
   // Filters
   const [selectedCampId, setSelectedCampId] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1171,7 +1187,7 @@ export default function CampDashboard() {
     address: "",
     date: "",
     time: "",
-    volunteers: [] // 🔥 Only volunteers for partner
+    volunteers: []
   });
   const [editingCamp, setEditingCamp] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -1198,22 +1214,94 @@ export default function CampDashboard() {
 
         console.log("🔍 Current User:", { role, partnerId });
 
-        // 🔥 FIX: Fetch all camps first
+        // Fetch all camps
         const allRes = await axios.get(`${API_BASE}/camps/allcamps`).catch(() => ({ data: [] }));
         let allCampsData = allRes.data || [];
         if (!Array.isArray(allCampsData)) {
           allCampsData = allCampsData.data || allCampsData.camps || [];
           if (!Array.isArray(allCampsData)) allCampsData = [];
         }
-        console.log("📦 All Camps:", allCampsData.length);
+        console.log(`📦 Total Camps: ${allCampsData.length}`);
+
+        // 🔥 DEBUG: Log all camps with their dates
+        console.log("📅 Camp Dates:");
+        allCampsData.forEach(camp => {
+          const date = camp.createdAt || camp.date || 'No date';
+          console.log(`  - ${camp.name}: ${date}`);
+        });
+
+        // 🔥 AUTO-HIDE: Force hide camps older than 10 days
+        let archivedCount = 0;
+        const now = new Date();
+        
+        for (const camp of allCampsData) {
+          // Skip if already hidden
+          if (camp.isHidden) {
+            console.log(`⏭️ Already hidden: ${camp.name}`);
+            continue;
+          }
+          
+          // Get camp date (createdAt or date)
+          let campDate = camp.createdAt || camp.date;
+          if (!campDate) {
+            console.log(`⚠️ No date for: ${camp.name}`);
+            continue;
+          }
+          
+          // Handle MongoDB date format
+          if (typeof campDate === 'object' && campDate.$date) {
+            campDate = campDate.$date;
+          }
+          
+          const created = new Date(campDate);
+          
+          // Check if date is valid
+          if (isNaN(created.getTime())) {
+            console.log(`⚠️ Invalid date for: ${camp.name} - ${campDate}`);
+            continue;
+          }
+          
+          const diffDays = Math.floor((now - created) / (1000 * 60 * 60 * 24));
+          
+          console.log(`📅 "${camp.name}" - ${diffDays} days old`);
+          
+          // 🔥 If camp is older than 10 days, auto-hide it
+          if (diffDays > 10) {
+            try {
+              await axios.put(`${API_BASE}/camps/hide-camp/${camp._id}`, { isHidden: true });
+              console.log(`🔒 AUTO-ARCHIVED: ${camp.name} (${diffDays} days old)`);
+              archivedCount++;
+            } catch (err) {
+              console.error(`❌ Failed to auto-hide ${camp.name}:`, err.response?.data || err.message);
+            }
+          }
+        }
+
+        if (archivedCount > 0) {
+          console.log(`✅ Auto-archived ${archivedCount} camps older than 10 days`);
+        }
+
+        // Refetch to get updated data
+        const updatedRes = await axios.get(`${API_BASE}/camps/allcamps`).catch(() => ({ data: [] }));
+        let updatedCampsData = updatedRes.data || [];
+        if (!Array.isArray(updatedCampsData)) {
+          updatedCampsData = updatedCampsData.data || updatedCampsData.camps || [];
+          if (!Array.isArray(updatedCampsData)) updatedCampsData = [];
+        }
+
+        // 🔥 Separate hidden and visible camps
+        const finalHidden = updatedCampsData.filter(camp => camp.isHidden === true);
+        const finalVisible = updatedCampsData.filter(camp => !camp.isHidden);
+
+        console.log(`📊 Total: ${updatedCampsData.length}, Archived: ${finalHidden.length}, Active: ${finalVisible.length}`);
+        setHiddenCamps(finalHidden);
 
         // If partner, filter assigned camps
         let assignedCampsData = [];
         let createdCampsData = [];
         
         if (role === "partner" && partnerId) {
-          // 🔥 FIX: Filter assigned camps - check both assignedPartner and partners
-          assignedCampsData = allCampsData.filter(camp => {
+          assignedCampsData = finalVisible.filter(camp => {
             const assignedPartnerId = camp.assignedPartner?._id || camp.assignedPartner;
             const isAssigned = assignedPartnerId && String(assignedPartnerId) === String(partnerId);
             const isInPartners = camp.partners && camp.partners.some(p => {
@@ -1223,40 +1311,15 @@ export default function CampDashboard() {
             return isAssigned || isInPartners;
           });
           
-          // 🔥 FIX: Filter created camps - check createdBy === partnerId and creatorRole === "partner"
-          createdCampsData = allCampsData.filter(camp => {
+          createdCampsData = finalVisible.filter(camp => {
             const campCreatedBy = camp.createdBy?._id || camp.createdBy;
             return String(campCreatedBy) === String(partnerId) && camp.creatorRole === "partner";
           });
-          
-          console.log("📦 Assigned Camps:", assignedCampsData.length);
-          console.log("📦 Created Camps:", createdCampsData.length);
         } else {
-          // Admin sees all camps
-          assignedCampsData = allCampsData;
+          assignedCampsData = finalVisible;
         }
 
-        // Add partner info to camps
-        const campsWithPartnerInfo = assignedCampsData.map(camp => {
-          const assignedPartners = camp.partners?.map(pid => {
-            const partner = partnerList.find(p => p._id === pid);
-            return partner ? partner : null;
-          }).filter(Boolean) || [];
-          
-          let createdByCurrentPartner = false;
-          if (role === "partner" && partnerId) {
-            const campCreatedBy = camp.createdBy?._id || camp.createdBy;
-            createdByCurrentPartner = String(campCreatedBy) === String(partnerId) && camp.creatorRole === "partner";
-          }
-          
-          return {
-            ...camp,
-            assignedPartners,
-            createdByCurrentPartner
-          };
-        });
-
-        setCamps(sortCampsByStatus(campsWithPartnerInfo));
+        setCamps(sortCampsByStatus(assignedCampsData));
         setCreatedCamps(createdCampsData);
 
         // Fetch patients
@@ -1316,27 +1379,103 @@ export default function CampDashboard() {
     fetchData();
   }, []);
 
+  /* -------- HIDE/UNHIDE FUNCTIONS -------- */
+
+  // 🔥 Hide/Archive a camp
+  const handleHideCamp = async (campId) => {
+    if (!window.confirm("Are you sure you want to archive this camp? It will be moved to archived.")) return;
+    try {
+      await axios.put(`${API_BASE}/camps/hide-camp/${campId}`, { isHidden: true });
+      alert("✅ Camp archived successfully");
+      window.location.reload();
+    } catch (err) {
+      console.error("Archive camp error:", err);
+      alert("❌ Failed to archive camp: " + (err.response?.data?.message || err.message));
+    }
+  };
+
+  // 🔥 Unhide/Restore a camp
+  const handleUnhideCamp = async (campId) => {
+    if (!window.confirm("Are you sure you want to restore this camp?")) return;
+    try {
+      await axios.put(`${API_BASE}/camps/unhide-camp/${campId}`, { isHidden: false });
+      alert("✅ Camp restored successfully");
+      setShowHiddenModal(false);
+      window.location.reload();
+    } catch (err) {
+      console.error("Restore camp error:", err);
+      alert("❌ Failed to restore camp: " + (err.response?.data?.message || err.message));
+    }
+  };
+
+  // 🔥 Manual Archive All Old Camps
+  const handleManualArchive = async () => {
+    if (!window.confirm("Are you sure you want to archive all camps older than 10 days?")) return;
+    try {
+      setLoading(true);
+      const response = await axios.post(`${API_BASE}/camps/archive-old-camps`, { days: 10 });
+      alert(`✅ ${response.data.message}`);
+      window.location.reload();
+    } catch (err) {
+      console.error("Manual archive error:", err);
+      alert("❌ Failed to archive old camps: " + (err.response?.data?.message || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* -------- STATS MODAL HANDLERS -------- */
+
+  const openStatsModal = (type, title, data) => {
+    setStatsModal({
+      show: true,
+      title: title,
+      data: data || [],
+      type: type
+    });
+  };
+
+  const closeStatsModal = () => {
+    setStatsModal({
+      show: false,
+      title: "",
+      data: [],
+      type: ""
+    });
+  };
+
   /* -------- DERIVED DATA -------- */
   
   const allCamps = useMemo(() => {
     if (currentUserRole === "partner") {
       const map = new Map();
-      [...camps, ...createdCamps].forEach(camp => {
+      [...camps, ...createdCamps, ...hiddenCamps].forEach(camp => {
         if (camp && camp._id) {
           map.set(String(camp._id), camp);
         }
       });
       return Array.from(map.values());
     }
-    return camps;
-  }, [camps, createdCamps, currentUserRole]);
+    return [...camps, ...hiddenCamps];
+  }, [camps, createdCamps, hiddenCamps, currentUserRole]);
 
+  // 🔥 Modified displayCamps to filter based on view
   const displayCamps = useMemo(() => {
+    let baseCamps = [];
+    
     if (currentUserRole === "partner") {
-      return activeTab === "assigned" ? camps : createdCamps;
+      baseCamps = activeTab === "assigned" ? camps : createdCamps;
+    } else {
+      baseCamps = camps;
     }
-    return camps;
-  }, [camps, createdCamps, activeTab, currentUserRole]);
+
+    // Filter based on view
+    if (campViewFilter === "active") {
+      return baseCamps.filter(camp => !camp.isHidden);
+    } else {
+      return baseCamps.filter(camp => camp.isHidden === true);
+    }
+  }, [camps, createdCamps, activeTab, currentUserRole, campViewFilter]);
 
   const filteredPatients = useMemo(() => {
     return patients.filter(p => {
@@ -1356,13 +1495,16 @@ export default function CampDashboard() {
 
   const totalCamps = allCamps.length;
   const totalPatients = patients.length;
+  const totalHiddenCamps = hiddenCamps.length;
 
   const activeCampsCount = allCamps.filter(c => {
+    if (c.isHidden) return false;
     const { status } = getCampStatus(c.date, c.time);
     return status === 'live' || status === 'today';
   }).length;
 
   const upcomingCampsCount = allCamps.filter(c => {
+    if (c.isHidden) return false;
     const { status } = getCampStatus(c.date, c.time);
     return status === 'upcoming';
   }).length;
@@ -1629,7 +1771,6 @@ export default function CampDashboard() {
     }
   };
 
-  // 🔥 FIX: Partner can only add volunteers (no partners)
   const handleAddVolunteer = (e) => {
     const val = e.target.value;
     if (!val) return;
@@ -1649,9 +1790,6 @@ export default function CampDashboard() {
     });
   };
 
-  // 🔥 FIX: No handleAddPartner for partner - partners can't assign partners
-
-  // 🔥 FIX: Partner: Create camp (will be saved with creatorRole: "partner")
   const handleCreateCamp = async () => {
     try {
       if (!campForm.name || !campForm.location || !campForm.date || !campForm.time) {
@@ -1667,12 +1805,10 @@ export default function CampDashboard() {
         time: campForm.time,
         createdBy: currentUserId,
         creatorRole: "partner",
-        volunteers: campForm.volunteers || [] // 🔥 Only volunteer names (strings)
+        volunteers: campForm.volunteers || []
       };
 
-      console.log("📝 Creating camp with data:", formData);
-
-      await axios.post(`${API_BASE}/camps/addcamp`, formData);
+      await axios.post(`${API_BASE}/camps/partner/addcamp`, formData);
       alert("✅ Camp created successfully");
       setShowCampModal(false);
       setCampForm({
@@ -1683,7 +1819,6 @@ export default function CampDashboard() {
         time: "",
         volunteers: []
       });
-      // Refresh data
       window.location.reload();
     } catch (err) {
       console.error("CREATE CAMP ERROR", err);
@@ -1691,7 +1826,6 @@ export default function CampDashboard() {
     }
   };
 
-  // Partner: Update camp
   const handleUpdateCamp = async () => {
     try {
       if (!editingCamp) return;
@@ -1705,7 +1839,7 @@ export default function CampDashboard() {
         volunteers: campForm.volunteers || []
       };
       
-      await axios.put(`${API_BASE}/camps/update-camp/${currentUserId}/${editingCamp._id}`, formData);
+      await axios.put(`${API_BASE}/camps/partner/update-camp/${currentUserId}/${editingCamp._id}`, formData);
       alert("✅ Camp updated successfully");
       setShowEditModal(false);
       setEditingCamp(null);
@@ -1724,11 +1858,10 @@ export default function CampDashboard() {
     }
   };
 
-  // Partner: Delete camp
   const handleDeleteCamp = async (campId) => {
     if (!window.confirm("Are you sure you want to delete this camp?")) return;
     try {
-      await axios.delete(`${API_BASE}/camps/delete-camp/${currentUserId}/${campId}`);
+      await axios.delete(`${API_BASE}/camps/partner/delete-camp/${currentUserId}/${campId}`);
       alert("✅ Camp deleted successfully");
       window.location.reload();
     } catch (err) {
@@ -1788,6 +1921,272 @@ export default function CampDashboard() {
     return { label: "Unknown", color: "bg-gray-100 text-gray-700" };
   };
 
+  // Stats Modal Component
+  const StatsModal = () => {
+    if (!statsModal.show) return null;
+
+    return (
+      <div 
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            closeStatsModal();
+          }
+        }}
+      >
+        <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+          {/* Header - Same gradient as Archived Modal */}
+          <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
+            <div>
+              <h3 className="text-xl font-bold text-white">{statsModal.title}</h3>
+              <p className="text-sm text-purple-100">
+                Total: {statsModal.data.length} items
+              </p>
+            </div>
+            <button
+              onClick={closeStatsModal}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white"
+            >
+              <FiX size={20} />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="overflow-auto flex-1 p-0">
+            {statsModal.data.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-400 font-medium">No data found</p>
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-gray-50 sticky top-0 z-10">
+                  <tr>
+                    <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">#</th>
+                    <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Name</th>
+                    {statsModal.type === "patients" && (
+                      <>
+                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Contact</th>
+                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Age</th>
+                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Gender</th>
+                      </>
+                    )}
+                    {(statsModal.type === "camps" || statsModal.type === "active" || statsModal.type === "upcoming" || statsModal.type === "archived") && (
+                      <>
+                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Location</th>
+                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Date</th>
+                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Created</th>
+                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Status</th>
+                      </>
+                    )}
+                    <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {statsModal.data.map((item, index) => (
+                    <tr key={item._id || index} className="hover:bg-gray-50/80 transition-colors">
+                      <td className="p-4 text-sm text-gray-500">{index + 1}</td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-xs border border-purple-100">
+                            {(item.name || item.patientName || 'U').charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-semibold text-gray-900">{item.name || item.patientName || 'N/A'}</span>
+                        </div>
+                      </td>
+                      {statsModal.type === "patients" && (
+                        <>
+                          <td className="p-4 text-sm text-gray-600">{item.contact || 'N/A'}</td>
+                          <td className="p-4 text-sm text-gray-600">{item.age || 'N/A'}</td>
+                          <td className="p-4 text-sm text-gray-600">{item.gender || 'N/A'}</td>
+                        </>
+                      )}
+                      {(statsModal.type === "camps" || statsModal.type === "active" || statsModal.type === "upcoming" || statsModal.type === "archived") && (
+                        <>
+                          <td className="p-4 text-sm text-gray-600">{item.location || 'N/A'}</td>
+                          <td className="p-4 text-sm text-gray-600">{item.date || 'N/A'}</td>
+                          <td className="p-4">
+                            <span className="text-sm text-gray-600">
+                              {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
+                            </span>
+                            {item.createdAt && (
+                              <span className="block text-xs text-gray-400">
+                                {Math.floor((new Date() - new Date(item.createdAt)) / (1000 * 60 * 60 * 24))} days old
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-4">
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              statsModal.type === "archived" || item.isHidden 
+                                ? "bg-purple-100 text-purple-700" 
+                                : statsModal.type === "active" 
+                                  ? "bg-green-100 text-green-700"
+                                  : statsModal.type === "upcoming"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-gray-100 text-gray-700"
+                            }`}>
+                              {item.isHidden ? "Archived" : 
+                               statsModal.type === "active" ? "Active" :
+                               statsModal.type === "upcoming" ? "Upcoming" : "Active"}
+                            </span>
+                          </td>
+                        </>
+                      )}
+                      <td className="p-4">
+                        <button
+                          onClick={() => {
+                            closeStatsModal();
+                            if (item._id) {
+                              setViewCamp(item);
+                            }
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                        >
+                          <FiEye size={14} /> View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+            <button
+              onClick={closeStatsModal}
+              className="px-6 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition shadow-sm"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Hidden Camps Modal
+  const HiddenCampsModal = () => {
+    if (!showHiddenModal) return null;
+
+    return (
+      <div 
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setShowHiddenModal(false);
+          }
+        }}
+      >
+        <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+          {/* Header */}
+          <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
+            <div>
+              <h3 className="text-xl font-bold text-white">Archived Camps</h3>
+              <p className="text-sm text-purple-100">
+                {hiddenCamps.length} camps archived (auto-archive after 10 days)
+              </p>
+            </div>
+            <button
+              onClick={() => setShowHiddenModal(false)}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white"
+            >
+              <FiX size={20} />
+            </button>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-auto flex-1 p-0">
+            {hiddenCamps.length === 0 ? (
+              <div className="text-center py-12">
+                <FiArchive size={48} className="mx-auto text-gray-200 mb-4" />
+                <p className="text-gray-400 font-medium">No archived camps found</p>
+                <p className="text-sm text-gray-300 mt-1">Camps auto-archive after 10 days</p>
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-gray-50 sticky top-0 z-10">
+                  <tr>
+                    <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Camp Name</th>
+                    <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Location</th>
+                    <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Date</th>
+                    <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Created</th>
+                    <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Patients</th>
+                    <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {hiddenCamps.map(camp => {
+                    const patientCount = patients.filter(
+                      p => String(p.campId?._id) === String(camp._id)
+                    ).length;
+                    
+                    const createdDate = camp.createdAt ? new Date(camp.createdAt).toLocaleDateString() : 'N/A';
+                    const daysOld = camp.createdAt ? 
+                      Math.floor((new Date() - new Date(camp.createdAt)) / (1000 * 60 * 60 * 24)) : 0;
+
+                    return (
+                      <tr key={camp._id} className="hover:bg-gray-50/80 transition-colors">
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-xs border border-purple-100">
+                              {camp.name?.charAt(0)?.toUpperCase() || 'C'}
+                            </div>
+                            <span className="font-semibold text-gray-900">{camp.name}</span>
+                          </div>
+                        </td>
+                        <td className="p-4 text-sm text-gray-600">{camp.location || 'N/A'}</td>
+                        <td className="p-4 text-sm text-gray-600">{camp.date || 'N/A'}</td>
+                        <td className="p-4">
+                          <span className="text-sm text-gray-600">{createdDate}</span>
+                          <span className="block text-xs text-gray-400">{daysOld} days old</span>
+                        </td>
+                        <td className="p-4">
+                          <span className="px-3 py-1 text-sm bg-indigo-100 text-indigo-700 rounded-full">
+                            {patientCount} patients
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setViewCamp(camp);
+                                setShowHiddenModal(false);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                            >
+                              <FiEye size={14} /> View
+                            </button>
+                            <button
+                              onClick={() => handleUnhideCamp(camp._id)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                            >
+                              <FiEyeShow size={14} /> Restore
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+            <button
+              onClick={() => setShowHiddenModal(false)}
+              className="px-6 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition shadow-sm"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="admin-dash">
       {/* Header */}
@@ -1806,7 +2205,7 @@ export default function CampDashboard() {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="admin-dash__date-pill">
             <FiCalendar />
             <span>
@@ -1818,6 +2217,29 @@ export default function CampDashboard() {
               })}
             </span>
           </div>
+          
+          {/* 🔥 NEW: Manual Archive Button */}
+          <button
+            onClick={handleManualArchive}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-xl font-semibold hover:bg-orange-700 transition shadow-lg shadow-orange-100"
+            disabled={loading}
+          >
+            <FiArchive size={18} />
+            {loading ? "Processing..." : "Archive Old"}
+          </button>
+          
+          <button
+            onClick={() => setShowHiddenModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition shadow-lg shadow-purple-100 relative"
+          >
+            <FiArchive size={18} />
+            Archived
+            {totalHiddenCamps > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                {totalHiddenCamps}
+              </span>
+            )}
+          </button>
           <button
             onClick={() => setShowCampModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition shadow-lg shadow-green-100"
@@ -1832,63 +2254,98 @@ export default function CampDashboard() {
 
       {/* Top Summary Stats */}
       <div className="admin-dash__stats">
-        <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+        <div 
+          className="admin-dash__stat cursor-pointer" 
+          onClick={() => openStatsModal("camps", "All Camps", allCamps)}
+        >
           <div className="admin-dash__stat-top">
             <span className="admin-dash__stat-label">Total Camps</span>
             <div className="admin-dash__stat-icon admin-dash__stat-icon--indigo">
               <FiMapPin />
             </div>
           </div>
-          <div className="admin-dash__stat-value">{totalCamps}</div>
-          <div className="admin-dash__stat-meta">health camps</div>
+          <div className="admin-dash__stat-value">{allCamps.length}</div>
+          <div className="admin-dash__stat-meta">total camps</div>
         </div>
-        <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+
+        <div 
+          className="admin-dash__stat cursor-pointer" 
+          onClick={() => openStatsModal("active", "Active Camps", allCamps.filter(c => !c.isHidden))}
+        >
           <div className="admin-dash__stat-top">
             <span className="admin-dash__stat-label">Active Camps</span>
             <div className="admin-dash__stat-icon admin-dash__stat-icon--emerald">
               <FiActivity />
             </div>
           </div>
-          <div className="admin-dash__stat-value">{activeCampsCount}</div>
-          <div className="admin-dash__stat-meta">currently running</div>
+          <div className="admin-dash__stat-value">{allCamps.filter(c => !c.isHidden).length}</div>
+          <div className="admin-dash__stat-meta">active camps</div>
         </div>
-        <div className="admin-dash__stat" onClick={() => scrollToSection(patientsSectionRef)}>
+
+        <div 
+          className="admin-dash__stat cursor-pointer" 
+          onClick={() => openStatsModal("patients", "All Patients", patients)}
+        >
           <div className="admin-dash__stat-top">
             <span className="admin-dash__stat-label">Total Patients</span>
             <div className="admin-dash__stat-icon admin-dash__stat-icon--amber">
               <FiUsers />
             </div>
           </div>
-          <div className="admin-dash__stat-value">{totalPatients}</div>
+          <div className="admin-dash__stat-value">{patients.length}</div>
           <div className="admin-dash__stat-meta">total patients</div>
         </div>
-        <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+
+        <div 
+          className="admin-dash__stat cursor-pointer" 
+          onClick={() => openStatsModal("upcoming", "Upcoming Camps", allCamps.filter(c => {
+            if (c.isHidden) return false;
+            const { status } = getCampStatus(c.date, c.time);
+            return status === 'upcoming';
+          }))}
+        >
           <div className="admin-dash__stat-top">
             <span className="admin-dash__stat-label">Upcoming</span>
             <div className="admin-dash__stat-icon admin-dash__stat-icon--cyan">
               <FiCalendar />
             </div>
           </div>
-          <div className="admin-dash__stat-value">{upcomingCampsCount}</div>
+          <div className="admin-dash__stat-value">{allCamps.filter(c => {
+            if (c.isHidden) return false;
+            const { status } = getCampStatus(c.date, c.time);
+            return status === 'upcoming';
+          }).length}</div>
           <div className="admin-dash__stat-meta">scheduled camps</div>
         </div>
-        <div className="admin-dash__stat">
+
+        <div 
+          className="admin-dash__stat cursor-pointer" 
+          onClick={() => {
+            if (hiddenCamps.length > 0) {
+              setShowHiddenModal(true);
+            } else {
+              alert("No archived camps found");
+            }
+          }}
+        >
           <div className="admin-dash__stat-top">
-            <span className="admin-dash__stat-label">Partners</span>
-            <div className="admin-dash__stat-icon admin-dash__stat-icon--rose">
-              <FiUserCheck />
+            <span className="admin-dash__stat-label">Archived</span>
+            <div className="admin-dash__stat-icon admin-dash__stat-icon--purple" style={{ background: '#f3e8ff', color: '#7c3aed' }}>
+              <FiArchive />
             </div>
           </div>
-          <div className="admin-dash__stat-value">{partnerList.length}</div>
-          <div className="admin-dash__stat-meta">registered partners</div>
+          <div className="admin-dash__stat-value">{hiddenCamps.length}</div>
+          <div className="admin-dash__stat-meta">archived camps</div>
         </div>
       </div>
 
       {/* Camps Section */}
       <div ref={campsSectionRef} className="admin-dash__card">
         <div className="admin-dash__card-header">
-          <h3 className="admin-dash__card-title">All Camps</h3>
-          <div className="flex items-center gap-3">
+          <h3 className="admin-dash__card-title">
+            {campViewFilter === "active" ? "Active Camps" : "Archived Camps"}
+          </h3>
+          <div className="flex items-center gap-3 flex-wrap">
             {currentUserRole === "partner" && (
               <div className="flex bg-gray-100 rounded-xl p-1">
                 <button
@@ -1913,29 +2370,76 @@ export default function CampDashboard() {
                 </button>
               </div>
             )}
+
+            {/* 🔥 Active/Archived Toggle Buttons */}
+            {/* <div className="flex bg-indigo-50 rounded-xl p-1 border border-indigo-100">
+              <button
+                onClick={() => setCampViewFilter("active")}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  campViewFilter === "active" 
+                    ? "bg-indigo-600 text-white shadow-sm" 
+                    : "text-indigo-600 hover:bg-indigo-100"
+                }`}
+              >
+                <FiEye size={12} />
+                Show Active
+                <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+                  campViewFilter === "active" 
+                    ? "bg-white/20 text-white" 
+                    : "bg-indigo-100 text-indigo-600"
+                }`}>
+                  {camps.filter(c => !c.isHidden).length}
+                </span>
+              </button>
+              <button
+                onClick={() => setCampViewFilter("archived")}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  campViewFilter === "archived" 
+                    ? "bg-indigo-600 text-white shadow-sm" 
+                    : "text-indigo-600 hover:bg-indigo-100"
+                }`}
+              >
+                <FiArchive size={12} />
+                Show Archived
+                <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+                  campViewFilter === "archived" 
+                    ? "bg-white/20 text-white" 
+                    : "bg-indigo-100 text-indigo-600"
+                }`}>
+                  {hiddenCamps.length}
+                </span>
+              </button>
+            </div> */}
+
             <span className="px-2 py-1 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-full">
               {activeCampsCount} Active
             </span>
-            <button
-              onClick={() => setSelectedCampId("all")}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-blue-700 transition"
-            >
-              All Camps Data
-            </button>
           </div>
         </div>
         <div className="admin-dash__card-body">
-          {campsWithCount.length === 0 ? (
+          {displayCamps.length === 0 ? (
             <div className="p-12 text-center text-gray-500">
-              <FiMapPin size={48} className="mx-auto text-gray-200 mb-4" />
-              <p className="font-medium">No camps found</p>
+              {campViewFilter === "active" ? (
+                <>
+                  <FiMapPin size={48} className="mx-auto text-gray-200 mb-4" />
+                  <p className="font-medium">No active camps found</p>
+                  <p className="text-sm text-gray-400 mt-1">Create a new camp to get started</p>
+                </>
+              ) : (
+                <>
+                  <FiArchive size={48} className="mx-auto text-gray-200 mb-4" />
+                  <p className="font-medium">No archived camps found</p>
+                  <p className="text-sm text-gray-400 mt-1">Camps auto-archive after 10 days</p>
+                </>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {campsWithCount.map(camp => {
+              {displayCamps.map(camp => {
                 const isSelected = selectedCampId === camp._id;
                 const isCreated = currentUserRole === "partner" && activeTab === "created";
                 const creatorInfo = getCreatorInfo(camp);
+                const isArchived = camp.isHidden === true;
 
                 return (
                   <div
@@ -1948,15 +2452,25 @@ export default function CampDashboard() {
                       ${isSelected
                         ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
                         : "bg-white hover:border-indigo-300 hover:shadow-md"
-                      }`}
+                      }
+                      ${isArchived ? "border-purple-300 bg-purple-50/30" : ""}
+                    `}
                   >
                     {/* Creator Badge */}
                     <div className={`absolute top-2 left-2 text-[8px] font-bold px-2 py-0.5 rounded-full ${creatorInfo.color}`}>
                       {creatorInfo.label}
                     </div>
 
+                    {/* Archived badge */}
+                    {isArchived && (
+                      <div className="absolute top-2 right-2 bg-purple-600 text-white text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
+                        <FiArchive size={10} />
+                        Archived
+                      </div>
+                    )}
+
                     {/* Partner created badge */}
-                    {camp.createdByCurrentPartner && currentUserRole === "partner" && (
+                    {camp.createdByCurrentPartner && currentUserRole === "partner" && !isArchived && (
                       <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
                         Your Camp
                       </div>
@@ -1964,7 +2478,12 @@ export default function CampDashboard() {
 
                     <div className="flex items-center justify-between gap-2 mb-1 mt-4">
                       <h4 className="font-bold truncate">{camp.name}</h4>
-                      <CampStatusBadge date={camp.date} time={camp.time} />
+                      {!isArchived && <CampStatusBadge date={camp.date} time={camp.time} />}
+                      {isArchived && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-200 text-purple-700 rounded-full">
+                          Archived
+                        </span>
+                      )}
                     </div>
 
                     <div className={`mt-2 flex items-center gap-2 text-sm ${isSelected ? "text-indigo-100" : "text-gray-500"}`}>
@@ -2031,11 +2550,11 @@ export default function CampDashboard() {
                     )}
 
                     <span className={`inline-block mt-3 text-xs font-bold px-2 py-1 rounded-lg ${isSelected ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"}`}>
-                      {camp.count} Patients
+                      {patients.filter((p) => String(p.campId?._id) === String(camp._id)).length} Patients
                     </span>
 
                     <div className="float-right mt-3 flex items-center gap-1">
-                      {isCreated && (
+                      {isCreated && !isArchived && (
                         <>
                           <button
                             onClick={(e) => {
@@ -2065,7 +2584,37 @@ export default function CampDashboard() {
                           >
                             <FiTrash2 size={12} />
                           </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleHideCamp(camp._id);
+                            }}
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              isSelected 
+                                ? "text-white hover:bg-white/20" 
+                                : "text-purple-600 hover:bg-purple-50"
+                            }`}
+                            title="Archive Camp"
+                          >
+                            <FiEyeOff size={12} />
+                          </button>
                         </>
+                      )}
+                      {isArchived && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUnhideCamp(camp._id);
+                          }}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            isSelected 
+                              ? "text-white hover:bg-white/20" 
+                              : "text-emerald-600 hover:bg-emerald-50"
+                          }`}
+                          title="Restore Camp"
+                        >
+                          <FiEyeShow size={12} />
+                        </button>
                       )}
                       <button
                         onClick={(e) => {
@@ -2260,7 +2809,7 @@ export default function CampDashboard() {
           </div>, document.body)
         )}
 
-      {/* Create Camp Modal - 🔥 Only volunteers, no partners */}
+      {/* Create Camp Modal */}
       {showCampModal && createPortal(
         <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4">
           <div className="w-full max-w-lg bg-white shadow-2xl rounded-2xl overflow-hidden animate-in zoom-in-95 duration-300">
@@ -2325,7 +2874,6 @@ export default function CampDashboard() {
                 </div>
               </div>
 
-              {/* 🔥 Only Volunteers - No Partners for partner */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">Select Volunteers</label>
                 <div className="flex flex-wrap gap-2 mb-2">
@@ -2461,10 +3009,10 @@ export default function CampDashboard() {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
             {/* Header */}
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-              <div>
+            <div className="p-6 border-b border-gray-100 flex items-start justify-between bg-gray-50/50">
+              <div className="flex-1 pr-4">
                 <h3 className="text-xl font-bold text-gray-900">{viewCamp.name}</h3>
-                <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 flex-wrap">
                   <div className="flex items-center gap-1.5">
                     <FiMapPin size={14} className="text-indigo-500" />
                     <span>{viewCamp.location}</span>
@@ -2480,7 +3028,7 @@ export default function CampDashboard() {
                 </div>
                 
                 {/* Show creator info */}
-                <div className="flex items-center gap-2 mt-2">
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <span className="text-xs font-semibold text-gray-600">Created by:</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full ${
                     viewCamp.creatorRole === "admin" 
@@ -2494,7 +3042,7 @@ export default function CampDashboard() {
                 
                 {/* Show assigned partners in modal */}
                 {viewCamp.partners && viewCamp.partners.length > 0 && (
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-xs font-semibold text-gray-600">Partners:</span>
                     {viewCamp.partners.map((partnerId, index) => {
                       const name = getPartnerName(partnerId);
@@ -2509,7 +3057,7 @@ export default function CampDashboard() {
                 
                 {/* Show volunteers in modal */}
                 {viewCamp.volunteers && viewCamp.volunteers.length > 0 && (
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-xs font-semibold text-gray-600">Volunteers:</span>
                     {viewCamp.volunteers.map((vol, index) => {
                       const name = getVolunteerName(vol);
@@ -2522,11 +3070,13 @@ export default function CampDashboard() {
                   </div>
                 )}
               </div>
+              
+              {/* Close button - top-right, fixed position */}
               <button
                 onClick={() => setViewCamp(null)}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition shadow-sm"
+                className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition shadow-sm"
               >
-                <FiX size={16} />
+                <FiX size={18} />
               </button>
             </div>
 
@@ -2624,6 +3174,12 @@ export default function CampDashboard() {
         </div>,
         document.body
       )}
+
+      {/* Stats Modal */}
+      <StatsModal />
+
+      {/* Hidden Camps Modal */}
+      <HiddenCampsModal />
       </div>
     </div>
   );

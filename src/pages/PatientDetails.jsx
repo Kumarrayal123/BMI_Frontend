@@ -708,8 +708,8 @@
 
 
 import axios from "axios";
-import { Activity, ArrowLeft, FileDown } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Activity, ArrowLeft, FileDown, Calendar, User, Phone, MapPin, Ruler, Weight, Heart, Droplet, Thermometer } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import AddTestForm from "../components/AddTestForm";
 import { generateMedicalReport } from "../utils/pdfGenerator";
@@ -717,9 +717,7 @@ import config from "../config";
 
 /* ================= HELPERS ================= */
 
-
-
-// ✅ BMI calculate (IMPORTANT FIX)
+// ✅ BMI calculate
 const calculateBMI = (weight, heightCm) => {
   if (!weight || !heightCm) return null;
   const heightM = heightCm / 100;
@@ -734,9 +732,8 @@ const getBMICategory = (bmi) => {
   return "Obese";
 };
 
-/* 🔥 Latest vitals extractor */
+/* Extract latest vitals */
 const extractLatestVitals = (tests = []) => {
-  console.log("Extracting latest vitals from tests:", tests);
   const result = {
     weight: null,
     height: null,
@@ -750,7 +747,6 @@ const extractLatestVitals = (tests = []) => {
 
   tests.forEach((t) => {
     result.date = t.date;
-    console.log(`Processing test: type=${t.type}, value=${t.value}, value2=${t.value2}`);
 
     if (t.type === "weight") result.weight = t.value;
     if (t.type === "height") result.height = t.value;
@@ -758,7 +754,6 @@ const extractLatestVitals = (tests = []) => {
     if (t.type === "bp") {
       result.systolic = t.value;
       result.diastolic = t.value2;
-      console.log(`Found BP: ${result.systolic}/${result.diastolic}`);
     }
     if (t.type === "bmi") {
       result.bmi = t.value;
@@ -766,8 +761,37 @@ const extractLatestVitals = (tests = []) => {
     }
   });
 
-  console.log("Final Extracted Vitals:", result);
   return result;
+};
+
+/* Get test icon */
+const getTestIcon = (type) => {
+  switch(type) {
+    case 'bp': return <Heart size={18} className="text-red-500" />;
+    case 'sugar': return <Droplet size={18} className="text-blue-500" />;
+    case 'weight': return <Weight size={18} className="text-purple-500" />;
+    case 'height': return <Ruler size={18} className="text-green-500" />;
+    case 'temperature': return <Thermometer size={18} className="text-orange-500" />;
+    default: return <Activity size={18} className="text-indigo-500" />;
+  }
+};
+
+/* Get test display value */
+const getTestDisplay = (test) => {
+  switch(test.type) {
+    case 'bp':
+      return `${test.value || "-"}/${test.value2 || "-"} mmHg`;
+    case 'sugar':
+      return `${test.value || "-"} ${test.sugarType || 'Random'} mg/dL`;
+    case 'weight':
+      return `${test.value || "-"} kg`;
+    case 'height':
+      return `${test.value || "-"} cm`;
+    case 'temperature':
+      return `${test.value || "-"} °F`;
+    default:
+      return `${test.value || "-"} ${test.unit || ''}`;
+  }
 };
 
 /* ================= COMPONENT ================= */
@@ -792,6 +816,12 @@ const PatientDetails = () => {
     fetchPatient();
   }, [id]);
 
+  // Get latest tests (recent first)
+  const latestTests = useMemo(() => {
+    if (!patient?.tests) return [];
+    return [...patient.tests].reverse();
+  }, [patient?.tests]);
+
   /* ================= PDF ================= */
 
   const generatePDF = () => {
@@ -802,11 +832,9 @@ const PatientDetails = () => {
 
     const test = extractLatestVitals(patient.tests);
 
-    // Calculate BMI if missing
     const bmiValue = test.bmi ?? calculateBMI(test.weight, test.height);
     const bmiCategory = test.bmiCategory ?? getBMICategory(bmiValue);
 
-    // Map to expected utility format
     const patientData = {
       name: patient.name,
       age: patient.age,
@@ -821,7 +849,7 @@ const PatientDetails = () => {
       weight: test.weight,
       height: test.height,
       sugar: test.sugar,
-      sugarType: "Random", // Defaulting
+      sugarType: "Random",
       systolic: test.systolic,
       diastolic: test.diastolic,
       heartRate: "-",
@@ -833,7 +861,6 @@ const PatientDetails = () => {
     };
 
     try {
-      console.log("Generating with data:", { patientData, testsData, bmiData });
       generateMedicalReport(patientData, testsData, bmiData);
     } catch (err) {
       console.error("PDF Generation failed:", err);
@@ -842,60 +869,151 @@ const PatientDetails = () => {
   };
 
   if (loading || !patient) {
-    return <div className="p-8 text-center">Loading...</div>;
+    return <div className="p-8 text-center text-gray-500">Loading patient details...</div>;
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
-      <div className="flex items-center gap-4 bg-white p-6 rounded-2xl shadow border">
-        <Link to="/dashboard" className="p-2 hover:bg-gray-100 rounded-full">
-          <ArrowLeft />
-        </Link>
-        <div>
-          <h2 className="text-3xl font-bold">{patient.name}</h2>
-          <p className="text-sm text-gray-500">
-            Age: {patient.age} | Gender: {patient.gender} | Ph: {patient.contact}
-          </p>
-          <p className="text-sm text-gray-500">Address: {patient.address}</p>
+    <div className="max-w-6xl mx-auto space-y-6 p-4">
+      {/* ===== PATIENT HEADER ===== */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900">{patient.name}</h2>
+            <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-gray-600">
+              <span className="flex items-center gap-1.5">
+                <User size={16} className="text-indigo-500" />
+                Age: {patient.age} yrs
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Activity size={16} className="text-indigo-500" />
+                Gender: {patient.gender}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Phone size={16} className="text-indigo-500" />
+                {patient.contact}
+              </span>
+              {patient.address && (
+                <span className="flex items-center gap-1.5">
+                  <MapPin size={16} className="text-indigo-500" />
+                  {patient.address}
+                </span>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={generatePDF}
+            className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-100 active:scale-95 whitespace-nowrap"
+          >
+            <FileDown size={18} />
+            Download Health Report
+          </button>
         </div>
       </div>
 
+      {/* ===== ADD TEST FORM ===== */}
       <AddTestForm patientId={patient._id} onSuccess={fetchPatient} />
 
-      {/* History section added for visibility */}
-      <h3 className="text-xl font-bold text-gray-800 border-b pb-2">Medical History</h3>
-      <div className="space-y-4">
-        {patient.tests?.length > 0 ? (
-          patient.tests.slice().reverse().map((test) => (
-            <div key={test._id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center transition hover:shadow-md">
-              <div className="flex gap-4 items-center">
-                <div className="bg-indigo-50 text-indigo-600 p-2 rounded-lg">
-                  <Activity size={24} />
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500">{new Date(test.date).toLocaleString()}</div>
-                  <div className="font-bold">
-                    {test.type === "bp" ? `BP: ${test.value || "-"}/${test.value2 || "-"}` :
-                      test.type === "sugar" ? `Sugar: ${test.value} (${test.sugarType || 'Random'})` :
-                        `${test.type.charAt(0).toUpperCase() + test.type.slice(1)}: ${test.value} ${test.unit || ''}`}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="text-center text-gray-400 py-10">No records found.</div>
-        )}
-      </div>
+      {/* ===== MEDICAL HISTORY TABLE ===== */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+            <Activity size={20} className="text-indigo-600" />
+            Medical History
+          </h3>
+          <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+            {latestTests.length} Records
+          </span>
+        </div>
 
-      <div className="flex justify-end">
-        <button
-          onClick={generatePDF}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2 rounded-xl shadow hover:bg-indigo-700"
-        >
-          <FileDown size={18} />
-          Download Health Report
-        </button>
+        {latestTests.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="px-6 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Date & Time</th>
+                  <th className="px-6 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Test</th>
+                  <th className="px-6 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Value</th>
+                  <th className="px-6 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {latestTests.map((test, index) => {
+                  const isLatest = index === 0;
+                  return (
+                    <tr key={test._id} className={`hover:bg-gray-50/80 transition-colors ${isLatest ? 'bg-indigo-50/30' : ''}`}>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <Calendar size={14} className="text-gray-400" />
+                          <span className="text-sm font-medium text-gray-700">
+                            {new Date(test.date).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {new Date(test.date).toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                          {isLatest && (
+                            <span className="ml-2 text-[10px] font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+                              Latest
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          {getTestIcon(test.type)}
+                          <span className="text-sm font-medium text-gray-800 capitalize">
+                            {test.type}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm font-semibold text-gray-900">
+                          {getTestDisplay(test)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {test.type === 'bp' && test.value && test.value2 ? (
+                          <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                            test.value > 140 || test.value2 > 90 
+                              ? 'bg-red-100 text-red-700' 
+                              : test.value > 120 || test.value2 > 80
+                              ? 'bg-yellow-100 text-yellow-700'
+                              : 'bg-green-100 text-green-700'
+                          }`}>
+                            {test.value > 140 || test.value2 > 90 ? 'High' : 
+                             test.value > 120 || test.value2 > 80 ? 'Elevated' : 'Normal'}
+                          </span>
+                        ) : test.type === 'sugar' && test.value ? (
+                          <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                            test.value > 200 ? 'bg-red-100 text-red-700' :
+                            test.value > 140 ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-green-100 text-green-700'
+                          }`}>
+                            {test.value > 200 ? 'High' : test.value > 140 ? 'Borderline' : 'Normal'}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <Activity size={48} className="mx-auto text-gray-200 mb-4" />
+            <p className="text-gray-400 font-medium">No medical records found</p>
+            <p className="text-sm text-gray-300 mt-1">Add a test to start tracking health data</p>
+          </div>
+        )}
       </div>
     </div>
   );

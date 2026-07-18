@@ -45,6 +45,9 @@ import Partners from "./pages/Partners";
 import AIChatBox from "./components/AIChatBox";
 import ADashboard from "./pages/ADashboard";
 import LandingPage from "./pages/LandingPage";
+import AllReports from "./pages/AllReports";
+import WithReports from './pages/WithReports';
+import PendingReports from './pages/PendingReports';
 
 function App() {
   return (
@@ -71,6 +74,9 @@ function App() {
           <Route path="/employeedashboard" element={<EmployeeDashboard />} />
           <Route path="/adashboard" element={<ADashboard />} />
           <Route path="/landing" element={<LandingPage />} />
+          <Route path="/all-reports" element={<AllReports />} />
+          <Route path="/with-reports" element={<WithReports />} />
+          <Route path="/pending-reports" element={<PendingReports />} />
         </Routes>
       </Layout>
     </Router>

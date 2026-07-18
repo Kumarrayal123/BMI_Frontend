@@ -878,7 +878,10 @@ import {
     FiBriefcase,
     FiInfo,
     FiFilter,
-    FiPlusCircle
+    FiPlusCircle,
+    FiArchive,
+    FiEyeOff,
+    FiEye as FiEyeShow
 } from "react-icons/fi";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
@@ -907,6 +910,28 @@ const AdminDashboard = () => {
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
 
+    // 🔥 Hidden Camps State
+    const [hiddenCamps, setHiddenCamps] = useState([]);
+    const [showHiddenModal, setShowHiddenModal] = useState(false);
+
+    // 🔥 Stats Modal State
+    const [statsModal, setStatsModal] = useState({
+        show: false,
+        title: "",
+        data: [],
+        type: "" // "camps", "patients", "active", "upcoming", "archived"
+    });
+
+    // 🔥 Patients Filter States
+    const [patientFilter, setPatientFilter] = useState("name");
+    const [patientSearch, setPatientSearch] = useState("");
+    const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+
+    // 🔥 Partners Filter States
+    const [partnerFilter, setPartnerFilter] = useState("name");
+    const [partnerSearchText, setPartnerSearchText] = useState("");
+    const [showPartnerDropdown, setShowPartnerDropdown] = useState(false);
+
     const [viewCamp, setViewCamp] = useState(null);
     const [showCampModal, setShowCampModal] = useState(false);
     const [campForm, setCampForm] = useState({
@@ -920,14 +945,11 @@ const AdminDashboard = () => {
     });
 
     const [partners, setPartners] = useState([]);
-    const [partnerSearch, setPartnerSearch] = useState("");
     const [volunteers, setVolunteers] = useState([]);
     const [employeeMap, setEmployeeMap] = useState({});
     
-    // 🔥 Admin name from localStorage
     const adminName = localStorage.getItem("name") || "Admin";
 
-    // 🔥 Edit Modal State
     const [showEditCampModal, setShowEditCampModal] = useState(false);
     const [editingCamp, setEditingCamp] = useState(null);
     const [editCampForm, setEditCampForm] = useState({
@@ -980,10 +1002,15 @@ const AdminDashboard = () => {
                     campsData = res.data.camps;
                 }
             }
-            setCamps(campsData);
+            // Separate hidden and visible camps
+            const hidden = campsData.filter(camp => camp.isHidden === true);
+            const visible = campsData.filter(camp => !camp.isHidden);
+            setHiddenCamps(hidden);
+            setCamps(visible);
         } catch (err) {
             console.error("Error fetching camps:", err);
             setCamps([]);
+            setHiddenCamps([]);
         }
     };
 
@@ -1033,13 +1060,39 @@ const AdminDashboard = () => {
         fetchVolunteers();
     }, []);
 
+    // 🔥 Hide/Archive a camp
+    const handleHideCamp = async (campId) => {
+        if (!window.confirm("Are you sure you want to archive this camp? It will be moved to archived.")) return;
+        try {
+            await axios.put(`${config.API_BASE_URL}/camps/hide-camp/${campId}`, { isHidden: true });
+            alert("✅ Camp archived successfully");
+            fetchCamps();
+        } catch (err) {
+            console.error("Archive camp error:", err);
+            alert("❌ Failed to archive camp: " + (err.response?.data?.message || err.message));
+        }
+    };
+
+    // 🔥 Unhide/Restore a camp
+    const handleUnhideCamp = async (campId) => {
+        if (!window.confirm("Are you sure you want to restore this camp?")) return;
+        try {
+            await axios.put(`${config.API_BASE_URL}/camps/unhide-camp/${campId}`, { isHidden: false });
+            alert("✅ Camp restored successfully");
+            setShowHiddenModal(false);
+            fetchCamps();
+        } catch (err) {
+            console.error("Restore camp error:", err);
+            alert("❌ Failed to restore camp: " + (err.response?.data?.message || err.message));
+        }
+    };
+
     const deletePatient = async (id) => {
         if (!window.confirm("Are you sure?")) return;
         await axios.delete(`${config.API_BASE_URL}/patients/${id}`);
         fetchPatients();
     };
 
-    // 🔥 Delete Camp by Admin
     const handleDeleteCamp = async (campId) => {
         if (!window.confirm("Are you sure you want to delete this camp?")) return;
         try {
@@ -1052,7 +1105,6 @@ const AdminDashboard = () => {
         }
     };
 
-    // 🔥 Edit Camp
     const handleEditCamp = (camp) => {
         setEditingCamp(camp);
         setEditCampForm({
@@ -1177,7 +1229,6 @@ const AdminDashboard = () => {
         });
     };
 
-    // 🔥 FIX: Admin create camp - send admin name as string
     const handleCreateCamp = async () => {
         try {
             if (!campForm.name || !campForm.location || !campForm.date || !campForm.time) {
@@ -1193,7 +1244,7 @@ const AdminDashboard = () => {
                 address: campForm.address || "",
                 date: campForm.date,
                 time: campForm.time,
-                createdBy: adminName,  // ✅ Admin name as string
+                createdBy: adminName,
                 creatorRole: "admin",
                 assignedPartner: campForm.partners && campForm.partners.length > 0 ? campForm.partners[0] : null,
                 volunteers: campForm.volunteers || []
@@ -1218,6 +1269,25 @@ const AdminDashboard = () => {
         }
     };
 
+    // 🔥 Stats Modal Handlers
+    const openStatsModal = (type, title, data) => {
+        setStatsModal({
+            show: true,
+            title: title,
+            data: data || [],
+            type: type
+        });
+    };
+
+    const closeStatsModal = () => {
+        setStatsModal({
+            show: false,
+            title: "",
+            data: [],
+            type: ""
+        });
+    };
+
     const filteredCamps = useMemo(() => {
         if (!Array.isArray(camps)) return [];
         return camps.filter(camp => {
@@ -1231,7 +1301,11 @@ const AdminDashboard = () => {
         });
     }, [camps, dateFrom, dateTo]);
 
-    const totalCamps = filteredCamps.length;
+    const allCamps = useMemo(() => {
+        return [...camps, ...hiddenCamps];
+    }, [camps, hiddenCamps]);
+
+    const totalCamps = allCamps.length;
 
     const chartFilteredPatients = useMemo(() => {
         const filteredCampIds = filteredCamps.map(c => String(c._id));
@@ -1241,7 +1315,7 @@ const AdminDashboard = () => {
         });
     }, [patients, filteredCamps]);
 
-    const totalPatients = chartFilteredPatients.length;
+    const totalPatients = patients.length;
 
     const campStats = filteredCamps.reduce((acc, camp) => {
         const { status } = getCampStatus(camp.date, camp.time);
@@ -1264,17 +1338,84 @@ const AdminDashboard = () => {
             : (p.campId?._id || p.campId) === selectedCampId;
     });
 
+    // 🔥 Get unique values for dropdowns
+    const uniquePatientNames = useMemo(() => {
+        return [...new Set(patients.map(p => p.name).filter(Boolean))].sort();
+    }, [patients]);
+
+    const uniquePatientPhones = useMemo(() => {
+        return [...new Set(patients.map(p => p.contact).filter(Boolean))].sort();
+    }, [patients]);
+
+    const uniquePatientCamps = useMemo(() => {
+        return [...new Set(patients.map(p => p.campId?.name).filter(Boolean))].sort();
+    }, [patients]);
+
+    const uniquePatientDates = useMemo(() => {
+        return [...new Set(patients.map(p => p.createdAt ? new Date(p.createdAt).toLocaleDateString() : null).filter(Boolean))].sort();
+    }, [patients]);
+
+    // 🔥 Unique values for Partners
+    const uniquePartnerNames = useMemo(() => {
+        return [...new Set(partners.map(p => p.name).filter(Boolean))].sort();
+    }, [partners]);
+
+    const uniquePartnerEmails = useMemo(() => {
+        return [...new Set(partners.map(p => p.email).filter(Boolean))].sort();
+    }, [partners]);
+
+    const uniquePartnerCenters = useMemo(() => {
+        return [...new Set(partners.map(p => p.clinicName).filter(Boolean))].sort();
+    }, [partners]);
+
+    const uniquePartnerPhones = useMemo(() => {
+        return [...new Set(partners.map(p => p.mobile).filter(Boolean))].sort();
+    }, [partners]);
+
+    // 🔥 Updated Patients Filter with multiple columns
     const filteredPatients = campOnlyFilteredPatients.filter((p) => {
-        return p.name.toLowerCase().includes(search.toLowerCase());
+        if (!patientSearch.trim()) return true;
+        const searchLower = patientSearch.toLowerCase();
+        switch(patientFilter) {
+            case "name":
+                return p.name?.toLowerCase().includes(searchLower);
+            case "phone":
+                return p.contact?.toLowerCase().includes(searchLower);
+            case "camp":
+                return p.campId?.name?.toLowerCase().includes(searchLower);
+            case "date":
+                return p.createdAt?.toLowerCase().includes(searchLower);
+            default:
+                return p.name?.toLowerCase().includes(searchLower);
+        }
     });
 
+    // 🔥 Updated Partners Filter with multiple columns
     const filteredPartners = partners.filter((p) => {
-        const searchLower = partnerSearch.toLowerCase();
-        return (
-            p.name?.toLowerCase().includes(searchLower) ||
-            p.email?.toLowerCase().includes(searchLower) ||
-            p.clinicName?.toLowerCase().includes(searchLower)
-        );
+        if (!partnerSearchText.trim()) return true;
+        const searchLower = partnerSearchText.toLowerCase();
+        switch(partnerFilter) {
+            case "name":
+                return p.name?.toLowerCase().includes(searchLower);
+            case "email":
+                return p.email?.toLowerCase().includes(searchLower);
+            case "center":
+                return p.clinicName?.toLowerCase().includes(searchLower);
+            case "phone":
+                return p.mobile?.toLowerCase().includes(searchLower);
+            case "assigned":
+                const assignedCamps = camps.filter(camp => 
+                    camp.partners && camp.partners.includes(p._id)
+                );
+                return assignedCamps.some(camp => camp.name?.toLowerCase().includes(searchLower));
+            case "created":
+                const createdCamps = camps.filter(camp => 
+                    camp.createdBy === p._id && camp.creatorRole === "partner"
+                );
+                return createdCamps.some(camp => camp.name?.toLowerCase().includes(searchLower));
+            default:
+                return p.name?.toLowerCase().includes(searchLower);
+        }
     });
 
     const viewCampPatients = useMemo(() => {
@@ -1332,11 +1473,9 @@ const AdminDashboard = () => {
         return partner ? partner.name || partner.clinicName || "Unknown Partner" : "Unknown Partner";
     };
 
-    // ✅ FIXED: Get creator info with proper handling for objects
     const getCreatorInfo = (camp) => {
         if (camp.creatorRole === "admin") {
             let creatorName = adminName;
-            // If createdBy is an object, extract name
             if (camp.createdBy && typeof camp.createdBy === "object") {
                 creatorName = camp.createdBy.name || camp.createdBy.clinicName || adminName;
             } else if (camp.createdBy && typeof camp.createdBy === "string") {
@@ -1348,23 +1487,18 @@ const AdminDashboard = () => {
             };
         } else if (camp.creatorRole === "partner") {
             let partnerName = "Unknown Partner";
-            
-            // Check if createdBy is populated as an object
             if (camp.createdBy && typeof camp.createdBy === "object") {
                 partnerName = camp.createdBy.name || camp.createdBy.clinicName || "Unknown Partner";
             } else if (camp.createdBy && typeof camp.createdBy === "string") {
-                // Check if it's an ObjectId
                 if (String(camp.createdBy).match(/^[0-9a-fA-F]{24}$/)) {
                     const partner = partners.find(p => String(p._id) === String(camp.createdBy));
                     if (partner) {
                         partnerName = partner.name || partner.clinicName || "Unknown Partner";
                     }
                 } else {
-                    // Agar string hai toh directly use karo
                     partnerName = camp.createdBy;
                 }
             }
-            
             return { 
                 label: `Created by Partner: ${partnerName}`,
                 color: "bg-emerald-100 text-emerald-700"
@@ -1373,7 +1507,6 @@ const AdminDashboard = () => {
         return { label: "Unknown", color: "bg-gray-100 text-gray-700" };
     };
 
-    // ✅ FIXED: Get creator name for display in view modal
     const getCreatorDisplayName = (camp) => {
         if (camp.creatorRole === "admin") {
             if (camp.createdBy && typeof camp.createdBy === "object") {
@@ -1398,6 +1531,334 @@ const AdminDashboard = () => {
         return "Unknown";
     };
 
+    // Patient Filter Options
+    const patientFilterOptions = [
+        { value: "name", label: "Name" },
+        { value: "phone", label: "Phone" },
+        { value: "camp", label: "Camp" },
+        { value: "date", label: "Date" }
+    ];
+
+    // Partner Filter Options
+    const partnerFilterOptions = [
+        { value: "name", label: "Name" },
+        { value: "email", label: "Email" },
+        { value: "center", label: "Center" },
+        { value: "phone", label: "Phone" },
+        { value: "assigned", label: "Assigned Camps" },
+        { value: "created", label: "Created Camps" }
+    ];
+
+    // Get dropdown options based on selected filter
+    const getPatientDropdownOptions = () => {
+        switch(patientFilter) {
+            case "name": return uniquePatientNames;
+            case "phone": return uniquePatientPhones;
+            case "camp": return uniquePatientCamps;
+            case "date": return uniquePatientDates;
+            default: return [];
+        }
+    };
+
+    const getPartnerDropdownOptions = () => {
+        switch(partnerFilter) {
+            case "name": return uniquePartnerNames;
+            case "email": return uniquePartnerEmails;
+            case "center": return uniquePartnerCenters;
+            case "phone": return uniquePartnerPhones;
+            default: return [];
+        }
+    };
+
+    // Filter dropdown options based on search
+    const filteredPatientDropdownOptions = getPatientDropdownOptions().filter(option =>
+        option.toLowerCase().includes(patientSearch.toLowerCase())
+    );
+
+    const filteredPartnerDropdownOptions = getPartnerDropdownOptions().filter(option =>
+        option.toLowerCase().includes(partnerSearchText.toLowerCase())
+    );
+
+    // Close dropdowns on outside click
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (!e.target.closest('.patient-search-container')) {
+                setShowPatientDropdown(false);
+            }
+            if (!e.target.closest('.partner-search-container')) {
+                setShowPartnerDropdown(false);
+            }
+        };
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, []);
+
+    // Stats Modal Component
+    const StatsModal = () => {
+        if (!statsModal.show) return null;
+
+        return (
+            <div 
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                        closeStatsModal();
+                    }
+                }}
+            >
+                <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                    {/* Header - Same gradient as Archived Modal */}
+                    <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
+                        <div>
+                            <h3 className="text-xl font-bold text-white">{statsModal.title}</h3>
+                            <p className="text-sm text-purple-100">
+                                Total: {statsModal.data.length} items
+                            </p>
+                        </div>
+                        <button
+                            onClick={closeStatsModal}
+                            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white"
+                        >
+                            <FiX size={20} />
+                        </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="overflow-auto flex-1 p-0">
+                        {statsModal.data.length === 0 ? (
+                            <div className="text-center py-12">
+                                <p className="text-gray-400 font-medium">No data found</p>
+                            </div>
+                        ) : (
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-gray-50 sticky top-0 z-10">
+                                    <tr>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">#</th>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Name</th>
+                                        {statsModal.type === "patients" && (
+                                            <>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Contact</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Age</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Gender</th>
+                                            </>
+                                        )}
+                                        {(statsModal.type === "camps" || statsModal.type === "active" || statsModal.type === "upcoming" || statsModal.type === "archived") && (
+                                            <>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Location</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Date</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Created</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Status</th>
+                                            </>
+                                        )}
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {statsModal.data.map((item, index) => (
+                                        <tr key={item._id || index} className="hover:bg-gray-50/80 transition-colors">
+                                            <td className="p-4 text-sm text-gray-500">{index + 1}</td>
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-xs border border-purple-100">
+                                                        {(item.name || item.patientName || 'U').charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <span className="font-semibold text-gray-900">{item.name || item.patientName || 'N/A'}</span>
+                                                </div>
+                                            </td>
+                                            {statsModal.type === "patients" && (
+                                                <>
+                                                    <td className="p-4 text-sm text-gray-600">{item.contact || 'N/A'}</td>
+                                                    <td className="p-4 text-sm text-gray-600">{item.age || 'N/A'}</td>
+                                                    <td className="p-4 text-sm text-gray-600">{item.gender || 'N/A'}</td>
+                                                </>
+                                            )}
+                                            {(statsModal.type === "camps" || statsModal.type === "active" || statsModal.type === "upcoming" || statsModal.type === "archived") && (
+                                                <>
+                                                    <td className="p-4 text-sm text-gray-600">{item.location || 'N/A'}</td>
+                                                    <td className="p-4 text-sm text-gray-600">{item.date || 'N/A'}</td>
+                                                    <td className="p-4">
+                                                        <span className="text-sm text-gray-600">
+                                                            {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
+                                                        </span>
+                                                        {item.createdAt && (
+                                                            <span className="block text-xs text-gray-400">
+                                                                {Math.floor((new Date() - new Date(item.createdAt)) / (1000 * 60 * 60 * 24))} days old
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className={`px-2 py-1 text-xs rounded-full ${
+                                                            statsModal.type === "archived" || item.isHidden 
+                                                                ? "bg-purple-100 text-purple-700" 
+                                                                : statsModal.type === "active" 
+                                                                    ? "bg-green-100 text-green-700"
+                                                                    : statsModal.type === "upcoming"
+                                                                        ? "bg-blue-100 text-blue-700"
+                                                                        : "bg-gray-100 text-gray-700"
+                                                        }`}>
+                                                            {item.isHidden ? "Archived" : 
+                                                             statsModal.type === "active" ? "Active" :
+                                                             statsModal.type === "upcoming" ? "Upcoming" : "Active"}
+                                                        </span>
+                                                    </td>
+                                                </>
+                                            )}
+                                            <td className="p-4">
+                                                <button
+                                                    onClick={() => {
+                                                        closeStatsModal();
+                                                        if (item._id) {
+                                                            setViewCamp(item);
+                                                        }
+                                                    }}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                                >
+                                                    <FiEye size={14} /> View
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                        <button
+                            onClick={closeStatsModal}
+                            className="px-6 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition shadow-sm"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Hidden Camps Modal
+    const HiddenCampsModal = () => {
+        if (!showHiddenModal) return null;
+
+        return (
+            <div 
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                        setShowHiddenModal(false);
+                    }
+                }}
+            >
+                <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                    {/* Header */}
+                    <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
+                        <div>
+                            <h3 className="text-xl font-bold text-white">Archived Camps</h3>
+                            <p className="text-sm text-purple-100">
+                                {hiddenCamps.length} camps archived (auto-archive after 10 days)
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => setShowHiddenModal(false)}
+                            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white"
+                        >
+                            <FiX size={20} />
+                        </button>
+                    </div>
+
+                    {/* Table */}
+                    <div className="overflow-auto flex-1 p-0">
+                        {hiddenCamps.length === 0 ? (
+                            <div className="text-center py-12">
+                                <FiArchive size={48} className="mx-auto text-gray-200 mb-4" />
+                                <p className="text-gray-400 font-medium">No archived camps found</p>
+                                <p className="text-sm text-gray-300 mt-1">Camps auto-archive after 10 days</p>
+                            </div>
+                        ) : (
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-gray-50 sticky top-0 z-10">
+                                    <tr>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Camp Name</th>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Location</th>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Date</th>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Created</th>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Patients</th>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {hiddenCamps.map(camp => {
+                                        const patientCount = patients.filter(
+                                            p => String(p.campId?._id) === String(camp._id)
+                                        ).length;
+                                        
+                                        const createdDate = camp.createdAt ? new Date(camp.createdAt).toLocaleDateString() : 'N/A';
+                                        const daysOld = camp.createdAt ? 
+                                            Math.floor((new Date() - new Date(camp.createdAt)) / (1000 * 60 * 60 * 24)) : 0;
+
+                                        return (
+                                            <tr key={camp._id} className="hover:bg-gray-50/80 transition-colors">
+                                                <td className="p-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-xs border border-purple-100">
+                                                            {camp.name?.charAt(0)?.toUpperCase() || 'C'}
+                                                        </div>
+                                                        <span className="font-semibold text-gray-900">{camp.name}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-sm text-gray-600">{camp.location || 'N/A'}</td>
+                                                <td className="p-4 text-sm text-gray-600">{camp.date || 'N/A'}</td>
+                                                <td className="p-4">
+                                                    <span className="text-sm text-gray-600">{createdDate}</span>
+                                                    <span className="block text-xs text-gray-400">{daysOld} days old</span>
+                                                </td>
+                                                <td className="p-4">
+                                                    <span className="px-3 py-1 text-sm bg-indigo-100 text-indigo-700 rounded-full">
+                                                        {patientCount} patients
+                                                    </span>
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => {
+                                                                setViewCamp(camp);
+                                                                setShowHiddenModal(false);
+                                                            }}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                                        >
+                                                            <FiEye size={14} /> View
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleUnhideCamp(camp._id)}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                                                        >
+                                                            <FiEyeShow size={14} /> Restore
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                        <button
+                            onClick={() => setShowHiddenModal(false)}
+                            className="px-6 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition shadow-sm"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="admin-dash">
             <div className="admin-dash__header">
@@ -1409,7 +1870,7 @@ const AdminDashboard = () => {
                         Manage camps, patients, and health analytics in one place.
                     </p>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 flex-wrap">
                     <div className="admin-dash__date-pill">
                         <FiCalendar />
                         <span>
@@ -1421,6 +1882,21 @@ const AdminDashboard = () => {
                             })}
                         </span>
                     </div>
+                    
+                    {/* 🔥 Archived Button */}
+                    <button
+                        onClick={() => setShowHiddenModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition shadow-lg shadow-purple-100 relative"
+                    >
+                        <FiArchive size={18} />
+                        Archived
+                        {hiddenCamps.length > 0 && (
+                            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                                {hiddenCamps.length}
+                            </span>
+                        )}
+                    </button>
+                    
                     <button
                         onClick={() => setShowCampModal(true)}
                         className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition shadow-lg shadow-green-100"
@@ -1432,8 +1908,12 @@ const AdminDashboard = () => {
             </div>
 
             <div className="space-y-10">
+                {/* Top Summary Stats - All Clickable */}
                 <div className="admin-dash__stats">
-                    <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                    <div 
+                        className="admin-dash__stat cursor-pointer" 
+                        onClick={() => openStatsModal("camps", "All Camps", allCamps)}
+                    >
                         <div className="admin-dash__stat-top">
                             <span className="admin-dash__stat-label">Total Camps</span>
                             <div className="admin-dash__stat-icon admin-dash__stat-icon--indigo">
@@ -1441,9 +1921,12 @@ const AdminDashboard = () => {
                             </div>
                         </div>
                         <div className="admin-dash__stat-value">{totalCamps}</div>
-                        <div className="admin-dash__stat-meta">health camps</div>
+                        <div className="admin-dash__stat-meta">total camps</div>
                     </div>
-                    <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                    <div 
+                        className="admin-dash__stat cursor-pointer" 
+                        onClick={() => openStatsModal("active", "Active Camps", camps.filter(c => !c.isHidden))}
+                    >
                         <div className="admin-dash__stat-top">
                             <span className="admin-dash__stat-label">Active Camps</span>
                             <div className="admin-dash__stat-icon admin-dash__stat-icon--emerald">
@@ -1453,7 +1936,14 @@ const AdminDashboard = () => {
                         <div className="admin-dash__stat-value">{activeCampsCount}</div>
                         <div className="admin-dash__stat-meta">currently running</div>
                     </div>
-                    <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                    <div 
+                        className="admin-dash__stat cursor-pointer" 
+                        onClick={() => openStatsModal("upcoming", "Upcoming Camps", camps.filter(c => {
+                            if (c.isHidden) return false;
+                            const { status } = getCampStatus(c.date, c.time);
+                            return status === 'upcoming';
+                        }))}
+                    >
                         <div className="admin-dash__stat-top">
                             <span className="admin-dash__stat-label">Upcoming</span>
                             <div className="admin-dash__stat-icon admin-dash__stat-icon--cyan">
@@ -1463,7 +1953,10 @@ const AdminDashboard = () => {
                         <div className="admin-dash__stat-value">{upcomingCampsCount}</div>
                         <div className="admin-dash__stat-meta">scheduled camps</div>
                     </div>
-                    <div className="admin-dash__stat" onClick={() => scrollToSection(partnersSectionRef)}>
+                    <div 
+                        className="admin-dash__stat cursor-pointer" 
+                        onClick={() => openStatsModal("partners", "All Partners", partners)}
+                    >
                         <div className="admin-dash__stat-top">
                             <span className="admin-dash__stat-label">Partners</span>
                             <div className="admin-dash__stat-icon admin-dash__stat-icon--rose">
@@ -1473,7 +1966,10 @@ const AdminDashboard = () => {
                         <div className="admin-dash__stat-value">{partners.length}</div>
                         <div className="admin-dash__stat-meta">registered partners</div>
                     </div>
-                    <div className="admin-dash__stat" onClick={() => scrollToSection(patientsSectionRef)}>
+                    <div 
+                        className="admin-dash__stat cursor-pointer" 
+                        onClick={() => openStatsModal("patients", "All Patients", patients)}
+                    >
                         <div className="admin-dash__stat-top">
                             <span className="admin-dash__stat-label">Patients</span>
                             <div className="admin-dash__stat-icon admin-dash__stat-icon--amber">
@@ -1536,7 +2032,7 @@ const AdminDashboard = () => {
                             <CampPieChart
                                 camps={filteredCamps}
                                 patients={chartFilteredPatients}
-                                totalCamps={totalCamps}
+                                totalCamps={filteredCamps.length}
                                 liveCamps={liveCampsCount}
                                 todayCamps={todayCampsCount}
                                 upcomingCamps={upcomingCampsCount}
@@ -1579,6 +2075,7 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
+                {/* Camps Section */}
                 <div ref={campsSectionRef} className="admin-dash__card">
                     <div className="admin-dash__card-header">
                         <h3 className="admin-dash__card-title">All Camps</h3>
@@ -1587,7 +2084,7 @@ const AdminDashboard = () => {
                                 {activeCampsCount} Active
                             </span>
                             <span className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-full">
-                                {totalCamps} Total
+                                {camps.length} Total
                             </span>
                         </div>
                     </div>
@@ -1602,6 +2099,7 @@ const AdminDashboard = () => {
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                                 {camps.map((camp) => {
                                     const creatorInfo = getCreatorInfo(camp);
+                                    const isArchived = camp.isHidden === true;
                                     return (
                                         <div
                                             key={camp._id}
@@ -1610,15 +2108,28 @@ const AdminDashboard = () => {
                                                 ${selectedCampId === camp._id
                                                     ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
                                                     : "bg-white hover:border-indigo-300 hover:shadow-md"
-                                                }`}
+                                                }
+                                                ${isArchived ? "border-purple-300 bg-purple-50/30" : ""}
+                                            `}
                                         >
-                                            {/* 🔥 Creator Badge with Name */}
                                             <div className={`absolute top-2 left-2 text-[8px] font-bold px-2 py-0.5 rounded-full ${creatorInfo.color}`}>
                                                 {creatorInfo.label}
                                             </div>
+                                            
+                                            {isArchived && (
+                                                <div className="absolute top-2 right-2 bg-purple-600 text-white text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
+                                                    <FiArchive size={10} /> Archived
+                                                </div>
+                                            )}
+                                            
                                             <div className="flex items-center justify-between gap-2 mb-1 mt-4">
                                                 <h4 className="font-bold truncate">{camp.name}</h4>
-                                                <CampStatusBadge date={camp.date} time={camp.time} />
+                                                {!isArchived && <CampStatusBadge date={camp.date} time={camp.time} />}
+                                                {isArchived && (
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-200 text-purple-700 rounded-full">
+                                                        Archived
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className={`mt-2 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
                                                 <FiMapPin size={14} />
@@ -1685,24 +2196,48 @@ const AdminDashboard = () => {
                                                 {patients.filter((p) => String(p.campId?._id) === String(camp._id)).length} Patients
                                             </span>
                                             <div className="float-right mt-3 flex items-center gap-1">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleEditCamp(camp);
-                                                    }}
-                                                    className="flex items-center gap-1 text-xs font-bold text-orange-600 bg-orange-50 px-2 py-1.5 rounded-lg hover:bg-orange-100 transition-colors"
-                                                >
-                                                    <FiEdit size={12} /> Edit
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleDeleteCamp(camp._id);
-                                                    }}
-                                                    className="flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 px-2 py-1.5 rounded-lg hover:bg-red-100 transition-colors"
-                                                >
-                                                    <FiTrash2 size={12} /> Delete
-                                                </button>
+                                                {!isArchived && (
+                                                    <>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleEditCamp(camp);
+                                                            }}
+                                                            className="flex items-center gap-1 text-xs font-bold text-orange-600 bg-orange-50 px-2 py-1.5 rounded-lg hover:bg-orange-100 transition-colors"
+                                                        >
+                                                            <FiEdit size={12} /> Edit
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDeleteCamp(camp._id);
+                                                            }}
+                                                            className="flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 px-2 py-1.5 rounded-lg hover:bg-red-100 transition-colors"
+                                                        >
+                                                            <FiTrash2 size={12} /> Delete
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleHideCamp(camp._id);
+                                                            }}
+                                                            className="flex items-center gap-1 text-xs font-bold text-purple-600 bg-purple-50 px-2 py-1.5 rounded-lg hover:bg-purple-100 transition-colors"
+                                                        >
+                                                            <FiEyeOff size={12} /> Archive
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {isArchived && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleUnhideCamp(camp._id);
+                                                        }}
+                                                        className="flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1.5 rounded-lg hover:bg-emerald-100 transition-colors"
+                                                    >
+                                                        <FiEyeShow size={12} /> Restore
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -1721,21 +2256,60 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
+                {/* ===== PATIENTS TABLE WITH SMART DROPDOWN FILTER ===== */}
                 <div ref={patientsSectionRef} className="admin-dash__card">
                     <div className="admin-dash__card-header">
                         <h3 className="admin-dash__card-title">Patients</h3>
-                        <div className="relative w-full sm:w-72">
-                            <FiSearch
-                                size={18}
-                                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                            />
-                            <input
-                                type="text"
-                                placeholder="Search patients by name..."
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20"
-                            />
+                        <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex items-center gap-2">
+                                <select
+                                    value={patientFilter}
+                                    onChange={(e) => {
+                                        setPatientFilter(e.target.value);
+                                        setPatientSearch("");
+                                        setShowPatientDropdown(false);
+                                    }}
+                                    className="px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white"
+                                >
+                                    {patientFilterOptions.map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            {/* Search with Dropdown */}
+                            <div className="relative patient-search-container w-full sm:w-64">
+                                <FiSearch
+                                    size={18}
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10"
+                                />
+                                <input
+                                    type="text"
+                                    placeholder={`Search by ${patientFilterOptions.find(o => o.value === patientFilter)?.label || 'Name'}...`}
+                                    value={patientSearch}
+                                    onChange={(e) => {
+                                        setPatientSearch(e.target.value);
+                                        setShowPatientDropdown(true);
+                                    }}
+                                    onFocus={() => setShowPatientDropdown(true)}
+                                    className="w-full pl-10 pr-4 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                />
+                                {showPatientDropdown && filteredPatientDropdownOptions.length > 0 && patientSearch.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto z-50">
+                                        {filteredPatientDropdownOptions.map((option, index) => (
+                                            <div
+                                                key={index}
+                                                className="px-4 py-2 text-sm hover:bg-indigo-50 cursor-pointer transition-colors"
+                                                onClick={() => {
+                                                    setPatientSearch(option);
+                                                    setShowPatientDropdown(false);
+                                                }}
+                                            >
+                                                {option}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                     <div className="admin-dash__card-body p-0">
@@ -1746,6 +2320,7 @@ const AdminDashboard = () => {
                                         <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Name</th>
                                         <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Phone</th>
                                         <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Camp</th>
+                                        <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Date</th>
                                         <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Actions</th>
                                     </tr>
                                 </thead>
@@ -1773,6 +2348,11 @@ const AdminDashboard = () => {
                                                     </span>
                                                 </td>
                                                 <td className="p-4">
+                                                    <span className="text-sm text-gray-600">
+                                                        {patient.createdAt ? new Date(patient.createdAt).toLocaleDateString() : "N/A"}
+                                                    </span>
+                                                </td>
+                                                <td className="p-4">
                                                     <div className="flex items-center gap-2">
                                                         <Link
                                                             to={`/patient/${patient._id}`}
@@ -1792,7 +2372,7 @@ const AdminDashboard = () => {
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan={4} className="p-12 text-center">
+                                            <td colSpan={5} className="p-12 text-center">
                                                 <div className="flex flex-col items-center justify-center gap-3 text-gray-400">
                                                     <FiUsers size={48} className="opacity-20" />
                                                     <p className="text-lg font-medium">No patients found</p>
@@ -1807,21 +2387,60 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
+                {/* ===== PARTNERS TABLE WITH SMART DROPDOWN FILTER ===== */}
                 <div ref={partnersSectionRef} className="admin-dash__card">
                     <div className="admin-dash__card-header">
                         <h3 className="admin-dash__card-title">Registered Partners</h3>
-                        <div className="relative w-full sm:w-72">
-                            <FiSearch
-                                size={18}
-                                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                            />
-                            <input
-                                type="text"
-                                placeholder="Search partners by name, email, or clinic..."
-                                value={partnerSearch}
-                                onChange={(e) => setPartnerSearch(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20"
-                            />
+                        <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex items-center gap-2">
+                                <select
+                                    value={partnerFilter}
+                                    onChange={(e) => {
+                                        setPartnerFilter(e.target.value);
+                                        setPartnerSearchText("");
+                                        setShowPartnerDropdown(false);
+                                    }}
+                                    className="px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white"
+                                >
+                                    {partnerFilterOptions.map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            {/* Search with Dropdown */}
+                            <div className="relative partner-search-container w-full sm:w-64">
+                                <FiSearch
+                                    size={18}
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10"
+                                />
+                                <input
+                                    type="text"
+                                    placeholder={`Search by ${partnerFilterOptions.find(o => o.value === partnerFilter)?.label || 'Name'}...`}
+                                    value={partnerSearchText}
+                                    onChange={(e) => {
+                                        setPartnerSearchText(e.target.value);
+                                        setShowPartnerDropdown(true);
+                                    }}
+                                    onFocus={() => setShowPartnerDropdown(true)}
+                                    className="w-full pl-10 pr-4 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                />
+                                {showPartnerDropdown && filteredPartnerDropdownOptions.length > 0 && partnerSearchText.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto z-50">
+                                        {filteredPartnerDropdownOptions.map((option, index) => (
+                                            <div
+                                                key={index}
+                                                className="px-4 py-2 text-sm hover:bg-indigo-50 cursor-pointer transition-colors"
+                                                onClick={() => {
+                                                    setPartnerSearchText(option);
+                                                    setShowPartnerDropdown(false);
+                                                }}
+                                            >
+                                                {option}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                     <div className="admin-dash__card-body p-0">
@@ -1831,7 +2450,7 @@ const AdminDashboard = () => {
                                     <tr className="border-b border-gray-100 bg-gray-50/50">
                                         <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Name</th>
                                         <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Email</th>
-                                        <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Clinic</th>
+                                        <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Center</th>
                                         <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Phone</th>
                                         <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Assigned Camps</th>
                                         <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Created Camps</th>
@@ -2173,10 +2792,17 @@ const AdminDashboard = () => {
                 {viewCamp && createPortal(
                     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
                         <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-                            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                                <div>
+                            <div className="p-6 border-b border-gray-100 bg-gray-50/50 relative">
+                                <button
+                                    onClick={() => setViewCamp(null)}
+                                    className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition shadow-sm z-10"
+                                >
+                                    <FiX size={18} />
+                                </button>
+                                
+                                <div className="pr-12">
                                     <h3 className="text-xl font-bold text-gray-900">{viewCamp.name}</h3>
-                                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 flex-wrap">
                                         <div className="flex items-center gap-1.5">
                                             <FiMapPin size={14} className="text-indigo-500" />
                                             <span>{viewCamp.location}</span>
@@ -2190,7 +2816,7 @@ const AdminDashboard = () => {
                                             <span>{viewCamp.time}</span>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 mt-2">
+                                    <div className="flex items-center gap-2 mt-2 flex-wrap">
                                         <span className="text-xs font-semibold text-gray-600">Created by:</span>
                                         <span className={`text-xs px-2 py-0.5 rounded-full ${
                                             viewCamp.creatorRole === "admin" 
@@ -2201,7 +2827,7 @@ const AdminDashboard = () => {
                                         </span>
                                     </div>
                                     {viewCamp.partners && viewCamp.partners.length > 0 && (
-                                        <div className="flex items-center gap-2 mt-1">
+                                        <div className="flex items-center gap-2 mt-1 flex-wrap">
                                             <span className="text-xs font-semibold text-gray-600">Partners:</span>
                                             {viewCamp.partners.map(partnerId => {
                                                 const partner = partners.find(p => p._id === partnerId);
@@ -2214,7 +2840,7 @@ const AdminDashboard = () => {
                                         </div>
                                     )}
                                     {viewCamp.volunteers && viewCamp.volunteers.length > 0 && (
-                                        <div className="flex items-center gap-2 mt-1">
+                                        <div className="flex items-center gap-2 mt-1 flex-wrap">
                                             <span className="text-xs font-semibold text-gray-600">Volunteers:</span>
                                             {viewCamp.volunteers.map((vol, index) => {
                                                 let volunteerName = vol;
@@ -2232,13 +2858,8 @@ const AdminDashboard = () => {
                                         </div>
                                     )}
                                 </div>
-                                <button
-                                    onClick={() => setViewCamp(null)}
-                                    className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition shadow-sm"
-                                >
-                                    <FiX size={16} />
-                                </button>
                             </div>
+                            
                             <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-4 bg-white">
                                 <div className="flex items-center gap-2">
                                     <span className="px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
@@ -2254,6 +2875,7 @@ const AdminDashboard = () => {
                                     Download Report
                                 </button>
                             </div>
+                            
                             <div className="overflow-auto flex-1 p-0">
                                 <table className="w-full text-left border-collapse">
                                     <thead className="bg-gray-50 sticky top-0 z-10">
@@ -2304,15 +2926,18 @@ const AdminDashboard = () => {
                                             ))
                                         ) : (
                                             <tr>
-                                                <td colSpan={5} className="p-12 text-center text-gray-400 flex flex-col items-center gap-3">
-                                                    <FiUsers size={32} className="opacity-20" />
-                                                    <span className="text-sm font-medium">No patients found in this camp yet.</span>
+                                                <td colSpan={5} className="p-12 text-center text-gray-400">
+                                                    <div className="flex flex-col items-center gap-3">
+                                                        <FiUsers size={32} className="opacity-20" />
+                                                        <span className="text-sm font-medium">No patients found in this camp yet.</span>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         )}
                                     </tbody>
                                 </table>
                             </div>
+                            
                             <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
                                 <button
                                     onClick={() => setViewCamp(null)}
@@ -2325,6 +2950,12 @@ const AdminDashboard = () => {
                     </div>,
                     document.body
                 )}
+
+                {/* Stats Modal */}
+                <StatsModal />
+
+                {/* Hidden Camps Modal */}
+                <HiddenCampsModal />
             </div>
         </div>
     );
