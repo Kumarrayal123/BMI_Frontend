@@ -1981,7 +1981,7 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
-                <div className="admin-dash__card">
+                {/* <div className="admin-dash__card">
                     <div className="admin-dash__card-body">
                         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                             <div className="flex items-center gap-3">
@@ -2021,7 +2021,7 @@ const AdminDashboard = () => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div> */}
 
                 <div className="admin-dash__charts-grid">
                     <div className="admin-dash__card admin-dash__chart-wrap">
