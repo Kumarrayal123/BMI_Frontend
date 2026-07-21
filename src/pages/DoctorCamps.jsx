@@ -2495,6 +2495,14 @@ const DoctorCamps = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const [activeTab, setActiveTab] = useState("assigned");
 
+    // 🔥 Stats Modal State
+    const [statsModal, setStatsModal] = useState({
+        show: false,
+        title: "",
+        data: [],
+        type: ""
+    });
+
     const [showCampModal, setShowCampModal] = useState(false);
     const [viewCamp, setViewCamp] = useState(null);
     const [campForm, setCampForm] = useState({ 
@@ -2527,6 +2535,25 @@ const DoctorCamps = () => {
             setLoading(false);
         }
     }, [partnerId]);
+
+    // 🔥 Stats Modal Handlers
+    const openStatsModal = (type, title, data) => {
+        setStatsModal({
+            show: true,
+            title: title,
+            data: data || [],
+            type: type
+        });
+    };
+
+    const closeStatsModal = () => {
+        setStatsModal({
+            show: false,
+            title: "",
+            data: [],
+            type: ""
+        });
+    };
 
     // Helper functions to get names
     const getVolunteerName = (id) => {
@@ -2736,6 +2763,153 @@ const DoctorCamps = () => {
             return { ...c, count };
         });
     }, [displayCamps, patients]);
+
+    // 🔥 Stats Modal Component
+    const StatsModal = () => {
+        if (!statsModal.show) return null;
+
+        return (
+            <div 
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                        closeStatsModal();
+                    }
+                }}
+            >
+                <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                    {/* Header */}
+                    <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
+                        <div>
+                            <h3 className="text-xl font-bold text-white">{statsModal.title}</h3>
+                            <p className="text-sm text-purple-100">
+                                Total: {statsModal.data.length} items
+                            </p>
+                        </div>
+                        <button
+                            onClick={closeStatsModal}
+                            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white"
+                        >
+                            <FiX size={20} />
+                        </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="overflow-auto flex-1 p-0">
+                        {statsModal.data.length === 0 ? (
+                            <div className="text-center py-12">
+                                <p className="text-gray-400 font-medium">No data found</p>
+                            </div>
+                        ) : (
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-gray-50 sticky top-0 z-10">
+                                    <tr>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">#</th>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Name</th>
+                                        {statsModal.type === "patients" && (
+                                            <>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Contact</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Age</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Gender</th>
+                                            </>
+                                        )}
+                                        {(statsModal.type === "camps" || statsModal.type === "assigned" || statsModal.type === "created" || statsModal.type === "upcoming" || statsModal.type === "live") && (
+                                            <>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Location</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Date</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Created</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Status</th>
+                                            </>
+                                        )}
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {statsModal.data.map((item, index) => (
+                                        <tr key={item._id || index} className="hover:bg-gray-50/80 transition-colors">
+                                            <td className="p-4 text-sm text-gray-500">{index + 1}</td>
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-xs border border-purple-100">
+                                                        {(item.name || item.patientName || 'U').charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <span className="font-semibold text-gray-900">{item.name || item.patientName || 'N/A'}</span>
+                                                </div>
+                                            </td>
+                                            {statsModal.type === "patients" && (
+                                                <>
+                                                    <td className="p-4 text-sm text-gray-600">{item.contact || 'N/A'}</td>
+                                                    <td className="p-4 text-sm text-gray-600">{item.age || 'N/A'}</td>
+                                                    <td className="p-4 text-sm text-gray-600">{item.gender || 'N/A'}</td>
+                                                </>
+                                            )}
+                                            {(statsModal.type === "camps" || statsModal.type === "assigned" || statsModal.type === "created" || statsModal.type === "upcoming" || statsModal.type === "live") && (
+                                                <>
+                                                    <td className="p-4 text-sm text-gray-600">{item.location || 'N/A'}</td>
+                                                    <td className="p-4 text-sm text-gray-600">{item.date || 'N/A'}</td>
+                                                    <td className="p-4">
+                                                        <span className="text-sm text-gray-600">
+                                                            {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
+                                                        </span>
+                                                        {item.createdAt && (
+                                                            <span className="block text-xs text-gray-400">
+                                                                {Math.floor((new Date() - new Date(item.createdAt)) / (1000 * 60 * 60 * 24))} days old
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className={`px-2 py-1 text-xs rounded-full ${
+                                                            statsModal.type === "assigned" 
+                                                                ? "bg-blue-100 text-blue-700"
+                                                                : statsModal.type === "created"
+                                                                    ? "bg-cyan-100 text-cyan-700"
+                                                                    : statsModal.type === "upcoming"
+                                                                        ? "bg-green-100 text-green-700"
+                                                                        : statsModal.type === "live"
+                                                                            ? "bg-rose-100 text-rose-700"
+                                                                            : "bg-gray-100 text-gray-700"
+                                                        }`}>
+                                                            {statsModal.type === "assigned" ? "Assigned" :
+                                                             statsModal.type === "created" ? "Created" :
+                                                             statsModal.type === "upcoming" ? "Upcoming" :
+                                                             statsModal.type === "live" ? "Live" : "Active"}
+                                                        </span>
+                                                    </td>
+                                                </>
+                                            )}
+                                            <td className="p-4">
+                                                <button
+                                                    onClick={() => {
+                                                        closeStatsModal();
+                                                        if (item._id) {
+                                                            setViewCamp(item);
+                                                        }
+                                                    }}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                                >
+                                                    <FiEye size={14} /> View
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                        <button
+                            onClick={closeStatsModal}
+                            className="px-6 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition shadow-sm"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     // ✅ Create Camp Handler
     const handleCreateCamp = async () => {
@@ -3080,9 +3254,12 @@ const DoctorCamps = () => {
             </div>
 
             <div className="space-y-10">
-                {/* Stats */}
+                {/* Stats - Clickable */}
                 <div className="admin-dash__stats">
-                    <div className="admin-dash__stat">
+                    <div 
+                        className="admin-dash__stat cursor-pointer" 
+                        onClick={() => openStatsModal("assigned", "Assigned Camps", camps)}
+                    >
                         <div className="admin-dash__stat-top">
                             <span className="admin-dash__stat-label">Assigned Camps</span>
                             <div className="admin-dash__stat-icon admin-dash__stat-icon--indigo">
@@ -3092,7 +3269,10 @@ const DoctorCamps = () => {
                         <div className="admin-dash__stat-value">{camps.length}</div>
                         <div className="admin-dash__stat-meta">total assignments</div>
                     </div>
-                    <div className="admin-dash__stat">
+                    <div 
+                        className="admin-dash__stat cursor-pointer" 
+                        onClick={() => openStatsModal("created", "Created Camps", createdCamps)}
+                    >
                         <div className="admin-dash__stat-top">
                             <span className="admin-dash__stat-label">Created Camps</span>
                             <div className="admin-dash__stat-icon admin-dash__stat-icon--cyan">
@@ -3102,7 +3282,10 @@ const DoctorCamps = () => {
                         <div className="admin-dash__stat-value">{createdCamps.length}</div>
                         <div className="admin-dash__stat-meta">camps you created</div>
                     </div>
-                    <div className="admin-dash__stat">
+                    <div 
+                        className="admin-dash__stat cursor-pointer" 
+                        onClick={() => openStatsModal("patients", "All Patients", patients)}
+                    >
                         <div className="admin-dash__stat-top">
                             <span className="admin-dash__stat-label">Total Patients</span>
                             <div className="admin-dash__stat-icon admin-dash__stat-icon--amber">
@@ -3112,7 +3295,10 @@ const DoctorCamps = () => {
                         <div className="admin-dash__stat-value">{patients.length}</div>
                         <div className="admin-dash__stat-meta">total patients</div>
                     </div>
-                    <div className="admin-dash__stat">
+                    <div 
+                        className="admin-dash__stat cursor-pointer" 
+                        onClick={() => openStatsModal("upcoming", "Upcoming Camps", allCamps.filter(c => getCampStatus(c.date, c.time).status === 'upcoming'))}
+                    >
                         <div className="admin-dash__stat-top">
                             <span className="admin-dash__stat-label">Upcoming</span>
                             <div className="admin-dash__stat-icon admin-dash__stat-icon--emerald">
@@ -3122,7 +3308,10 @@ const DoctorCamps = () => {
                         <div className="admin-dash__stat-value">{allCamps.filter(c => getCampStatus(c.date, c.time).status === 'upcoming').length}</div>
                         <div className="admin-dash__stat-meta">upcoming camps</div>
                     </div>
-                    <div className="admin-dash__stat">
+                    <div 
+                        className="admin-dash__stat cursor-pointer" 
+                        onClick={() => openStatsModal("live", "Live Camps", allCamps.filter(c => getCampStatus(c.date, c.time).status === 'live'))}
+                    >
                         <div className="admin-dash__stat-top">
                             <span className="admin-dash__stat-label">Live</span>
                             <div className="admin-dash__stat-icon admin-dash__stat-icon--rose">
@@ -3134,7 +3323,7 @@ const DoctorCamps = () => {
                     </div>
                 </div>
 
-                {/* Camps Section */}
+                {/* Camps Section - UPDATED with VolunteerDisplay and PartnerDisplay */}
                 <div className="admin-dash__card">
                     <div className="admin-dash__card-header">
                         <h3 className="admin-dash__card-title">My Camps</h3>
@@ -3217,43 +3406,25 @@ const DoctorCamps = () => {
                                                     <span>{camp.time || "No time"}</span>
                                                 </div>
                                                 
+                                                {/* 🔥 UPDATED: Using VolunteerDisplay component */}
                                                 {camp.volunteers && camp.volunteers.length > 0 && (
                                                     <div className="mt-1">
-                                                        <div className={`text-[10px] font-semibold mb-1 ${isSelected ? "text-indigo-100" : "text-gray-600"}`}>
-                                                            <FiUsers size={10} className="inline mr-1" />
-                                                            Volunteers:
-                                                        </div>
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {camp.volunteers.map((vol, index) => (
-                                                                <span key={index} className={`text-[9px] px-2 py-0.5 rounded-full border ${
-                                                                    isSelected 
-                                                                        ? "bg-white/20 text-white border-white/30" 
-                                                                        : "bg-blue-50 text-blue-700 border-blue-200"
-                                                                }`}>
-                                                                    {getVolunteerName(vol)}
-                                                                </span>
-                                                            ))}
-                                                        </div>
+                                                        <VolunteerDisplay
+                                                            volunteers={camp.volunteers}
+                                                            isSelected={isSelected}
+                                                            employeeMap={volunteerMap}
+                                                        />
                                                     </div>
                                                 )}
                                                 
+                                                {/* 🔥 UPDATED: Using PartnerDisplay component */}
                                                 {camp.partners && camp.partners.length > 0 && (
                                                     <div className="mt-1">
-                                                        <div className={`text-[10px] font-semibold mb-1 ${isSelected ? "text-indigo-100" : "text-gray-600"}`}>
-                                                            <FiUserCheck size={10} className="inline mr-1" />
-                                                            Partners:
-                                                        </div>
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {camp.partners.map((partner, index) => (
-                                                                <span key={index} className={`text-[9px] px-2 py-0.5 rounded-full border ${
-                                                                    isSelected 
-                                                                        ? "bg-white/20 text-white border-white/30" 
-                                                                        : "bg-purple-50 text-purple-700 border-purple-200"
-                                                                }`}>
-                                                                    {getPartnerName(partner)}
-                                                                </span>
-                                                            ))}
-                                                        </div>
+                                                        <PartnerDisplay
+                                                            partners={camp.partners}
+                                                            isSelected={isSelected}
+                                                            partnersList={partnerList}
+                                                        />
                                                     </div>
                                                 )}
                                             </div>
@@ -3663,7 +3834,7 @@ const DoctorCamps = () => {
                 document.body
             )}
 
-            {/* View Camp Modal */}
+            {/* View Camp Modal - UPDATED with VolunteerDisplay and PartnerDisplay */}
             {viewCamp && createPortal(
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
@@ -3684,24 +3855,28 @@ const DoctorCamps = () => {
                                         <span>{viewCamp.time}</span>
                                     </div>
                                 </div>
+                                
+                                {/* 🔥 UPDATED: Using VolunteerDisplay component */}
                                 {viewCamp.volunteers && viewCamp.volunteers.length > 0 && (
                                     <div className="flex items-center gap-2 mt-2">
                                         <span className="text-xs font-semibold text-gray-600">Volunteers:</span>
-                                        {viewCamp.volunteers.map((vol, index) => (
-                                            <span key={index} className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
-                                                {getVolunteerName(vol)}
-                                            </span>
-                                        ))}
+                                        <VolunteerDisplay
+                                            volunteers={viewCamp.volunteers}
+                                            isSelected={false}
+                                            employeeMap={volunteerMap}
+                                        />
                                     </div>
                                 )}
+                                
+                                {/* 🔥 UPDATED: Using PartnerDisplay component */}
                                 {viewCamp.partners && viewCamp.partners.length > 0 && (
                                     <div className="flex items-center gap-2 mt-1">
                                         <span className="text-xs font-semibold text-gray-600">Partners:</span>
-                                        {viewCamp.partners.map((partner, index) => (
-                                            <span key={index} className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
-                                                {getPartnerName(partner)}
-                                            </span>
-                                        ))}
+                                        <PartnerDisplay
+                                            partners={viewCamp.partners}
+                                            isSelected={false}
+                                            partnersList={partnerList}
+                                        />
                                     </div>
                                 )}
                             </div>
@@ -3829,6 +4004,9 @@ const DoctorCamps = () => {
                 </div>,
                 document.body
             )}
+
+            {/* Stats Modal */}
+            <StatsModal />
         </div>
     );
 };

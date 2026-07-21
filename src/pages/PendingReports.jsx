@@ -13,7 +13,8 @@ import {
     FiUserCheck,
     FiAlertCircle,
     FiPlus,
-    FiEdit
+    FiEdit,
+    FiCheckCircle
 } from "react-icons/fi";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
@@ -263,9 +264,9 @@ const PendingReports = () => {
                                     closeViewModal();
                                     setTimeout(() => handleAddTest(patient), 100);
                                 }}
-                                className="flex-1 min-w-[120px] py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition shadow-sm active:scale-[0.98]"
+                                className="flex-1 min-w-[120px] py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition shadow-sm active:scale-[0.98] flex items-center justify-center"
                             >
-                                <FiPlus size={16} className="inline mr-2" />
+                                <FiPlus size={16} className="mr-2" />
                                 Add Tests
                             </button>
                             <button
@@ -273,9 +274,9 @@ const PendingReports = () => {
                                     closeViewModal();
                                     navigate(`/patient/${patient._id}`);
                                 }}
-                                className="flex-1 min-w-[120px] py-3 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition shadow-sm active:scale-[0.98]"
+                                className="flex-1 min-w-[120px] py-3 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition shadow-sm active:scale-[0.98] flex items-center justify-center"
                             >
-                                <FiEdit size={16} className="inline mr-2" />
+                                <FiEdit size={16} className="mr-2" />
                                 Edit Patient
                             </button>
                         </div>
@@ -316,37 +317,164 @@ const PendingReports = () => {
             </div>
 
             <div className="space-y-10">
-                {/* Stats Cards */}
-                <div className="admin-dash__stats">
-                    <div className="admin-dash__stat">
-                        <div className="admin-dash__stat-top">
-                            <span className="admin-dash__stat-label">Pending Reports</span>
-                            <div className="admin-dash__stat-icon admin-dash__stat-icon--amber">
-                                <FiClock />
+                {/* Stats Cards - Fixed with proper spacing */}
+                <div className="admin-dash__stats" style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(3, 1fr)', 
+                    gap: '1.5rem',
+                    marginBottom: '0'
+                }}>
+                    {/* Pending Reports Card */}
+                    <div className="admin-dash__stat" style={{
+                        padding: '1.5rem 1.5rem 1.25rem',
+                        background: 'white',
+                        borderRadius: '1rem',
+                        border: '1px solid #e5e7eb',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.25rem'
+                    }}>
+                        <div className="admin-dash__stat-top" style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '0.5rem'
+                        }}>
+                            <span className="admin-dash__stat-label" style={{
+                                fontSize: '0.7rem',
+                                fontWeight: '700',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                            }}>Pending Reports</span>
+                            <div className="admin-dash__stat-icon admin-dash__stat-icon--amber" style={{
+                                width: '2rem',
+                                height: '2rem',
+                                borderRadius: '0.5rem',
+                                background: '#fef3c7',
+                                color: '#d97706',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.875rem'
+                            }}>
+                                <FiClock size={16} />
                             </div>
                         </div>
-                        <div className="admin-dash__stat-value">{totalPending}</div>
-                        <div className="admin-dash__stat-meta">need tests</div>
+                        <div className="admin-dash__stat-value" style={{
+                            fontSize: '2rem',
+                            fontWeight: '800',
+                            color: '#111827',
+                            lineHeight: '1.2'
+                        }}>{totalPending}</div>
+                        <div className="admin-dash__stat-meta" style={{
+                            fontSize: '0.75rem',
+                            color: '#9ca3af',
+                            fontWeight: '500'
+                        }}>need tests</div>
                     </div>
-                    <div className="admin-dash__stat">
-                        <div className="admin-dash__stat-top">
-                            <span className="admin-dash__stat-label">Total Patients</span>
-                            <div className="admin-dash__stat-icon admin-dash__stat-icon--indigo">
-                                <FiUserCheck />
+
+                    {/* Total Patients Card */}
+                    <div className="admin-dash__stat" style={{
+                        padding: '1.5rem 1.5rem 1.25rem',
+                        background: 'white',
+                        borderRadius: '1rem',
+                        border: '1px solid #e5e7eb',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.25rem'
+                    }}>
+                        <div className="admin-dash__stat-top" style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '0.5rem'
+                        }}>
+                            <span className="admin-dash__stat-label" style={{
+                                fontSize: '0.7rem',
+                                fontWeight: '700',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                            }}>Total Patients</span>
+                            <div className="admin-dash__stat-icon admin-dash__stat-icon--indigo" style={{
+                                width: '2rem',
+                                height: '2rem',
+                                borderRadius: '0.5rem',
+                                background: '#eef2ff',
+                                color: '#4f46e5',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.875rem'
+                            }}>
+                                <FiUserCheck size={16} />
                             </div>
                         </div>
-                        <div className="admin-dash__stat-value">{totalPatients}</div>
-                        <div className="admin-dash__stat-meta">registered</div>
+                        <div className="admin-dash__stat-value" style={{
+                            fontSize: '2rem',
+                            fontWeight: '800',
+                            color: '#111827',
+                            lineHeight: '1.2'
+                        }}>{totalPatients}</div>
+                        <div className="admin-dash__stat-meta" style={{
+                            fontSize: '0.75rem',
+                            color: '#9ca3af',
+                            fontWeight: '500'
+                        }}>registered</div>
                     </div>
-                    <div className="admin-dash__stat">
-                        <div className="admin-dash__stat-top">
-                            <span className="admin-dash__stat-label">Pending %</span>
-                            <div className="admin-dash__stat-icon admin-dash__stat-icon--rose">
-                                <FiAlertCircle />
+
+                    {/* Pending Percentage Card */}
+                    <div className="admin-dash__stat" style={{
+                        padding: '1.5rem 1.5rem 1.25rem',
+                        background: 'white',
+                        borderRadius: '1rem',
+                        border: '1px solid #e5e7eb',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.25rem'
+                    }}>
+                        <div className="admin-dash__stat-top" style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '0.5rem'
+                        }}>
+                            <span className="admin-dash__stat-label" style={{
+                                fontSize: '0.7rem',
+                                fontWeight: '700',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                            }}>Pending %</span>
+                            <div className="admin-dash__stat-icon admin-dash__stat-icon--rose" style={{
+                                width: '2rem',
+                                height: '2rem',
+                                borderRadius: '0.5rem',
+                                background: '#fce7f3',
+                                color: '#db2777',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.875rem'
+                            }}>
+                                <FiAlertCircle size={16} />
                             </div>
                         </div>
-                        <div className="admin-dash__stat-value">{percentagePending}%</div>
-                        <div className="admin-dash__stat-meta">of total patients</div>
+                        <div className="admin-dash__stat-value" style={{
+                            fontSize: '2rem',
+                            fontWeight: '800',
+                            color: '#111827',
+                            lineHeight: '1.2'
+                        }}>{percentagePending}%</div>
+                        <div className="admin-dash__stat-meta" style={{
+                            fontSize: '0.75rem',
+                            color: '#9ca3af',
+                            fontWeight: '500'
+                        }}>of total patients</div>
                     </div>
                 </div>
 
@@ -431,7 +559,7 @@ const PendingReports = () => {
                                                 <tr key={patient._id} className="transition-colors group hover:bg-gray-50/80">
                                                     <td className="p-4">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-amber-700 rounded-full bg-gradient-to-br from-amber-100 to-orange-100">
+                                                            <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-amber-700 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex-shrink-0">
                                                                 {patient.name?.charAt(0)?.toUpperCase() || 'P'}
                                                             </div>
                                                             <div>
@@ -441,13 +569,13 @@ const PendingReports = () => {
                                                         </div>
                                                     </td>
                                                     <td className="p-4">
-                                                        <span className="px-3 py-1 text-sm text-green-700 bg-green-100 rounded-full">
+                                                        <span className="px-3 py-1 text-sm text-green-700 bg-green-100 rounded-full whitespace-nowrap">
                                                             {patient.campId?.name || "N/A"}
                                                         </span>
                                                     </td>
                                                     <td className="p-4">
                                                         <span className="text-sm font-medium text-gray-700 flex items-center gap-1">
-                                                            <FiPhone size={12} className="text-gray-400" />
+                                                            <FiPhone size={12} className="text-gray-400 flex-shrink-0" />
                                                             {patient.contact || "N/A"}
                                                         </span>
                                                     </td>
@@ -457,22 +585,22 @@ const PendingReports = () => {
                                                         </span>
                                                     </td>
                                                     <td className="p-4">
-                                                        <span className="px-3 py-1 text-sm font-semibold bg-amber-100 text-amber-700 rounded-full flex items-center gap-1">
+                                                        <span className="px-3 py-1 text-sm font-semibold bg-amber-100 text-amber-700 rounded-full flex items-center gap-1 whitespace-nowrap">
                                                             <FiClock size={12} />
                                                             Pending
                                                         </span>
                                                     </td>
                                                     <td className="p-4">
-                                                        <div className="flex items-center gap-2">
+                                                        <div className="flex items-center gap-2 flex-wrap">
                                                             <button
                                                                 onClick={() => handleViewPatient(patient)}
-                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors whitespace-nowrap"
                                                             >
                                                                 <FiEye size={14} /> View
                                                             </button>
                                                             <button
                                                                 onClick={() => handleAddTest(patient)}
-                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors whitespace-nowrap"
                                                             >
                                                                 <FiPlus size={14} /> Add Tests
                                                             </button>

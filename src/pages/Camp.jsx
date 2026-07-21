@@ -1094,13 +1094,17 @@ import {
   FiTrash2,
   FiEyeOff,
   FiEye as FiEyeShow,
-  FiArchive
+  FiArchive,
+  FiSave,
+  FiArrowLeft
 } from "react-icons/fi";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { generateMedicalReport, generateMedicalReportFile } from "../utils/pdfGenerator";
 import config from "../config";
 import { CampStatusBadge, getCampStatus, sortCampsByStatus } from "../utils/campStatus";
+import VolunteerDisplay from "../components/VolunteerDisplay";
+import PartnerDisplay from "../components/PartnerDisplay";
 import "./Dashboard.css";
 
 const API_BASE = config.API_BASE_URL;
@@ -1139,6 +1143,19 @@ const extractLatestVitals = (tests = []) => {
   return r;
 };
 
+// Salutation options
+const salutationOptions = [
+  { value: "", label: "Select Salutation" },
+  { value: "Mr.", label: "Mr." },
+  { value: "Mrs.", label: "Mrs." },
+  { value: "Ms.", label: "Ms." },
+  { value: "Dr.", label: "Dr." },
+  { value: "M/s", label: "M/s" },
+  { value: "Mast.", label: "Mast." },
+  { value: "Miss", label: "Miss" },
+  { value: "N/A", label: "N/A" }
+];
+
 /* ================= COMPONENTS ================= */
 
 export default function CampDashboard() {
@@ -1166,6 +1183,19 @@ export default function CampDashboard() {
     title: "",
     data: [],
     type: "" // "camps", "patients", "active", "upcoming", "archived"
+  });
+
+  // 🔥 Add Patient Modal State (inside View Camp) - Complete form
+  const [showAddPatientModal, setShowAddPatientModal] = useState(false);
+  const [addPatientLoading, setAddPatientLoading] = useState(false);
+  const [addPatientForm, setAddPatientForm] = useState({
+    salutation: "",
+    name: "",
+    age: "",
+    gender: "female",
+    contact: "",
+    address: "",
+    campId: ""
   });
 
   // Filters
@@ -1383,14 +1413,14 @@ export default function CampDashboard() {
 
   // 🔥 Hide/Archive a camp
   const handleHideCamp = async (campId) => {
-    if (!window.confirm("Are you sure you want to archive this camp? It will be moved to archived.")) return;
+    if (!window.confirm("Are you sure you want to hide this camp? It will be moved to hidden.")) return;
     try {
       await axios.put(`${API_BASE}/camps/hide-camp/${campId}`, { isHidden: true });
-      alert("✅ Camp archived successfully");
+      alert("✅ Camp hidden successfully");
       window.location.reload();
     } catch (err) {
-      console.error("Archive camp error:", err);
-      alert("❌ Failed to archive camp: " + (err.response?.data?.message || err.message));
+      console.error("Hide camp error:", err);
+      alert("❌ Failed to hide camp: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -1410,17 +1440,88 @@ export default function CampDashboard() {
 
   // 🔥 Manual Archive All Old Camps
   const handleManualArchive = async () => {
-    if (!window.confirm("Are you sure you want to archive all camps older than 10 days?")) return;
+    if (!window.confirm("Are you sure you want to hide all camps older than 10 days?")) return;
     try {
       setLoading(true);
       const response = await axios.post(`${API_BASE}/camps/archive-old-camps`, { days: 10 });
       alert(`✅ ${response.data.message}`);
       window.location.reload();
     } catch (err) {
-      console.error("Manual archive error:", err);
-      alert("❌ Failed to archive old camps: " + (err.response?.data?.message || err.message));
+      console.error("Manual hide error:", err);
+      alert("❌ Failed to hide old camps: " + (err.response?.data?.message || err.message));
     } finally {
       setLoading(false);
+    }
+  };
+
+  /* -------- ADD PATIENT FROM VIEW CAMP MODAL -------- */
+  const handleAddPatientChange = (e) => {
+    const { name, value } = e.target;
+    setAddPatientForm((prev) => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleAddPatientSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!addPatientForm.campId) {
+      alert("Please select a camp");
+      return;
+    }
+
+    if (!addPatientForm.name) {
+      alert("Please enter patient name");
+      return;
+    }
+
+    if (!addPatientForm.contact) {
+      alert("Please enter WhatsApp number");
+      return;
+    }
+
+    if (!addPatientForm.age) {
+      alert("Please enter age");
+      return;
+    }
+
+    try {
+      setAddPatientLoading(true);
+      await axios.post(`${API_BASE}/patients`, addPatientForm);
+      alert("✅ Patient added successfully!");
+      setShowAddPatientModal(false);
+      
+      // Reset form
+      setAddPatientForm({
+        salutation: "",
+        name: "",
+        age: "",
+        gender: "female",
+        contact: "",
+        address: "",
+        campId: ""
+      });
+      
+      // Refresh patients list
+      const patientsRes = await axios.get(`${API_BASE}/patients`).catch(() => ({ data: [] }));
+      let allPatients = patientsRes.data || [];
+      if (!Array.isArray(allPatients)) {
+        allPatients = allPatients.data || allPatients.patients || [];
+        if (!Array.isArray(allPatients)) allPatients = [];
+      }
+      
+      if (currentUserRole === "partner" && currentUserId) {
+        const allIds = camps.map(c => String(c._id));
+        allPatients = allPatients.filter(p => p.campId && allIds.includes(String(p.campId?._id || p.campId)));
+      }
+      setPatients(allPatients);
+      
+    } catch (err) {
+      console.error("Add patient error:", err);
+      alert("❌ Failed to add patient: " + (err.response?.data?.message || err.message));
+    } finally {
+      setAddPatientLoading(false);
     }
   };
 
@@ -1935,7 +2036,7 @@ export default function CampDashboard() {
         }}
       >
         <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-          {/* Header - Same gradient as Archived Modal */}
+          {/* Header - Same gradient as Hidden Modal */}
           <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
             <div>
               <h3 className="text-xl font-bold text-white">{statsModal.title}</h3>
@@ -1970,7 +2071,7 @@ export default function CampDashboard() {
                         <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Gender</th>
                       </>
                     )}
-                    {(statsModal.type === "camps" || statsModal.type === "active" || statsModal.type === "upcoming" || statsModal.type === "archived") && (
+                    {(statsModal.type === "camps" || statsModal.type === "active" || statsModal.type === "upcoming" || statsModal.type === "hidden") && (
                       <>
                         <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Location</th>
                         <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Date</th>
@@ -2000,7 +2101,7 @@ export default function CampDashboard() {
                           <td className="p-4 text-sm text-gray-600">{item.gender || 'N/A'}</td>
                         </>
                       )}
-                      {(statsModal.type === "camps" || statsModal.type === "active" || statsModal.type === "upcoming" || statsModal.type === "archived") && (
+                      {(statsModal.type === "camps" || statsModal.type === "active" || statsModal.type === "upcoming" || statsModal.type === "hidden") && (
                         <>
                           <td className="p-4 text-sm text-gray-600">{item.location || 'N/A'}</td>
                           <td className="p-4 text-sm text-gray-600">{item.date || 'N/A'}</td>
@@ -2016,7 +2117,7 @@ export default function CampDashboard() {
                           </td>
                           <td className="p-4">
                             <span className={`px-2 py-1 text-xs rounded-full ${
-                              statsModal.type === "archived" || item.isHidden 
+                              statsModal.type === "hidden" || item.isHidden 
                                 ? "bg-purple-100 text-purple-700" 
                                 : statsModal.type === "active" 
                                   ? "bg-green-100 text-green-700"
@@ -2024,7 +2125,7 @@ export default function CampDashboard() {
                                     ? "bg-blue-100 text-blue-700"
                                     : "bg-gray-100 text-gray-700"
                             }`}>
-                              {item.isHidden ? "Archived" : 
+                              {item.isHidden ? "Hidden" : 
                                statsModal.type === "active" ? "Active" :
                                statsModal.type === "upcoming" ? "Upcoming" : "Active"}
                             </span>
@@ -2082,9 +2183,9 @@ export default function CampDashboard() {
           {/* Header */}
           <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
             <div>
-              <h3 className="text-xl font-bold text-white">Archived Camps</h3>
+              <h3 className="text-xl font-bold text-white">Hidden Camps</h3>
               <p className="text-sm text-purple-100">
-                {hiddenCamps.length} camps archived (auto-archive after 10 days)
+                {hiddenCamps.length} camps hidden (auto-hide after 10 days)
               </p>
             </div>
             <button
@@ -2100,8 +2201,8 @@ export default function CampDashboard() {
             {hiddenCamps.length === 0 ? (
               <div className="text-center py-12">
                 <FiArchive size={48} className="mx-auto text-gray-200 mb-4" />
-                <p className="text-gray-400 font-medium">No archived camps found</p>
-                <p className="text-sm text-gray-300 mt-1">Camps auto-archive after 10 days</p>
+                <p className="text-gray-400 font-medium">No hidden camps found</p>
+                <p className="text-sm text-gray-300 mt-1">Camps auto-hide after 10 days</p>
               </div>
             ) : (
               <table className="w-full text-left border-collapse">
@@ -2218,22 +2319,22 @@ export default function CampDashboard() {
             </span>
           </div>
           
-          {/* 🔥 NEW: Manual Archive Button */}
+          {/* 🔥 NEW: Manual Hide Button */}
           <button
             onClick={handleManualArchive}
             className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-xl font-semibold hover:bg-orange-700 transition shadow-lg shadow-orange-100"
             disabled={loading}
           >
-            <FiArchive size={18} />
-            {loading ? "Processing..." : "Archive Old"}
+            <FiEyeOff size={18} />
+            {loading ? "Processing..." : "Hide Old"}
           </button>
           
           <button
             onClick={() => setShowHiddenModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition shadow-lg shadow-purple-100 relative"
           >
-            <FiArchive size={18} />
-            Archived
+            <FiEyeOff size={18} />
+            Hidden
             {totalHiddenCamps > 0 && (
               <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
                 {totalHiddenCamps}
@@ -2324,18 +2425,18 @@ export default function CampDashboard() {
             if (hiddenCamps.length > 0) {
               setShowHiddenModal(true);
             } else {
-              alert("No archived camps found");
+              alert("No hidden camps found");
             }
           }}
         >
           <div className="admin-dash__stat-top">
-            <span className="admin-dash__stat-label">Archived</span>
+            <span className="admin-dash__stat-label">Hidden</span>
             <div className="admin-dash__stat-icon admin-dash__stat-icon--purple" style={{ background: '#f3e8ff', color: '#7c3aed' }}>
-              <FiArchive />
+              <FiEyeOff />
             </div>
           </div>
           <div className="admin-dash__stat-value">{hiddenCamps.length}</div>
-          <div className="admin-dash__stat-meta">archived camps</div>
+          <div className="admin-dash__stat-meta">hidden camps</div>
         </div>
       </div>
 
@@ -2343,7 +2444,7 @@ export default function CampDashboard() {
       <div ref={campsSectionRef} className="admin-dash__card">
         <div className="admin-dash__card-header">
           <h3 className="admin-dash__card-title">
-            {campViewFilter === "active" ? "Active Camps" : "Archived Camps"}
+            {campViewFilter === "active" ? "Active Camps" : "Hidden Camps"}
           </h3>
           <div className="flex items-center gap-3 flex-wrap">
             {currentUserRole === "partner" && (
@@ -2371,46 +2472,6 @@ export default function CampDashboard() {
               </div>
             )}
 
-            {/* 🔥 Active/Archived Toggle Buttons */}
-            {/* <div className="flex bg-indigo-50 rounded-xl p-1 border border-indigo-100">
-              <button
-                onClick={() => setCampViewFilter("active")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  campViewFilter === "active" 
-                    ? "bg-indigo-600 text-white shadow-sm" 
-                    : "text-indigo-600 hover:bg-indigo-100"
-                }`}
-              >
-                <FiEye size={12} />
-                Show Active
-                <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
-                  campViewFilter === "active" 
-                    ? "bg-white/20 text-white" 
-                    : "bg-indigo-100 text-indigo-600"
-                }`}>
-                  {camps.filter(c => !c.isHidden).length}
-                </span>
-              </button>
-              <button
-                onClick={() => setCampViewFilter("archived")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  campViewFilter === "archived" 
-                    ? "bg-indigo-600 text-white shadow-sm" 
-                    : "text-indigo-600 hover:bg-indigo-100"
-                }`}
-              >
-                <FiArchive size={12} />
-                Show Archived
-                <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
-                  campViewFilter === "archived" 
-                    ? "bg-white/20 text-white" 
-                    : "bg-indigo-100 text-indigo-600"
-                }`}>
-                  {hiddenCamps.length}
-                </span>
-              </button>
-            </div> */}
-
             <span className="px-2 py-1 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-full">
               {activeCampsCount} Active
             </span>
@@ -2427,9 +2488,9 @@ export default function CampDashboard() {
                 </>
               ) : (
                 <>
-                  <FiArchive size={48} className="mx-auto text-gray-200 mb-4" />
-                  <p className="font-medium">No archived camps found</p>
-                  <p className="text-sm text-gray-400 mt-1">Camps auto-archive after 10 days</p>
+                  <FiEyeOff size={48} className="mx-auto text-gray-200 mb-4" />
+                  <p className="font-medium">No hidden camps found</p>
+                  <p className="text-sm text-gray-400 mt-1">Camps auto-hide after 10 days</p>
                 </>
               )}
             </div>
@@ -2439,7 +2500,7 @@ export default function CampDashboard() {
                 const isSelected = selectedCampId === camp._id;
                 const isCreated = currentUserRole === "partner" && activeTab === "created";
                 const creatorInfo = getCreatorInfo(camp);
-                const isArchived = camp.isHidden === true;
+                const isHidden = camp.isHidden === true;
 
                 return (
                   <div
@@ -2453,7 +2514,7 @@ export default function CampDashboard() {
                         ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
                         : "bg-white hover:border-indigo-300 hover:shadow-md"
                       }
-                      ${isArchived ? "border-purple-300 bg-purple-50/30" : ""}
+                      ${isHidden ? "border-purple-300 bg-purple-50/30" : ""}
                     `}
                   >
                     {/* Creator Badge */}
@@ -2461,16 +2522,16 @@ export default function CampDashboard() {
                       {creatorInfo.label}
                     </div>
 
-                    {/* Archived badge */}
-                    {isArchived && (
+                    {/* Hidden badge */}
+                    {isHidden && (
                       <div className="absolute top-2 right-2 bg-purple-600 text-white text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
-                        <FiArchive size={10} />
-                        Archived
+                        <FiEyeOff size={10} />
+                        Hidden
                       </div>
                     )}
 
                     {/* Partner created badge */}
-                    {camp.createdByCurrentPartner && currentUserRole === "partner" && !isArchived && (
+                    {camp.createdByCurrentPartner && currentUserRole === "partner" && !isHidden && (
                       <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
                         Your Camp
                       </div>
@@ -2478,10 +2539,10 @@ export default function CampDashboard() {
 
                     <div className="flex items-center justify-between gap-2 mb-1 mt-4">
                       <h4 className="font-bold truncate">{camp.name}</h4>
-                      {!isArchived && <CampStatusBadge date={camp.date} time={camp.time} />}
-                      {isArchived && (
+                      {!isHidden && <CampStatusBadge date={camp.date} time={camp.time} />}
+                      {isHidden && (
                         <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-200 text-purple-700 rounded-full">
-                          Archived
+                          Hidden
                         </span>
                       )}
                     </div>
@@ -2501,51 +2562,25 @@ export default function CampDashboard() {
                       <span>{camp.time || "No time"}</span>
                     </div>
 
-                    {/* Show assigned partners */}
+                    {/* 🔥 Show assigned partners using PartnerDisplay component */}
                     {camp.partners && camp.partners.length > 0 && (
                       <div className="mt-2">
-                        <div className={`text-[10px] font-semibold mb-1 ${isSelected ? "text-indigo-100" : "text-gray-600"}`}>
-                          <FiUserCheck size={10} className="inline mr-1" />
-                          Partners:
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {camp.partners.map((partnerId, index) => {
-                            const name = getPartnerName(partnerId);
-                            return name ? (
-                              <span key={index} className={`text-[9px] px-2 py-0.5 rounded-full border ${
-                                isSelected 
-                                  ? "bg-white/20 text-white border-white/30" 
-                                  : "bg-purple-50 text-purple-700 border-purple-200"
-                              }`}>
-                                {name}
-                              </span>
-                            ) : null;
-                          })}
-                        </div>
+                        <PartnerDisplay
+                          partners={camp.partners}
+                          isSelected={isSelected}
+                          partnersList={partnerList}
+                        />
                       </div>
                     )}
 
-                    {/* Show volunteers */}
+                    {/* 🔥 Show volunteers using VolunteerDisplay component */}
                     {camp.volunteers && camp.volunteers.length > 0 && (
                       <div className="mt-2">
-                        <div className={`text-[10px] font-semibold mb-1 ${isSelected ? "text-indigo-100" : "text-gray-600"}`}>
-                          <FiUser size={10} className="inline mr-1" />
-                          Volunteers:
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {camp.volunteers.map((vol, index) => {
-                            const name = getVolunteerName(vol);
-                            return (
-                              <span key={index} className={`text-[9px] px-2 py-0.5 rounded-full border ${
-                                isSelected 
-                                  ? "bg-white/20 text-white border-white/30" 
-                                  : "bg-blue-50 text-blue-700 border-blue-200"
-                              }`}>
-                                {name}
-                              </span>
-                            );
-                          })}
-                        </div>
+                        <VolunteerDisplay
+                          volunteers={camp.volunteers}
+                          isSelected={isSelected}
+                          employeeMap={employeeMap}
+                        />
                       </div>
                     )}
 
@@ -2554,7 +2589,7 @@ export default function CampDashboard() {
                     </span>
 
                     <div className="float-right mt-3 flex items-center gap-1">
-                      {isCreated && !isArchived && (
+                      {isCreated && !isHidden && (
                         <>
                           <button
                             onClick={(e) => {
@@ -2594,13 +2629,13 @@ export default function CampDashboard() {
                                 ? "text-white hover:bg-white/20" 
                                 : "text-purple-600 hover:bg-purple-50"
                             }`}
-                            title="Archive Camp"
+                            title="Hide Camp"
                           >
                             <FiEyeOff size={12} />
                           </button>
                         </>
                       )}
-                      {isArchived && (
+                      {isHidden && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -3004,7 +3039,7 @@ export default function CampDashboard() {
         </div>, document.body
       )}
 
-      {/* View Camp Modal */}
+      {/* View Camp Modal - WITH ADD PATIENT BUTTON AND COMPONENTS */}
       {viewCamp && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
@@ -3040,38 +3075,31 @@ export default function CampDashboard() {
                   </span>
                 </div>
                 
-                {/* Show assigned partners in modal */}
+                {/* 🔥 Show assigned partners using PartnerDisplay component */}
                 {viewCamp.partners && viewCamp.partners.length > 0 && (
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-xs font-semibold text-gray-600">Partners:</span>
-                    {viewCamp.partners.map((partnerId, index) => {
-                      const name = getPartnerName(partnerId);
-                      return name ? (
-                        <span key={index} className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
-                          {name}
-                        </span>
-                      ) : null;
-                    })}
+                    <PartnerDisplay
+                      partners={viewCamp.partners}
+                      isSelected={false}
+                      partnersList={partnerList}
+                    />
                   </div>
                 )}
                 
-                {/* Show volunteers in modal */}
+                {/* 🔥 Show volunteers using VolunteerDisplay component */}
                 {viewCamp.volunteers && viewCamp.volunteers.length > 0 && (
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-xs font-semibold text-gray-600">Volunteers:</span>
-                    {viewCamp.volunteers.map((vol, index) => {
-                      const name = getVolunteerName(vol);
-                      return (
-                        <span key={index} className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
-                          {name}
-                        </span>
-                      );
-                    })}
+                    <VolunteerDisplay
+                      volunteers={viewCamp.volunteers}
+                      isSelected={false}
+                      employeeMap={employeeMap}
+                    />
                   </div>
                 )}
               </div>
               
-              {/* Close button - top-right, fixed position */}
               <button
                 onClick={() => setViewCamp(null)}
                 className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition shadow-sm"
@@ -3080,7 +3108,7 @@ export default function CampDashboard() {
               </button>
             </div>
 
-            {/* Toolbar */}
+            {/* Toolbar - MODIFIED: Added Add Patient button */}
             <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-4 bg-white">
               <div className="flex items-center gap-2">
                 <span className="px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
@@ -3089,13 +3117,28 @@ export default function CampDashboard() {
                 <CampStatusBadge date={viewCamp.date} time={viewCamp.time} />
               </div>
 
-              <button
-                onClick={handleDownloadCampCSV}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 active:scale-95"
-              >
-                <FiFileText size={16} />
-                Download Report
-              </button>
+              <div className="flex items-center gap-2">
+                {/* 🔥 NEW: Add Patient Button */}
+                <button
+                  onClick={() => {
+                    // Set campId in form before opening modal
+                    setAddPatientForm(prev => ({ ...prev, campId: viewCamp._id }));
+                    setShowAddPatientModal(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-100 active:scale-95"
+                >
+                  <FiPlus size={16} />
+                  Add Patient
+                </button>
+                
+                <button
+                  onClick={handleDownloadCampCSV}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 active:scale-95"
+                >
+                  <FiFileText size={16} />
+                  Download Report
+                </button>
+              </div>
             </div>
 
             {/* Table */}
@@ -3170,6 +3213,197 @@ export default function CampDashboard() {
                 Close
               </button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Add Patient Modal inside View Camp - COMPLETE FORM WITH CAMP PRE-SELECTED */}
+      {showAddPatientModal && viewCamp && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-lg bg-white shadow-2xl rounded-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-indigo-600 to-purple-600 flex-shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <FiPlus size={20} />
+                  Add Patient
+                </h3>
+                <p className="text-sm text-indigo-100">Adding to: {viewCamp.name}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowAddPatientModal(false);
+                  setAddPatientForm({
+                    salutation: "",
+                    name: "",
+                    age: "",
+                    gender: "female",
+                    contact: "",
+                    address: "",
+                    campId: ""
+                  });
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white"
+              >
+                <FiX size={18} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleAddPatientSubmit} className="p-6 space-y-5 overflow-y-auto flex-1">
+              {/* Camp - Pre-selected (Read-only) */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-1.5">
+                  Camp <span className="text-red-500">*</span>
+                </label>
+                <div className="w-full p-3 bg-indigo-50 border-2 border-indigo-200 rounded-xl text-indigo-800 font-medium">
+                  {viewCamp.name}
+                </div>
+              </div>
+
+              {/* WhatsApp Number */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-1.5">
+                  WhatsApp Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  required
+                  name="contact"
+                  value={addPatientForm.contact}
+                  placeholder="+91 9876543210"
+                  className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none transition"
+                  onChange={handleAddPatientChange}
+                />
+              </div>
+
+              {/* Salutation */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-1.5">
+                  Salutation
+                </label>
+                <div className="relative">
+                  <select
+                    name="salutation"
+                    value={addPatientForm.salutation}
+                    className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none bg-white"
+                    onChange={handleAddPatientChange}
+                  >
+                    {salutationOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <FiUser className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                </div>
+              </div>
+
+              {/* Patient Name */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-1.5">
+                  Patient Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  required
+                  name="name"
+                  value={addPatientForm.name}
+                  placeholder="Enter full name"
+                  className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none transition"
+                  onChange={handleAddPatientChange}
+                />
+              </div>
+
+              {/* Age & Gender */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-1.5">
+                    Age <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    required
+                    name="age"
+                    type="number"
+                    min="0"
+                    max="150"
+                    value={addPatientForm.age}
+                    placeholder="Years"
+                    className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none transition"
+                    onChange={handleAddPatientChange}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-1.5">
+                    Gender <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    name="gender"
+                    value={addPatientForm.gender}
+                    className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none bg-white"
+                    onChange={handleAddPatientChange}
+                    required
+                  >
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="others">Others</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Address */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-1.5">
+                  Address <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  required
+                  name="address"
+                  value={addPatientForm.address}
+                  rows="3"
+                  placeholder="Full residential address..."
+                  className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none resize-none"
+                  onChange={handleAddPatientChange}
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-2 border-t border-gray-100 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddPatientModal(false);
+                    setAddPatientForm({
+                      salutation: "",
+                      name: "",
+                      age: "",
+                      gender: "female",
+                      contact: "",
+                      address: "",
+                      campId: ""
+                    });
+                  }}
+                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addPatientLoading}
+                  className="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition shadow-lg shadow-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {addPatientLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <FiSave size={16} />
+                      Register Patient
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>,
         document.body

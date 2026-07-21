@@ -683,13 +683,17 @@ import {
     FiUser,
     FiFilter,
     FiBarChart,
-    FiTrendingUp
+    FiTrendingUp,
+    FiMessageCircle,
+    FiCopy,
+    FiDownload
 } from "react-icons/fi";
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import config from "../config";
 import { CampStatusBadge, getCampStatus } from "../utils/campStatus";
+import { generateMedicalReport, generateMedicalReportFile } from "../utils/pdfGenerator";
 import {
     CampPieChart,
     CampParticipationChart,
@@ -702,7 +706,43 @@ import "./Dashboard.css";
 
 const API_BASE = config.API_BASE_URL;
 
+// 🔥 Helper functions
+const calculateBMI = (weight, heightCm) => {
+    if (!weight || !heightCm) return null;
+    const h = heightCm / 100;
+    return +(weight / (h * h)).toFixed(1);
+};
+
+const getBMICategory = (bmi) => {
+    if (!bmi) return "-";
+    if (bmi < 18.5) return "Underweight";
+    if (bmi < 25) return "Healthy";
+    if (bmi < 30) return "Overweight";
+    return "Obese";
+};
+
+const extractLatestVitals = (tests = []) => {
+    const r = {};
+    if (!tests || tests.length === 0) return r;
+
+    tests.forEach(t => {
+        r.date = t.date;
+        if (t.type === "weight") r.weight = t.value;
+        if (t.type === "height") r.height = t.value;
+        if (t.type === "sugar") {
+            r.sugar = t.value;
+            r.sugarType = t.sugarType || t.type || "Random";
+        }
+        if (t.type === "bp") {
+            r.systolic = t.value;
+            r.diastolic = t.value2;
+        }
+    });
+    return r;
+};
+
 const VolunteerDashboard = () => {
+    const navigate = useNavigate();
     const [patients, setPatients] = useState([]);
     const [camps, setCamps] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
@@ -712,9 +752,24 @@ const VolunteerDashboard = () => {
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
 
+    // 🔥 Stats Modal State
+    const [statsModal, setStatsModal] = useState({
+        show: false,
+        title: "",
+        data: [],
+        type: ""
+    });
+
     const [viewCamp, setViewCamp] = useState(null);
     const [partners, setPartners] = useState([]);
     const [partnerMap, setPartnerMap] = useState({});
+    const [volunteerMap, setVolunteerMap] = useState({});
+
+    // 🔥 Share Modal State
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [currentPatient, setCurrentPatient] = useState(null);
+    const [downloadLink, setDownloadLink] = useState("");
+    const [copied, setCopied] = useState(false);
 
     // Refs for scrolling
     const campsSectionRef = useRef(null);
@@ -728,6 +783,25 @@ const VolunteerDashboard = () => {
         if (ref.current) {
             ref.current.scrollIntoView({ behavior: "smooth", block: "start" });
         }
+    };
+
+    // 🔥 Stats Modal Handlers
+    const openStatsModal = (type, title, data) => {
+        setStatsModal({
+            show: true,
+            title: title,
+            data: data || [],
+            type: type
+        });
+    };
+
+    const closeStatsModal = () => {
+        setStatsModal({
+            show: false,
+            title: "",
+            data: [],
+            type: ""
+        });
     };
 
     // Helper function to get partner name
@@ -749,6 +823,14 @@ const VolunteerDashboard = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
+
+            // Fetch employees for volunteer map
+            const employeesRes = await axios.get(`${API_BASE}/proxy/employees/get-employees`).catch(() => ({ data: [] }));
+            const empData = employeesRes.data || [];
+            const allEmployees = Array.isArray(empData) ? empData : empData.employees || empData.data || empData.value || [];
+            const volMap = {};
+            allEmployees.forEach(emp => { volMap[emp._id] = emp.name; });
+            setVolunteerMap(volMap);
 
             // Fetch all camps
             const campsRes = await axios.get(`${API_BASE}/camps/allcamps`);
@@ -803,6 +885,103 @@ const VolunteerDashboard = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    // 🔥 Prepare report data for view/download
+    const prepareReportData = async (patientId) => {
+        try {
+            const res = await axios.get(`${API_BASE}/patients/${patientId}`);
+            const fullPatient = res.data;
+
+            if (!fullPatient?.tests?.length) {
+                alert("No test data available for this patient.");
+                return null;
+            }
+
+            const test = extractLatestVitals(fullPatient.tests);
+            const bmiValue = calculateBMI(test.weight, test.height);
+
+            const patientData = {
+                name: fullPatient.name,
+                age: fullPatient.age,
+                gender: fullPatient.gender,
+                id: fullPatient._id.slice(-6).toUpperCase(),
+                date: new Date(test.date || Date.now()).toLocaleDateString(),
+                phone: fullPatient.contact,
+                address: fullPatient.address,
+            };
+
+            const testsData = {
+                weight: test.weight || "-",
+                height: test.height || "-",
+                sugar: test.sugar || "-",
+                sugarType: test.sugarType || "Random",
+                systolic: test.systolic || "-",
+                diastolic: test.diastolic || "-",
+                heartRate: "-",
+            };
+
+            const bmiData = {
+                bmi: bmiValue || "-",
+                category: bmiValue ? getBMICategory(bmiValue) : "-",
+            };
+
+            return { patientData, testsData, bmiData };
+        } catch (err) {
+            console.error(err);
+            alert("Failed to fetch report data.");
+            return null;
+        }
+    };
+
+    const uploadPdfToServer = async (patientData, testsData, bmiData) => {
+        const rawPdf = await generateMedicalReportFile(patientData, testsData, bmiData);
+        const pdfBlob = new Blob([rawPdf], { type: "application/pdf" });
+        const formData = new FormData();
+        formData.append("file", pdfBlob, "health-report.pdf");
+        const res = await axios.post(`${API_BASE}/reports/upload`, formData, { headers: { "Content-Type": "multipart/form-data" } });
+        return res.data.downloadLink;
+    };
+
+    const viewReport = async (patient) => {
+        const data = await prepareReportData(patient._id);
+        if (!data) return;
+        navigate('/health-report', { state: { patient: data.patientData, tests: data.testsData } });
+    };
+
+    const downloadPDF = async (patient) => {
+        const data = await prepareReportData(patient._id);
+        if (!data) return;
+        generateMedicalReport(data.patientData, data.testsData, data.bmiData);
+    };
+
+    const shareReport = async (patient) => {
+        try {
+            setCurrentPatient(patient);
+            const data = await prepareReportData(patient._id);
+            if (!data) return;
+            const publicLink = await uploadPdfToServer(data.patientData, data.testsData, data.bmiData);
+            const message = `*Health Checkup Report* 🩺\n\nHello ${patient.name},\nYour medical health report is ready.\n\n📄 Download Report:\n${publicLink}\n\n(Generated by BIM Medical)`;
+            setDownloadLink(message);
+            setShowShareModal(true);
+        } catch (err) {
+            console.error("UPLOAD ERROR", err);
+            alert("Failed to generate sharing link");
+        }
+    };
+
+    const handleWhatsAppShare = () => {
+        if (!currentPatient || !downloadLink) return;
+        const phone = currentPatient.contact ? currentPatient.contact.replace(/\D/g, '') : '';
+        if (!phone) { alert("Phone number required"); return; }
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(downloadLink)}`, "_blank");
+        setShowShareModal(false);
+    };
+
+    const handleCopyMessage = () => {
+        navigator.clipboard.writeText(downloadLink);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
     };
 
     // Filter camps by date range for charts
@@ -903,6 +1082,147 @@ const VolunteerDashboard = () => {
     const totalPatients = patients.length;
     const esignCount = patients.filter(p => p.tests && p.tests.length > 0).length;
 
+    // 🔥 Stats Modal Component
+    const StatsModal = () => {
+        if (!statsModal.show) return null;
+
+        return (
+            <div 
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                        closeStatsModal();
+                    }
+                }}
+            >
+                <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                    {/* Header */}
+                    <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
+                        <div>
+                            <h3 className="text-xl font-bold text-white">{statsModal.title}</h3>
+                            <p className="text-sm text-purple-100">
+                                Total: {statsModal.data.length} items
+                            </p>
+                        </div>
+                        <button
+                            onClick={closeStatsModal}
+                            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white"
+                        >
+                            <FiX size={20} />
+                        </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="overflow-auto flex-1 p-0">
+                        {statsModal.data.length === 0 ? (
+                            <div className="text-center py-12">
+                                <p className="text-gray-400 font-medium">No data found</p>
+                            </div>
+                        ) : (
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-gray-50 sticky top-0 z-10">
+                                    <tr>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">#</th>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Name</th>
+                                        {statsModal.type === "patients" && (
+                                            <>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Contact</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Age</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Gender</th>
+                                            </>
+                                        )}
+                                        {(statsModal.type === "camps" || statsModal.type === "active" || statsModal.type === "upcoming") && (
+                                            <>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Location</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Date</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Created</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Status</th>
+                                            </>
+                                        )}
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {statsModal.data.map((item, index) => (
+                                        <tr key={item._id || index} className="hover:bg-gray-50/80 transition-colors">
+                                            <td className="p-4 text-sm text-gray-500">{index + 1}</td>
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-xs border border-purple-100">
+                                                        {(item.name || item.patientName || 'U').charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <span className="font-semibold text-gray-900">{item.name || item.patientName || 'N/A'}</span>
+                                                </div>
+                                            </td>
+                                            {statsModal.type === "patients" && (
+                                                <>
+                                                    <td className="p-4 text-sm text-gray-600">{item.contact || 'N/A'}</td>
+                                                    <td className="p-4 text-sm text-gray-600">{item.age || 'N/A'}</td>
+                                                    <td className="p-4 text-sm text-gray-600">{item.gender || 'N/A'}</td>
+                                                </>
+                                            )}
+                                            {(statsModal.type === "camps" || statsModal.type === "active" || statsModal.type === "upcoming") && (
+                                                <>
+                                                    <td className="p-4 text-sm text-gray-600">{item.location || 'N/A'}</td>
+                                                    <td className="p-4 text-sm text-gray-600">{item.date || 'N/A'}</td>
+                                                    <td className="p-4">
+                                                        <span className="text-sm text-gray-600">
+                                                            {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
+                                                        </span>
+                                                        {item.createdAt && (
+                                                            <span className="block text-xs text-gray-400">
+                                                                {Math.floor((new Date() - new Date(item.createdAt)) / (1000 * 60 * 60 * 24))} days old
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className={`px-2 py-1 text-xs rounded-full ${
+                                                            statsModal.type === "active" 
+                                                                ? "bg-green-100 text-green-700"
+                                                                : statsModal.type === "upcoming"
+                                                                    ? "bg-blue-100 text-blue-700"
+                                                                    : "bg-gray-100 text-gray-700"
+                                                        }`}>
+                                                            {statsModal.type === "active" ? "Active" :
+                                                             statsModal.type === "upcoming" ? "Upcoming" : "Active"}
+                                                        </span>
+                                                    </td>
+                                                </>
+                                            )}
+                                            <td className="p-4">
+                                                <button
+                                                    onClick={() => {
+                                                        closeStatsModal();
+                                                        if (item._id) {
+                                                            setViewCamp(item);
+                                                        }
+                                                    }}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                                >
+                                                    <FiEye size={14} /> View
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                        <button
+                            onClick={closeStatsModal}
+                            className="px-6 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition shadow-sm"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
@@ -922,10 +1242,6 @@ const VolunteerDashboard = () => {
                         <p className="admin-dash__subtitle">
                             Welcome, {volunteerName}! Manage your assigned camps and patients.
                         </p>
-                        <div className="mt-2 flex items-center gap-2 text-sm text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full w-fit">
-                            <FiUsers size={14} />
-                            <span>Volunteer View - Showing your assigned camps only</span>
-                        </div>
                     </div>
                     <div className="admin-dash__date-pill">
                         <FiCalendar />
@@ -941,9 +1257,12 @@ const VolunteerDashboard = () => {
                 </div>
 
                 <div className="space-y-6">
-                    {/* Stats */}
+                    {/* Stats - Clickable */}
                     <div className="admin-dash__stats">
-                        <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                        <div 
+                            className="admin-dash__stat cursor-pointer" 
+                            onClick={() => openStatsModal("camps", "Total Camps", camps)}
+                        >
                             <div className="admin-dash__stat-top">
                                 <span className="admin-dash__stat-label">Total Camps</span>
                                 <div className="admin-dash__stat-icon admin-dash__stat-icon--indigo">
@@ -953,7 +1272,13 @@ const VolunteerDashboard = () => {
                             <div className="admin-dash__stat-value">{camps.length}</div>
                             <div className="admin-dash__stat-meta">assigned camps</div>
                         </div>
-                        <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                        <div 
+                            className="admin-dash__stat cursor-pointer" 
+                            onClick={() => openStatsModal("active", "Active Camps", camps.filter(c => {
+                                const { status } = getCampStatus(c.date, c.time);
+                                return status === 'live' || status === 'today';
+                            }))}
+                        >
                             <div className="admin-dash__stat-top">
                                 <span className="admin-dash__stat-label">Active Camps</span>
                                 <div className="admin-dash__stat-icon admin-dash__stat-icon--emerald">
@@ -968,7 +1293,10 @@ const VolunteerDashboard = () => {
                             </div>
                             <div className="admin-dash__stat-meta">currently running</div>
                         </div>
-                        <div className="admin-dash__stat" onClick={() => scrollToSection(patientsSectionRef)}>
+                        <div 
+                            className="admin-dash__stat cursor-pointer" 
+                            onClick={() => openStatsModal("patients", "All Patients", patients)}
+                        >
                             <div className="admin-dash__stat-top">
                                 <span className="admin-dash__stat-label">Patients</span>
                                 <div className="admin-dash__stat-icon admin-dash__stat-icon--amber">
@@ -978,7 +1306,13 @@ const VolunteerDashboard = () => {
                             <div className="admin-dash__stat-value">{totalPatients}</div>
                             <div className="admin-dash__stat-meta">total patients</div>
                         </div>
-                        <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                        <div 
+                            className="admin-dash__stat cursor-pointer" 
+                            onClick={() => openStatsModal("upcoming", "Upcoming Camps", camps.filter(c => {
+                                const { status } = getCampStatus(c.date, c.time);
+                                return status === 'upcoming';
+                            }))}
+                        >
                             <div className="admin-dash__stat-top">
                                 <span className="admin-dash__stat-label">Upcoming</span>
                                 <div className="admin-dash__stat-icon admin-dash__stat-icon--cyan">
@@ -993,7 +1327,10 @@ const VolunteerDashboard = () => {
                             </div>
                             <div className="admin-dash__stat-meta">scheduled camps</div>
                         </div>
-                        <div className="admin-dash__stat" onClick={() => scrollToSection(patientsSectionRef)}>
+                        <div 
+                            className="admin-dash__stat cursor-pointer" 
+                            onClick={() => openStatsModal("patients", "Screened Patients", patients.filter(p => p.tests && p.tests.length > 0))}
+                        >
                             <div className="admin-dash__stat-top">
                                 <span className="admin-dash__stat-label">Screened</span>
                                 <div className="admin-dash__stat-icon admin-dash__stat-icon--rose">
@@ -1182,7 +1519,27 @@ const VolunteerDashboard = () => {
                                                     </div>
                                                 )}
 
-                                                <PartnerDisplay partners={camp.partners} isSelected={isSelected} />
+                                                {/* 🔥 Using PartnerDisplay component */}
+                                                {camp.partners && camp.partners.length > 0 && (
+                                                    <div className="mt-1">
+                                                        <PartnerDisplay 
+                                                            partners={camp.partners} 
+                                                            isSelected={isSelected} 
+                                                            partnersList={partners}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {/* 🔥 Using VolunteerDisplay component */}
+                                                {camp.volunteers && camp.volunteers.length > 0 && (
+                                                    <div className="mt-1">
+                                                        <VolunteerDisplay 
+                                                            volunteers={camp.volunteers} 
+                                                            isSelected={isSelected} 
+                                                            employeeMap={volunteerMap}
+                                                        />
+                                                    </div>
+                                                )}
 
                                                 <div className={`mt-2 pt-2 border-t flex items-center justify-between ${isSelected ? "border-white/20" : "border-gray-50"}`}>
                                                     <span className={`text-[10px] font-bold ${isSelected ? "text-indigo-200" : "text-gray-500"}`}>
@@ -1213,7 +1570,7 @@ const VolunteerDashboard = () => {
                         </div>
                     </div>
 
-                    {/* Patients Section */}
+                    {/* Patients Section - UPDATED with View, Download, WhatsApp */}
                     <div ref={patientsSectionRef} className="admin-dash__card">
                         <div className="admin-dash__card-header py-3 px-4">
                             <h3 className="admin-dash__card-title text-sm">Patients</h3>
@@ -1288,18 +1645,34 @@ const VolunteerDashboard = () => {
                                                     </td>
                                                     <td className="p-3">
                                                         <div className="flex items-center gap-1.5 flex-wrap">
-                                                            <Link
-                                                                to={`/patient/${patient._id}`}
+                                                            {/* 🔥 UPDATED: View Report button */}
+                                                            <button
+                                                                onClick={() => viewReport(patient)}
                                                                 className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
                                                             >
                                                                 <FiEye size={12} /> View
-                                                            </Link>
+                                                            </button>
+                                                            {/* 🔥 UPDATED: Edit button */}
                                                             <Link
-                                                                to={`/add-patient?camp=${patient.campId?._id}`}
+                                                                to={`/patient/${patient._id}`}
                                                                 className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors"
                                                             >
                                                                 <FiEdit size={12} /> Edit
                                                             </Link>
+                                                            {/* 🔥 NEW: Download button */}
+                                                            <button
+                                                                onClick={() => downloadPDF(patient)}
+                                                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                                                            >
+                                                                <FiDownload size={12} /> Download
+                                                            </button>
+                                                            {/* 🔥 NEW: WhatsApp button */}
+                                                            <button
+                                                                onClick={() => shareReport(patient)}
+                                                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                                                            >
+                                                                <FiMessageCircle size={12} /> WhatsApp
+                                                            </button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -1322,7 +1695,7 @@ const VolunteerDashboard = () => {
                     </div>
                 </div>
 
-                {/* View Camp Modal */}
+                {/* View Camp Modal - UPDATED */}
                 {viewCamp && createPortal(
                     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                         <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -1368,7 +1741,8 @@ const VolunteerDashboard = () => {
                                         )}
                                     </div>
 
-                                    <PartnerDisplay partners={viewCamp.partners} isSelected={false} />
+                                    <PartnerDisplay partners={viewCamp.partners} isSelected={false} partnersList={partners} />
+                                    <VolunteerDisplay volunteers={viewCamp.volunteers} isSelected={false} employeeMap={volunteerMap} />
                                 </div>
                                 <button onClick={() => setViewCamp(null)} className="w-7 h-7 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition shadow-sm">
                                     <FiX size={14} />
@@ -1425,9 +1799,12 @@ const VolunteerDashboard = () => {
                                                         )}
                                                     </td>
                                                     <td className="p-3 text-right">
-                                                        <Link to={`/patient/${patient._id}`} className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline">
-                                                            Details <FiChevronRight size={10} />
-                                                        </Link>
+                                                        <button 
+                                                            onClick={() => viewReport(patient)} 
+                                                            className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
+                                                        >
+                                                            View Report <FiChevronRight size={10} />
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             ))
@@ -1451,6 +1828,52 @@ const VolunteerDashboard = () => {
                     </div>,
                     document.body
                 )}
+
+                {/* Share Modal */}
+                {showShareModal && currentPatient && createPortal(
+                    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                        <div className="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
+                            <div className="bg-green-600 p-5 text-white text-center">
+                                <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <FiMessageCircle size={28} />
+                                </div>
+                                <h3 className="text-lg font-bold">Share Report Link</h3>
+                                <p className="text-xs text-green-100 mt-0.5">WhatsApp message generated successfully!</p>
+                            </div>
+                            <div className="p-5 space-y-4">
+                                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                                    <div className="w-10 h-10 bg-green-100 text-green-700 rounded-full flex items-center justify-center font-bold text-base">
+                                        {currentPatient?.name?.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-sm text-gray-900">{currentPatient?.name}</p>
+                                        <p className="text-[10px] text-gray-500">{currentPatient?.contact || "No Number"}</p>
+                                    </div>
+                                </div>
+                                <div className="p-3 bg-green-50/50 border-2 border-green-200 border-dashed rounded-xl">
+                                    <p className="text-[8px] font-bold text-green-800 uppercase tracking-widest mb-1.5">Message Preview</p>
+                                    <div className="bg-white p-2.5 rounded-lg border border-green-100 max-h-28 overflow-y-auto text-[10px] text-gray-600">
+                                        {downloadLink}
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <button onClick={handleWhatsAppShare} className="w-full py-3 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-100 flex items-center justify-center gap-2">
+                                        <FiMessageCircle size={16} /> Open WhatsApp
+                                    </button>
+                                    <button onClick={handleCopyMessage} className="w-full py-2.5 bg-blue-50 text-blue-700 rounded-xl text-sm font-bold hover:bg-blue-100 flex items-center justify-center gap-2 transition-all">
+                                        {copied ? <FiCheckCircle size={16} /> : <FiCopy size={16} />}
+                                        {copied ? "Copied!" : "Copy Link"}
+                                    </button>
+                                    <button onClick={() => setShowShareModal(false)} className="w-full py-2 text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>,
+                    document.body
+                )}
+
+                {/* Stats Modal */}
+                <StatsModal />
             </div>
         </div>
     );

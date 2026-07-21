@@ -19,6 +19,7 @@ import {
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import config from "../config";
+import { generateMedicalReport, generateMedicalReportFile } from "../utils/pdfGenerator";
 import "./Dashboard.css";
 
 const AllReports = () => {
@@ -171,6 +172,86 @@ const AllReports = () => {
         });
     };
 
+    // 🔥 Helper: Extract latest vitals
+    const extractLatestVitals = (tests = []) => {
+        const r = {};
+        if (!tests) return r;
+        tests.forEach(t => {
+            r.date = t.date;
+            if (t.type === "weight") r.weight = t.value;
+            if (t.type === "height") r.height = t.value;
+            if (t.type === "sugar") r.sugar = t.value;
+            if (t.type === "sugarType") r.sugarType = t.value;
+            if (t.type === "bp") {
+                r.systolic = t.value;
+                r.diastolic = t.value2;
+            }
+        });
+        return r;
+    };
+
+    const calculateBMI = (weight, heightCm) => {
+        if (!weight || !heightCm) return null;
+        const h = heightCm / 100;
+        return +(weight / (h * h)).toFixed(1);
+    };
+
+    const getBMICategory = (bmi) => {
+        if (!bmi) return "-";
+        if (bmi < 18.5) return "Underweight";
+        if (bmi < 25) return "Healthy";
+        if (bmi < 30) return "Overweight";
+        return "Obese";
+    };
+
+    // 🔥 Prepare report data (same as CampDashboard)
+    const prepareReportData = async (patientId) => {
+        try {
+            const res = await axios.get(`${config.API_BASE_URL}/patients/${patientId}`);
+            const fullPatient = res.data;
+
+            if (!fullPatient?.tests?.length) {
+                alert("No test data available for this patient.");
+                return null;
+            }
+
+            const test = extractLatestVitals(fullPatient.tests);
+            const bmiValue = calculateBMI(test.weight, test.height);
+
+            const patientData = {
+                name: fullPatient.name,
+                age: fullPatient.age,
+                gender: fullPatient.gender,
+                id: fullPatient._id.slice(-6).toUpperCase(),
+                date: new Date(test.date || Date.now()).toLocaleDateString(),
+                phone: fullPatient.contact,
+                address: fullPatient.address,
+            };
+
+            const testsData = {
+                weight: test.weight,
+                height: test.height,
+                sugar: test.sugar,
+                sugarType: test.sugarType || "Random",
+                systolic: test.systolic,
+                diastolic: test.diastolic,
+                heartRate: "-",
+            };
+
+            const bmiData = {
+                bmi: bmiValue,
+                category: getBMICategory(bmiValue),
+            };
+
+            return { patientData, testsData, bmiData };
+
+        } catch (err) {
+            console.error(err);
+            alert("Failed to fetch report data.");
+            return null;
+        }
+    };
+
     // 🔥 View Report
     const handleViewReport = async (patient) => {
         lockScroll();
@@ -189,24 +270,24 @@ const AllReports = () => {
         }
     };
 
-    // 🔥 Download Report
+    // 🔥 Download Report - FIXED using same method as CampDashboard
     const handleDownloadReport = async (patient) => {
         try {
             setGenerating(true);
-            const response = await axios.get(
-                `${config.API_BASE_URL}/reports/download/${patient._id}`,
-                {
-                    responseType: 'blob'
-                }
-            );
             
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `Health_Report_${patient.name}.pdf`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
+            // Prepare report data
+            const data = await prepareReportData(patient._id);
+            if (!data) {
+                setGenerating(false);
+                return;
+            }
+            
+            // Generate PDF using the same function as CampDashboard
+            await generateMedicalReport(
+                data.patientData, 
+                data.testsData, 
+                data.bmiData
+            );
             
         } catch (err) {
             console.error("Download error:", err);
@@ -253,8 +334,10 @@ const AllReports = () => {
         const sugarType = latestSugar?.sugarType || vitals.sugarType || 'Random';
         const bpSys = latestBP?.value || vitals.bpSys || '-';
         const bpDia = latestBP?.value2 || vitals.bpDia || '-';
-        const bmi = vitals.bmi || '-';
-        const bmiCategory = vitals.bmiCategory || '-';
+        
+        // Calculate BMI from weight and height
+        const bmi = (weight !== '-' && height !== '-') ? calculateBMI(parseFloat(weight), parseFloat(height)) : '-';
+        const bmiCategory = bmi !== '-' ? getBMICategory(bmi) : '-';
 
         return (
             <div 
@@ -480,46 +563,200 @@ const AllReports = () => {
             </div>
 
             <div className="space-y-10">
-                {/* Stats Cards - Clickable */}
-                <div className="admin-dash__stats">
+                {/* Stats Cards - FIXED with proper spacing and no extra blank space */}
+                <div className="admin-dash__stats" style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(3, 1fr)', 
+                    gap: '1.5rem',
+                    marginBottom: '0'
+                }}>
+                    {/* Total Patients Card */}
                     <div 
                         className="admin-dash__stat cursor-pointer" 
                         onClick={() => navigate('/all-reports')}
+                        style={{
+                            padding: '1.5rem 1.5rem 1.25rem',
+                            background: 'white',
+                            borderRadius: '1rem',
+                            border: '1px solid #e5e7eb',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.25rem'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = '#6366f1';
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = '#e5e7eb';
+                            e.currentTarget.style.boxShadow = 'none';
+                        }}
                     >
-                        <div className="admin-dash__stat-top">
-                            <span className="admin-dash__stat-label">Total Patients</span>
-                            <div className="admin-dash__stat-icon admin-dash__stat-icon--indigo">
-                                <FiUser />
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '0.5rem'
+                        }}>
+                            <span style={{
+                                fontSize: '0.7rem',
+                                fontWeight: '700',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                            }}>Total Patients</span>
+                            <div style={{
+                                width: '2rem',
+                                height: '2rem',
+                                borderRadius: '0.5rem',
+                                background: '#eef2ff',
+                                color: '#4f46e5',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.875rem'
+                            }}>
+                                <FiUser size={16} />
                             </div>
                         </div>
-                        <div className="admin-dash__stat-value">{totalPatients}</div>
-                        <div className="admin-dash__stat-meta">registered patients</div>
+                        <div style={{
+                            fontSize: '2rem',
+                            fontWeight: '800',
+                            color: '#111827',
+                            lineHeight: '1.2'
+                        }}>{totalPatients}</div>
+                        <div style={{
+                            fontSize: '0.75rem',
+                            color: '#9ca3af',
+                            fontWeight: '500'
+                        }}>registered patients</div>
                     </div>
+
+                    {/* With Reports Card */}
                     <div 
                         className="admin-dash__stat cursor-pointer" 
                         onClick={goToWithReports}
+                        style={{
+                            padding: '1.5rem 1.5rem 1.25rem',
+                            background: 'white',
+                            borderRadius: '1rem',
+                            border: '1px solid #e5e7eb',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.25rem'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = '#10b981';
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = '#e5e7eb';
+                            e.currentTarget.style.boxShadow = 'none';
+                        }}
                     >
-                        <div className="admin-dash__stat-top">
-                            <span className="admin-dash__stat-label">With Reports</span>
-                            <div className="admin-dash__stat-icon admin-dash__stat-icon--emerald">
-                                <FiCheckCircle />
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '0.5rem'
+                        }}>
+                            <span style={{
+                                fontSize: '0.7rem',
+                                fontWeight: '700',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                            }}>With Reports</span>
+                            <div style={{
+                                width: '2rem',
+                                height: '2rem',
+                                borderRadius: '0.5rem',
+                                background: '#d1fae5',
+                                color: '#059669',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.875rem'
+                            }}>
+                                <FiCheckCircle size={16} />
                             </div>
                         </div>
-                        <div className="admin-dash__stat-value">{patientsWithTestsCount}</div>
-                        <div className="admin-dash__stat-meta">have test data</div>
+                        <div style={{
+                            fontSize: '2rem',
+                            fontWeight: '800',
+                            color: '#111827',
+                            lineHeight: '1.2'
+                        }}>{patientsWithTestsCount}</div>
+                        <div style={{
+                            fontSize: '0.75rem',
+                            color: '#9ca3af',
+                            fontWeight: '500'
+                        }}>have test data</div>
                     </div>
+
+                    {/* Pending Reports Card */}
                     <div 
                         className="admin-dash__stat cursor-pointer" 
                         onClick={goToPendingReports}
+                        style={{
+                            padding: '1.5rem 1.5rem 1.25rem',
+                            background: 'white',
+                            borderRadius: '1rem',
+                            border: '1px solid #e5e7eb',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.25rem'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = '#f59e0b';
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = '#e5e7eb';
+                            e.currentTarget.style.boxShadow = 'none';
+                        }}
                     >
-                        <div className="admin-dash__stat-top">
-                            <span className="admin-dash__stat-label">Pending Reports</span>
-                            <div className="admin-dash__stat-icon admin-dash__stat-icon--amber">
-                                <FiClock />
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '0.5rem'
+                        }}>
+                            <span style={{
+                                fontSize: '0.7rem',
+                                fontWeight: '700',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                            }}>Pending Reports</span>
+                            <div style={{
+                                width: '2rem',
+                                height: '2rem',
+                                borderRadius: '0.5rem',
+                                background: '#fef3c7',
+                                color: '#d97706',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.875rem'
+                            }}>
+                                <FiClock size={16} />
                             </div>
                         </div>
-                        <div className="admin-dash__stat-value">{patientsWithoutTestsCount}</div>
-                        <div className="admin-dash__stat-meta">no test data yet</div>
+                        <div style={{
+                            fontSize: '2rem',
+                            fontWeight: '800',
+                            color: '#111827',
+                            lineHeight: '1.2'
+                        }}>{patientsWithoutTestsCount}</div>
+                        <div style={{
+                            fontSize: '0.75rem',
+                            color: '#9ca3af',
+                            fontWeight: '500'
+                        }}>no test data yet</div>
                     </div>
                 </div>
 
@@ -581,7 +818,7 @@ const AllReports = () => {
                         </div>
                     </div>
 
-                    {/* Table Container */}
+                    {/* Table Container - FIXED: Removed Address column to avoid blank space */}
                     <div className="admin-dash__card-body p-0">
                         {loading ? (
                             <div className="flex flex-col items-center justify-center gap-3 py-20">
@@ -596,7 +833,6 @@ const AllReports = () => {
                                             <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Patient</th>
                                             <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Camp</th>
                                             <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Phone</th>
-                                            <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Address</th>
                                             <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Tests</th>
                                             <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Status</th>
                                             <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Actions</th>
@@ -611,7 +847,7 @@ const AllReports = () => {
                                                     <tr key={patient._id} className="transition-colors group hover:bg-gray-50/80">
                                                         <td className="p-4">
                                                             <div className="flex items-center gap-3">
-                                                                <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-indigo-700 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100">
+                                                                <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-indigo-700 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex-shrink-0">
                                                                     {patient.name?.charAt(0)?.toUpperCase() || 'P'}
                                                                 </div>
                                                                 <div>
@@ -621,26 +857,18 @@ const AllReports = () => {
                                                             </div>
                                                         </td>
                                                         <td className="p-4">
-                                                            <span className="px-3 py-1 text-sm text-green-700 bg-green-100 rounded-full">
+                                                            <span className="px-3 py-1 text-sm text-green-700 bg-green-100 rounded-full whitespace-nowrap">
                                                                 {patient.campId?.name || "N/A"}
                                                             </span>
                                                         </td>
                                                         <td className="p-4">
                                                             <span className="text-sm font-medium text-gray-700 flex items-center gap-1">
-                                                                <FiPhone size={12} className="text-gray-400" />
+                                                                <FiPhone size={12} className="text-gray-400 flex-shrink-0" />
                                                                 {patient.contact || "N/A"}
                                                             </span>
                                                         </td>
                                                         <td className="p-4">
-                                                            <span className="text-sm text-gray-600 flex items-center gap-1">
-                                                                <FiMapPin size={12} className="text-gray-400" />
-                                                                {patient.address?.length > 30 
-                                                                    ? patient.address.substring(0, 30) + '...' 
-                                                                    : patient.address || "N/A"}
-                                                            </span>
-                                                        </td>
-                                                        <td className="p-4">
-                                                            <span className={`px-3 py-1 text-sm font-semibold rounded-full ${
+                                                            <span className={`px-3 py-1 text-sm font-semibold rounded-full whitespace-nowrap ${
                                                                 hasTests 
                                                                     ? 'bg-emerald-100 text-emerald-700' 
                                                                     : 'bg-gray-100 text-gray-500'
@@ -650,22 +878,22 @@ const AllReports = () => {
                                                         </td>
                                                         <td className="p-4">
                                                             {hasTests ? (
-                                                                <span className="px-3 py-1 text-sm font-semibold bg-emerald-100 text-emerald-700 rounded-full flex items-center gap-1">
+                                                                <span className="px-3 py-1 text-sm font-semibold bg-emerald-100 text-emerald-700 rounded-full flex items-center gap-1 whitespace-nowrap">
                                                                     <FiCheckCircle size={12} />
                                                                     Complete
                                                                 </span>
                                                             ) : (
-                                                                <span className="px-3 py-1 text-sm font-semibold bg-amber-100 text-amber-700 rounded-full flex items-center gap-1">
+                                                                <span className="px-3 py-1 text-sm font-semibold bg-amber-100 text-amber-700 rounded-full flex items-center gap-1 whitespace-nowrap">
                                                                     <FiClock size={12} />
                                                                     Pending
                                                                 </span>
                                                             )}
                                                         </td>
                                                         <td className="p-4">
-                                                            <div className="flex items-center gap-2">
+                                                            <div className="flex items-center gap-2 flex-wrap">
                                                                 <button
                                                                     onClick={() => handleViewReport(patient)}
-                                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors whitespace-nowrap"
                                                                 >
                                                                     <FiEye size={14} /> View
                                                                 </button>
@@ -673,7 +901,7 @@ const AllReports = () => {
                                                                     <button
                                                                         onClick={() => handleDownloadReport(patient)}
                                                                         disabled={generating}
-                                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                                                                     >
                                                                         <FiDownload size={14} /> Download
                                                                     </button>
@@ -685,7 +913,7 @@ const AllReports = () => {
                                             })
                                         ) : (
                                             <tr>
-                                                <td colSpan={7} className="p-12 text-center">
+                                                <td colSpan={6} className="p-12 text-center">
                                                     <div className="flex flex-col items-center justify-center gap-3 text-gray-400">
                                                         <FiFileText size={48} className="opacity-20" />
                                                         <p className="text-lg font-medium">No patients found</p>

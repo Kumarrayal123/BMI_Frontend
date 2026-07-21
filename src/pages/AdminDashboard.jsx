@@ -1754,9 +1754,9 @@ const AdminDashboard = () => {
                     {/* Header */}
                     <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
                         <div>
-                            <h3 className="text-xl font-bold text-white">Archived Camps</h3>
+                            <h3 className="text-xl font-bold text-white">Hidden Camps</h3>
                             <p className="text-sm text-purple-100">
-                                {hiddenCamps.length} camps archived (auto-archive after 10 days)
+                                {hiddenCamps.length} camps hidden (auto-hide after 10 days)
                             </p>
                         </div>
                         <button
@@ -1889,7 +1889,7 @@ const AdminDashboard = () => {
                         className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition shadow-lg shadow-purple-100 relative"
                     >
                         <FiArchive size={18} />
-                        Archived
+                        Hides
                         {hiddenCamps.length > 0 && (
                             <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
                                 {hiddenCamps.length}
@@ -2075,7 +2075,7 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
-                {/* Camps Section */}
+                {/* Camps Section - UPDATED with VolunteerDisplay and PartnerDisplay */}
                 <div ref={campsSectionRef} className="admin-dash__card">
                     <div className="admin-dash__card-header">
                         <h3 className="admin-dash__card-title">All Camps</h3>
@@ -2118,7 +2118,7 @@ const AdminDashboard = () => {
                                             
                                             {isArchived && (
                                                 <div className="absolute top-2 right-2 bg-purple-600 text-white text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
-                                                    <FiArchive size={10} /> Archived
+                                                    <FiArchive size={10} /> Hides
                                                 </div>
                                             )}
                                             
@@ -2127,7 +2127,7 @@ const AdminDashboard = () => {
                                                 {!isArchived && <CampStatusBadge date={camp.date} time={camp.time} />}
                                                 {isArchived && (
                                                     <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-200 text-purple-700 rounded-full">
-                                                        Archived
+                                                        Hides
                                                     </span>
                                                 )}
                                             </div>
@@ -2143,55 +2143,29 @@ const AdminDashboard = () => {
                                                 <FiClock size={14} />
                                                 <span>{camp.time || "No time"}</span>
                                             </div>
-                                            {camp.partners && camp.partners.length > 0 && (
-                                                <div className="mt-2">
-                                                    <div className={`text-xs font-semibold mb-1 ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-600"}`}>
-                                                        <FiUserCheck size={12} className="inline mr-1" />
-                                                        Assigned Partners:
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {camp.partners.map(partnerId => {
-                                                            const partner = partners.find(p => p._id === partnerId);
-                                                            return partner ? (
-                                                                <span key={partnerId} className={`text-[10px] px-2 py-0.5 rounded-full border ${
-                                                                    selectedCampId === camp._id 
-                                                                        ? "bg-white/20 text-white border-white/30" 
-                                                                        : "bg-purple-50 text-purple-700 border-purple-200"
-                                                                }`}>
-                                                                    {partner.name || partner.clinicName}
-                                                                </span>
-                                                            ) : null;
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            )}
+                                            
+                                            {/* 🔥 ONLY VolunteerDisplay - No manual display */}
                                             {camp.volunteers && camp.volunteers.length > 0 && (
                                                 <div className="mt-2">
-                                                    <div className={`text-xs font-semibold mb-1 ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-600"}`}>
-                                                        <FiUser size={12} className="inline mr-1" />
-                                                        Volunteers:
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {camp.volunteers.map((vol, index) => {
-                                                            let volunteerName = vol;
-                                                            if (typeof vol === 'object' && vol !== null) {
-                                                                volunteerName = vol.name || vol._id || `Volunteer ${index + 1}`;
-                                                            } else if (typeof vol === 'string') {
-                                                                volunteerName = employeeMap[vol] || vol;
-                                                            }
-                                                            return (
-                                                                <span key={index} className={`text-[10px] px-2 py-0.5 rounded-full border ${
-                                                                    selectedCampId === camp._id 
-                                                                        ? "bg-white/20 text-white border-white/30" 
-                                                                        : "bg-blue-50 text-blue-700 border-blue-200"
-                                                                }`}>
-                                                                    {volunteerName}
-                                                                </span>
-                                                            );
-                                                        })}
-                                                    </div>
+                                                    <VolunteerDisplay
+                                                        volunteers={camp.volunteers}
+                                                        isSelected={selectedCampId === camp._id}
+                                                        employeeMap={employeeMap}
+                                                    />
                                                 </div>
                                             )}
+                                            
+                                            {/* 🔥 ONLY PartnerDisplay - No manual display */}
+                                            {camp.partners && camp.partners.length > 0 && (
+                                                <div className="mt-1">
+                                                    <PartnerDisplay
+                                                        partners={camp.partners}
+                                                        isSelected={selectedCampId === camp._id}
+                                                        partnersList={partners}
+                                                    />
+                                                </div>
+                                            )}
+                                            
                                             <span className={`inline-block mt-3 text-xs font-bold px-2 py-1 rounded-lg ${selectedCampId === camp._id ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"}`}>
                                                 {patients.filter((p) => String(p.campId?._id) === String(camp._id)).length} Patients
                                             </span>
@@ -2788,7 +2762,7 @@ const AdminDashboard = () => {
                     </div>, document.body
                 )}
 
-                {/* View Camp Modal */}
+                {/* View Camp Modal - UPDATED with VolunteerDisplay and PartnerDisplay */}
                 {viewCamp && createPortal(
                     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
                         <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
@@ -2826,35 +2800,28 @@ const AdminDashboard = () => {
                                             {getCreatorDisplayName(viewCamp)}
                                         </span>
                                     </div>
-                                    {viewCamp.partners && viewCamp.partners.length > 0 && (
-                                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                            <span className="text-xs font-semibold text-gray-600">Partners:</span>
-                                            {viewCamp.partners.map(partnerId => {
-                                                const partner = partners.find(p => p._id === partnerId);
-                                                return partner ? (
-                                                    <span key={partnerId} className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
-                                                        {partner.name || partner.clinicName}
-                                                    </span>
-                                                ) : null;
-                                            })}
-                                        </div>
-                                    )}
+                                    
+                                    {/* 🔥 ONLY VolunteerDisplay in View Modal */}
                                     {viewCamp.volunteers && viewCamp.volunteers.length > 0 && (
                                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                                             <span className="text-xs font-semibold text-gray-600">Volunteers:</span>
-                                            {viewCamp.volunteers.map((vol, index) => {
-                                                let volunteerName = vol;
-                                                if (typeof vol === 'object' && vol !== null) {
-                                                    volunteerName = vol.name || vol._id || `Volunteer ${index + 1}`;
-                                                } else if (typeof vol === 'string') {
-                                                    volunteerName = employeeMap[vol] || vol;
-                                                }
-                                                return (
-                                                    <span key={index} className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
-                                                        {volunteerName}
-                                                    </span>
-                                                );
-                                            })}
+                                            <VolunteerDisplay
+                                                volunteers={viewCamp.volunteers}
+                                                isSelected={false}
+                                                employeeMap={employeeMap}
+                                            />
+                                        </div>
+                                    )}
+                                    
+                                    {/* 🔥 ONLY PartnerDisplay in View Modal */}
+                                    {viewCamp.partners && viewCamp.partners.length > 0 && (
+                                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                            <span className="text-xs font-semibold text-gray-600">Partners:</span>
+                                            <PartnerDisplay
+                                                partners={viewCamp.partners}
+                                                isSelected={false}
+                                                partnersList={partners}
+                                            />
                                         </div>
                                     )}
                                 </div>

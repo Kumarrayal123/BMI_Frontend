@@ -51,14 +51,16 @@ const getBMICategory = (bmi) => {
 
 const extractLatestVitals = (tests = []) => {
     const r = {};
-    if (!tests) return r;
+    if (!tests || tests.length === 0) return r;
 
     tests.forEach(t => {
         r.date = t.date;
         if (t.type === "weight") r.weight = t.value;
         if (t.type === "height") r.height = t.value;
-        if (t.type === "sugar") r.sugar = t.value;
-        if (t.type === "sugarType") r.sugarType = t.value;
+        if (t.type === "sugar") {
+            r.sugar = t.value;
+            r.sugarType = t.sugarType || t.type || "Random";
+        }
         if (t.type === "bp") {
             r.systolic = t.value;
             r.diastolic = t.value2;
@@ -81,6 +83,18 @@ export default function MyCamps() {
     const [copied, setCopied] = useState(false);
     const [viewCamp, setViewCamp] = useState(null);
 
+    // 🔥 Stats Modal State
+    const [statsModal, setStatsModal] = useState({
+        show: false,
+        title: "",
+        data: [],
+        type: ""
+    });
+
+    // 🔥 Partner and Volunteer maps
+    const [partnerList, setPartnerList] = useState([]);
+    const [employeeMap, setEmployeeMap] = useState({});
+
     const patientsSectionRef = useRef(null);
     const campsSectionRef = useRef(null);
 
@@ -90,9 +104,27 @@ export default function MyCamps() {
         }
     };
 
+    // 🔥 Stats Modal Handlers
+    const openStatsModal = (type, title, data) => {
+        setStatsModal({
+            show: true,
+            title: title,
+            data: data || [],
+            type: type
+        });
+    };
+
+    const closeStatsModal = () => {
+        setStatsModal({
+            show: false,
+            title: "",
+            data: [],
+            type: ""
+        });
+    };
+
     useEffect(() => {
         const role = localStorage.getItem("role");
-        // ✅ FIX: Employee and Partner both can access
         if (role !== "employee" && role !== "partner") {
             navigate("/dashboard");
             return;
@@ -106,7 +138,26 @@ export default function MyCamps() {
                 const patientsRes = await axios.get(`${API_BASE}/patients`).catch(() => ({ data: [] }));
                 setPatients(patientsRes.data || []);
                 
-                // ✅ FIX: Fetch camps based on role
+                // Fetch employees for volunteer map
+                const employeesRes = await axios.get(`${API_BASE}/proxy/employees/get-employees`).catch(() => ({ data: [] }));
+                const empData = employeesRes.data || [];
+                const allEmployees = Array.isArray(empData) ? empData : empData.employees || empData.data || empData.value || [];
+                const empMap = {};
+                allEmployees.forEach(emp => {
+                    empMap[String(emp._id)] = emp.name;
+                });
+                setEmployeeMap(empMap);
+
+                // Fetch partners
+                const partnersRes = await axios.get(`${API_BASE}/auth/partners`).catch(() => ({ data: [] }));
+                let partnerData = partnersRes.data || [];
+                if (!Array.isArray(partnerData)) {
+                    partnerData = partnerData.data || partnerData.partners || [];
+                    if (!Array.isArray(partnerData)) partnerData = [];
+                }
+                setPartnerList(partnerData);
+
+                // Fetch camps based on role
                 let campsData = [];
                 const employeeName = localStorage.getItem("employeeName") || localStorage.getItem("name");
                 const userId = localStorage.getItem("userId");
@@ -119,7 +170,6 @@ export default function MyCamps() {
                 console.log("🔍 Partner ID:", partnerId);
                 
                 if (role === "partner" && partnerId) {
-                    // Partner - fetch assigned camps
                     const campsRes = await axios.get(`${API_BASE}/camps/assigned-camps/${partnerId}`).catch(() => ({ data: [] }));
                     campsData = campsRes.data || [];
                     if (!Array.isArray(campsData)) {
@@ -127,7 +177,6 @@ export default function MyCamps() {
                         if (!Array.isArray(campsData)) campsData = [];
                     }
                 } else {
-                    // Employee - fetch all camps and filter
                     const campsRes = await axios.get(`${API_BASE}/camps/allcamps`).catch(() => ({ data: [] }));
                     let allCamps = campsRes.data || [];
                     if (!Array.isArray(allCamps)) {
@@ -135,7 +184,6 @@ export default function MyCamps() {
                         if (!Array.isArray(allCamps)) allCamps = [];
                     }
                     
-                    // ✅ Filter camps where employee is assigned as volunteer
                     if (employeeName) {
                         campsData = allCamps.filter(camp => {
                             if (!camp.volunteers || camp.volunteers.length === 0) return false;
@@ -160,7 +208,6 @@ export default function MyCamps() {
         fetchData();
     }, [navigate]);
 
-    // ✅ FIX: Use assigned camps only
     const myAssignedCamps = useMemo(() => {
         return camps;
     }, [camps]);
@@ -174,7 +221,6 @@ export default function MyCamps() {
 
     const filteredPatients = useMemo(() => {
         return patients.filter(p => {
-            // 1. Filter by Camp - only from assigned camps
             const isAssigned = myAssignedCamps.some(c => c._id === p.campId?._id);
             if (!isAssigned) return false;
 
@@ -182,7 +228,6 @@ export default function MyCamps() {
                 if (p.campId?._id !== selectedCampId) return false;
             }
 
-            // 2. Filter by Search
             if (searchQuery) {
                 const q = searchQuery.toLowerCase();
                 const matchesName = p.name?.toLowerCase().includes(q);
@@ -232,10 +277,55 @@ export default function MyCamps() {
         return status === 'completed';
     }).length;
 
-    const viewReport = (patient) => {
-        navigate(`/patient/${patient._id}`);
+    // 🔥 FIXED: viewReport - navigates to health report page
+    const viewReport = async (patient) => {
+        try {
+            // Prepare report data
+            const res = await axios.get(`${API_BASE}/patients/${patient._id}`);
+            const fullPatient = res.data;
+
+            if (!fullPatient?.tests?.length) {
+                alert("No test data available for this patient.");
+                return;
+            }
+
+            const test = extractLatestVitals(fullPatient.tests);
+            const bmiValue = calculateBMI(test.weight, test.height);
+
+            const patientData = {
+                name: fullPatient.name,
+                age: fullPatient.age,
+                gender: fullPatient.gender,
+                id: fullPatient._id.slice(-6).toUpperCase(),
+                date: new Date(test.date || Date.now()).toLocaleDateString(),
+                phone: fullPatient.contact,
+                address: fullPatient.address,
+            };
+
+            const testsData = {
+                weight: test.weight || "-",
+                height: test.height || "-",
+                sugar: test.sugar || "-",
+                sugarType: test.sugarType || "Random",
+                systolic: test.systolic || "-",
+                diastolic: test.diastolic || "-",
+                heartRate: "-",
+            };
+
+            // Navigate to health report page
+            navigate('/health-report', { 
+                state: { 
+                    patient: patientData, 
+                    tests: testsData 
+                } 
+            });
+        } catch (err) {
+            console.error("View report error:", err);
+            alert("Failed to load report data.");
+        }
     };
 
+    // 🔥 FIXED: downloadPDF - uses generateMedicalReport
     const downloadPDF = async (patient) => {
         try {
             const res = await axios.get(`${API_BASE}/patients/${patient._id}`);
@@ -246,31 +336,35 @@ export default function MyCamps() {
                 return;
             }
 
-            const reportData = {
+            const test = extractLatestVitals(fullPatient.tests);
+            const bmiValue = calculateBMI(test.weight, test.height);
+
+            const patientData = {
                 name: fullPatient.name,
                 age: fullPatient.age,
                 gender: fullPatient.gender,
                 id: fullPatient._id.slice(-6).toUpperCase(),
-                date: new Date().toLocaleDateString(),
+                date: new Date(test.date || Date.now()).toLocaleDateString(),
                 phone: fullPatient.contact,
                 address: fullPatient.address,
             };
 
             const testsData = {
-                weight: fullPatient.vitals?.weight || "-",
-                height: fullPatient.vitals?.height || "-",
-                sugar: fullPatient.vitals?.sugar || "-",
-                sugarType: fullPatient.vitals?.sugarType || "Random",
-                systolic: fullPatient.vitals?.bpSys || "-",
-                diastolic: fullPatient.vitals?.bpDia || "-",
+                weight: test.weight || "-",
+                height: test.height || "-",
+                sugar: test.sugar || "-",
+                sugarType: test.sugarType || "Random",
+                systolic: test.systolic || "-",
+                diastolic: test.diastolic || "-",
+                heartRate: "-",
             };
 
             const bmiData = {
-                bmi: fullPatient.vitals?.bmi || "-",
-                category: fullPatient.vitals?.bmiCategory || "-",
+                bmi: bmiValue || "-",
+                category: bmiValue ? getBMICategory(bmiValue) : "-",
             };
 
-            generateMedicalReport(reportData, testsData, bmiData);
+            generateMedicalReport(patientData, testsData, bmiData);
         } catch (err) {
             console.error(err);
             alert("Failed to download report");
@@ -446,6 +540,150 @@ export default function MyCamps() {
         }
     };
 
+    // 🔥 Stats Modal Component
+    const StatsModal = () => {
+        if (!statsModal.show) return null;
+
+        return (
+            <div 
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                        closeStatsModal();
+                    }
+                }}
+            >
+                <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                    {/* Header */}
+                    <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
+                        <div>
+                            <h3 className="text-xl font-bold text-white">{statsModal.title}</h3>
+                            <p className="text-sm text-purple-100">
+                                Total: {statsModal.data.length} items
+                            </p>
+                        </div>
+                        <button
+                            onClick={closeStatsModal}
+                            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white"
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="overflow-auto flex-1 p-0">
+                        {statsModal.data.length === 0 ? (
+                            <div className="text-center py-12">
+                                <p className="text-gray-400 font-medium">No data found</p>
+                            </div>
+                        ) : (
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-gray-50 sticky top-0 z-10">
+                                    <tr>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">#</th>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Name</th>
+                                        {statsModal.type === "patients" && (
+                                            <>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Contact</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Age</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Gender</th>
+                                            </>
+                                        )}
+                                        {(statsModal.type === "camps" || statsModal.type === "active" || statsModal.type === "upcoming" || statsModal.type === "completed") && (
+                                            <>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Location</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Date</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Created</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Status</th>
+                                            </>
+                                        )}
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {statsModal.data.map((item, index) => (
+                                        <tr key={item._id || index} className="hover:bg-gray-50/80 transition-colors">
+                                            <td className="p-4 text-sm text-gray-500">{index + 1}</td>
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-xs border border-purple-100">
+                                                        {(item.name || item.patientName || 'U').charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <span className="font-semibold text-gray-900">{item.name || item.patientName || 'N/A'}</span>
+                                                </div>
+                                            </td>
+                                            {statsModal.type === "patients" && (
+                                                <>
+                                                    <td className="p-4 text-sm text-gray-600">{item.contact || 'N/A'}</td>
+                                                    <td className="p-4 text-sm text-gray-600">{item.age || 'N/A'}</td>
+                                                    <td className="p-4 text-sm text-gray-600">{item.gender || 'N/A'}</td>
+                                                </>
+                                            )}
+                                            {(statsModal.type === "camps" || statsModal.type === "active" || statsModal.type === "upcoming" || statsModal.type === "completed") && (
+                                                <>
+                                                    <td className="p-4 text-sm text-gray-600">{item.location || 'N/A'}</td>
+                                                    <td className="p-4 text-sm text-gray-600">{item.date || 'N/A'}</td>
+                                                    <td className="p-4">
+                                                        <span className="text-sm text-gray-600">
+                                                            {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
+                                                        </span>
+                                                        {item.createdAt && (
+                                                            <span className="block text-xs text-gray-400">
+                                                                {Math.floor((new Date() - new Date(item.createdAt)) / (1000 * 60 * 60 * 24))} days old
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className={`px-2 py-1 text-xs rounded-full ${
+                                                            statsModal.type === "active" 
+                                                                ? "bg-green-100 text-green-700"
+                                                                : statsModal.type === "upcoming"
+                                                                    ? "bg-blue-100 text-blue-700"
+                                                                    : statsModal.type === "completed"
+                                                                        ? "bg-gray-100 text-gray-700"
+                                                                        : "bg-gray-100 text-gray-700"
+                                                        }`}>
+                                                            {statsModal.type === "active" ? "Active" :
+                                                             statsModal.type === "upcoming" ? "Upcoming" :
+                                                             statsModal.type === "completed" ? "Completed" : "Active"}
+                                                        </span>
+                                                    </td>
+                                                </>
+                                            )}
+                                            <td className="p-4">
+                                                <button
+                                                    onClick={() => {
+                                                        closeStatsModal();
+                                                        if (item._id) {
+                                                            setViewCamp(item);
+                                                        }
+                                                    }}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                                >
+                                                    <Eye size={14} /> View
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                        <button
+                            onClick={closeStatsModal}
+                            className="px-6 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition shadow-sm"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="admin-dash">
             <div className="admin-dash__wrapper">
@@ -478,9 +716,12 @@ export default function MyCamps() {
                 </div>
             </div>
 
-            {/* STATS Section */}
+            {/* STATS Section - Clickable */}
             <div className="admin-dash__stats">
-                <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                <div 
+                    className="admin-dash__stat cursor-pointer" 
+                    onClick={() => openStatsModal("camps", "All Camps", myAssignedCamps)}
+                >
                     <div className="admin-dash__stat-top">
                         <span className="admin-dash__stat-label">Total Camps</span>
                         <div className="admin-dash__stat-icon admin-dash__stat-icon--indigo">
@@ -491,7 +732,23 @@ export default function MyCamps() {
                     <div className="admin-dash__stat-meta">assigned camps</div>
                 </div>
 
-                <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                <div 
+                    className="admin-dash__stat cursor-pointer" 
+                    onClick={() => openStatsModal("active", "Active Camps", myAssignedCamps.filter(c => {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        let campDate = new Date(c.date);
+                        if (isNaN(campDate.getTime())) {
+                            const parts = c.date.split('-');
+                            if (parts.length === 3) {
+                                campDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+                            }
+                        }
+                        if (isNaN(campDate.getTime())) return false;
+                        campDate.setHours(0, 0, 0, 0);
+                        return campDate.getTime() === today.getTime();
+                    }))}
+                >
                     <div className="admin-dash__stat-top">
                         <span className="admin-dash__stat-label">Active Camps</span>
                         <div className="admin-dash__stat-icon admin-dash__stat-icon--emerald">
@@ -502,7 +759,10 @@ export default function MyCamps() {
                     <div className="admin-dash__stat-meta">currently running</div>
                 </div>
 
-                <div className="admin-dash__stat" onClick={() => scrollToSection(patientsSectionRef)}>
+                <div 
+                    className="admin-dash__stat cursor-pointer" 
+                    onClick={() => openStatsModal("patients", "All Patients", patients.filter(p => myAssignedCamps.some(c => c._id === p.campId?._id)))}
+                >
                     <div className="admin-dash__stat-top">
                         <span className="admin-dash__stat-label">Patients</span>
                         <div className="admin-dash__stat-icon admin-dash__stat-icon--amber">
@@ -513,7 +773,23 @@ export default function MyCamps() {
                     <div className="admin-dash__stat-meta">total patients</div>
                 </div>
 
-                <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                <div 
+                    className="admin-dash__stat cursor-pointer" 
+                    onClick={() => openStatsModal("upcoming", "Upcoming Camps", myAssignedCamps.filter(c => {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        let campDate = new Date(c.date);
+                        if (isNaN(campDate.getTime())) {
+                            const parts = c.date.split('-');
+                            if (parts.length === 3) {
+                                campDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+                            }
+                        }
+                        if (isNaN(campDate.getTime())) return false;
+                        campDate.setHours(0, 0, 0, 0);
+                        return campDate.getTime() > today.getTime();
+                    }))}
+                >
                     <div className="admin-dash__stat-top">
                         <span className="admin-dash__stat-label">Upcoming</span>
                         <div className="admin-dash__stat-icon admin-dash__stat-icon--cyan">
@@ -524,7 +800,13 @@ export default function MyCamps() {
                     <div className="admin-dash__stat-meta">scheduled camps</div>
                 </div>
 
-                <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                <div 
+                    className="admin-dash__stat cursor-pointer" 
+                    onClick={() => openStatsModal("completed", "Completed Camps", myAssignedCamps.filter(c => {
+                        const { status } = getCampStatus(c.date, c.time);
+                        return status === 'completed';
+                    }))}
+                >
                     <div className="admin-dash__stat-top">
                         <span className="admin-dash__stat-label">Completed</span>
                         <div className="admin-dash__stat-icon admin-dash__stat-icon--rose">
@@ -538,7 +820,7 @@ export default function MyCamps() {
 
             {/* MAIN CONTENT AREA */}
             <div className="space-y-8">
-                {/* CAMPS SECTION */}
+                {/* CAMPS SECTION - UPDATED with VolunteerDisplay and PartnerDisplay */}
                 <div ref={campsSectionRef} className="admin-dash__card">
                     <div className="admin-dash__card-header">
                         <h3 className="admin-dash__card-title">Assigned Camps</h3>
@@ -587,15 +869,27 @@ export default function MyCamps() {
                                         <span>{camp.time || "Time TBD"}</span>
                                     </div>
 
-                                    <VolunteerDisplay
-                                        volunteers={camp.volunteers}
-                                        isSelected={selectedCampId === camp._id}
-                                    />
+                                    {/* 🔥 Using VolunteerDisplay component */}
+                                    {camp.volunteers && camp.volunteers.length > 0 && (
+                                        <div className="mt-2">
+                                            <VolunteerDisplay
+                                                volunteers={camp.volunteers}
+                                                isSelected={selectedCampId === camp._id}
+                                                employeeMap={employeeMap}
+                                            />
+                                        </div>
+                                    )}
 
-                                    <PartnerDisplay
-                                        partners={camp.partners}
-                                        isSelected={selectedCampId === camp._id}
-                                    />
+                                    {/* 🔥 Using PartnerDisplay component */}
+                                    {camp.partners && camp.partners.length > 0 && (
+                                        <div className="mt-1">
+                                            <PartnerDisplay
+                                                partners={camp.partners}
+                                                isSelected={selectedCampId === camp._id}
+                                                partnersList={partnerList}
+                                            />
+                                        </div>
+                                    )}
 
                                     <span className={`inline-block mt-3 text-xs font-bold px-2 py-1 rounded-lg ${selectedCampId === camp._id
                                         ? "bg-white/20 text-white"
@@ -708,6 +1002,7 @@ export default function MyCamps() {
                                                 </td>
                                                 <td className="p-4">
                                                     <div className="flex items-center justify-center gap-2">
+                                                        {/* 🔥 FIXED: View Report button */}
                                                         <button
                                                             onClick={() => viewReport(patient)}
                                                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
@@ -724,6 +1019,7 @@ export default function MyCamps() {
                                                             Edit
                                                         </button>
 
+                                                        {/* 🔥 FIXED: Download button */}
                                                         <button
                                                             onClick={() => downloadPDF(patient)}
                                                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
@@ -813,7 +1109,7 @@ export default function MyCamps() {
                 </div>
             )}
 
-            {/* VIEW CAMP MODAL */}
+            {/* VIEW CAMP MODAL - UPDATED with VolunteerDisplay and PartnerDisplay */}
             {viewCamp && createPortal(
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
@@ -834,6 +1130,30 @@ export default function MyCamps() {
                                         <span>{viewCamp.time}</span>
                                     </div>
                                 </div>
+
+                                {/* 🔥 Using VolunteerDisplay in View Modal */}
+                                {viewCamp.volunteers && viewCamp.volunteers.length > 0 && (
+                                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                        <span className="text-xs font-semibold text-gray-600">Volunteers:</span>
+                                        <VolunteerDisplay
+                                            volunteers={viewCamp.volunteers}
+                                            isSelected={false}
+                                            employeeMap={employeeMap}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* 🔥 Using PartnerDisplay in View Modal */}
+                                {viewCamp.partners && viewCamp.partners.length > 0 && (
+                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                        <span className="text-xs font-semibold text-gray-600">Partners:</span>
+                                        <PartnerDisplay
+                                            partners={viewCamp.partners}
+                                            isSelected={false}
+                                            partnersList={partnerList}
+                                        />
+                                    </div>
+                                )}
                             </div>
                             <button onClick={() => setViewCamp(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition shadow-sm">
                                 <X size={16} />
@@ -907,6 +1227,9 @@ export default function MyCamps() {
                 </div>,
                 document.body
             )}
+
+            {/* Stats Modal */}
+            <StatsModal />
             </div>
         </div>
     );

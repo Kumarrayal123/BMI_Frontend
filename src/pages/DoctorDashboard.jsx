@@ -1132,9 +1132,46 @@ import {
     CampBMIChart,
     HealthMetricChart
 } from "../components/DashboardCharts";
+import VolunteerDisplay from "../components/VolunteerDisplay";
+import PartnerDisplay from "../components/PartnerDisplay";
 import "./Dashboard.css";
 
 const API_BASE = config.API_BASE_URL;
+
+// 🔥 FIXED: extractLatestVitals function
+const extractLatestVitals = (tests = []) => {
+    const r = {};
+    if (!tests || tests.length === 0) return r;
+
+    tests.forEach(t => {
+        r.date = t.date;
+        if (t.type === "weight") r.weight = t.value;
+        if (t.type === "height") r.height = t.value;
+        if (t.type === "sugar") {
+            r.sugar = t.value;
+            r.sugarType = t.sugarType || t.type || "Random";
+        }
+        if (t.type === "bp") {
+            r.systolic = t.value;
+            r.diastolic = t.value2;
+        }
+    });
+    return r;
+};
+
+const calculateBMI = (weight, heightCm) => {
+    if (!weight || !heightCm) return null;
+    const h = heightCm / 100;
+    return +(weight / (h * h)).toFixed(1);
+};
+
+const getBMICategory = (bmi) => {
+    if (!bmi) return "-";
+    if (bmi < 18.5) return "Underweight";
+    if (bmi < 25) return "Healthy";
+    if (bmi < 30) return "Overweight";
+    return "Obese";
+};
 
 const DoctorDashboard = () => {
     const navigate = useNavigate();
@@ -1153,6 +1190,14 @@ const DoctorDashboard = () => {
     const [healthMetric, setHealthMetric] = useState("bp");
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
+
+    // 🔥 Stats Modal State
+    const [statsModal, setStatsModal] = useState({
+        show: false,
+        title: "",
+        data: [],
+        type: ""
+    });
 
     const [showCampModal, setShowCampModal] = useState(false);
     const [viewCamp, setViewCamp] = useState(null);
@@ -1218,6 +1263,25 @@ const DoctorDashboard = () => {
         if (typeof id === 'string' && !id.match(/^[0-9a-fA-F]{24}$/)) return id;
         const idStr = String(id);
         return partnerMap[idStr] || idStr;
+    };
+
+    // 🔥 Stats Modal Handlers
+    const openStatsModal = (type, title, data) => {
+        setStatsModal({
+            show: true,
+            title: title,
+            data: data || [],
+            type: type
+        });
+    };
+
+    const closeStatsModal = () => {
+        setStatsModal({
+            show: false,
+            title: "",
+            data: [],
+            type: ""
+        });
     };
 
     useEffect(() => {
@@ -1507,31 +1571,26 @@ const DoctorDashboard = () => {
         setShowEditModal(true);
     };
 
-    // Report functions
-    const calculateBMI = (weight, heightCm) => {
-        if (!weight || !heightCm) return null;
-        const h = heightCm / 100;
-        return +(weight / (h * h)).toFixed(1);
-    };
-
-    const getBMICategory = (bmi) => {
-        if (!bmi) return "-";
-        if (bmi < 18.5) return "Underweight";
-        if (bmi < 25) return "Healthy";
-        if (bmi < 30) return "Overweight";
-        return "Obese";
-    };
-
+    // 🔥 FIXED: prepareReportData - using extractLatestVitals
     const prepareReportData = async (patientId) => {
         try {
             const res = await axios.get(`${API_BASE}/patients/${patientId}`);
             const fullPatient = res.data;
+
+            console.log("📊 Patient Data:", fullPatient);
+            console.log("📊 Tests:", fullPatient.tests);
+
             if (!fullPatient?.tests?.length) {
                 alert("No test data available for this patient.");
                 return null;
             }
-            const test = { date: fullPatient.tests[0]?.date };
+
+            // 🔥 Use extractLatestVitals to get data from tests
+            const test = extractLatestVitals(fullPatient.tests);
+            console.log("📊 Extracted Vitals:", test);
+
             const bmiValue = calculateBMI(test.weight, test.height);
+
             const patientData = {
                 name: fullPatient.name,
                 age: fullPatient.age,
@@ -1541,11 +1600,27 @@ const DoctorDashboard = () => {
                 phone: fullPatient.contact,
                 address: fullPatient.address,
             };
-            const testsData = { weight: test.weight, height: test.height, sugar: test.sugar, sugarType: test.sugarType || "Random", systolic: test.systolic, diastolic: test.diastolic, heartRate: "-" };
-            const bmiData = { bmi: bmiValue, category: getBMICategory(bmiValue) };
+
+            const testsData = {
+                weight: test.weight || "-",
+                height: test.height || "-",
+                sugar: test.sugar || "-",
+                sugarType: test.sugarType || "Random",
+                systolic: test.systolic || "-",
+                diastolic: test.diastolic || "-",
+                heartRate: "-",
+            };
+
+            const bmiData = {
+                bmi: bmiValue || "-",
+                category: bmiValue ? getBMICategory(bmiValue) : "-",
+            };
+
+            console.log("📊 Report Data:", { patientData, testsData, bmiData });
+
             return { patientData, testsData, bmiData };
         } catch (err) {
-            console.error(err);
+            console.error("❌ prepareReportData error:", err);
             alert("Failed to fetch report data.");
             return null;
         }
@@ -1635,6 +1710,147 @@ const DoctorDashboard = () => {
         document.body.removeChild(link);
     };
 
+    // 🔥 Stats Modal Component
+    const StatsModal = () => {
+        if (!statsModal.show) return null;
+
+        return (
+            <div 
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                        closeStatsModal();
+                    }
+                }}
+            >
+                <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                    {/* Header */}
+                    <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
+                        <div>
+                            <h3 className="text-xl font-bold text-white">{statsModal.title}</h3>
+                            <p className="text-sm text-purple-100">
+                                Total: {statsModal.data.length} items
+                            </p>
+                        </div>
+                        <button
+                            onClick={closeStatsModal}
+                            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white"
+                        >
+                            <FiX size={20} />
+                        </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="overflow-auto flex-1 p-0">
+                        {statsModal.data.length === 0 ? (
+                            <div className="text-center py-12">
+                                <p className="text-gray-400 font-medium">No data found</p>
+                            </div>
+                        ) : (
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-gray-50 sticky top-0 z-10">
+                                    <tr>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">#</th>
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Name</th>
+                                        {statsModal.type === "patients" && (
+                                            <>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Contact</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Age</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Gender</th>
+                                            </>
+                                        )}
+                                        {(statsModal.type === "camps" || statsModal.type === "active" || statsModal.type === "upcoming") && (
+                                            <>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Location</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Date</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Created</th>
+                                                <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Status</th>
+                                            </>
+                                        )}
+                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {statsModal.data.map((item, index) => (
+                                        <tr key={item._id || index} className="hover:bg-gray-50/80 transition-colors">
+                                            <td className="p-4 text-sm text-gray-500">{index + 1}</td>
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-xs border border-purple-100">
+                                                        {(item.name || item.patientName || 'U').charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <span className="font-semibold text-gray-900">{item.name || item.patientName || 'N/A'}</span>
+                                                </div>
+                                            </td>
+                                            {statsModal.type === "patients" && (
+                                                <>
+                                                    <td className="p-4 text-sm text-gray-600">{item.contact || 'N/A'}</td>
+                                                    <td className="p-4 text-sm text-gray-600">{item.age || 'N/A'}</td>
+                                                    <td className="p-4 text-sm text-gray-600">{item.gender || 'N/A'}</td>
+                                                </>
+                                            )}
+                                            {(statsModal.type === "camps" || statsModal.type === "active" || statsModal.type === "upcoming") && (
+                                                <>
+                                                    <td className="p-4 text-sm text-gray-600">{item.location || 'N/A'}</td>
+                                                    <td className="p-4 text-sm text-gray-600">{item.date || 'N/A'}</td>
+                                                    <td className="p-4">
+                                                        <span className="text-sm text-gray-600">
+                                                            {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
+                                                        </span>
+                                                        {item.createdAt && (
+                                                            <span className="block text-xs text-gray-400">
+                                                                {Math.floor((new Date() - new Date(item.createdAt)) / (1000 * 60 * 60 * 24))} days old
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className={`px-2 py-1 text-xs rounded-full ${
+                                                            statsModal.type === "active" 
+                                                                ? "bg-green-100 text-green-700"
+                                                                : statsModal.type === "upcoming"
+                                                                    ? "bg-blue-100 text-blue-700"
+                                                                    : "bg-gray-100 text-gray-700"
+                                                        }`}>
+                                                            {statsModal.type === "active" ? "Active" :
+                                                             statsModal.type === "upcoming" ? "Upcoming" : "Active"}
+                                                        </span>
+                                                    </td>
+                                                </>
+                                            )}
+                                            <td className="p-4">
+                                                <button
+                                                    onClick={() => {
+                                                        closeStatsModal();
+                                                        if (item._id) {
+                                                            setViewCamp(item);
+                                                        }
+                                                    }}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                                >
+                                                    <FiEye size={14} /> View
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                        <button
+                            onClick={closeStatsModal}
+                            className="px-6 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition shadow-sm"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
@@ -1677,9 +1893,12 @@ const DoctorDashboard = () => {
             </div>
 
             <div className="space-y-6">
-                {/* Stats */}
+                {/* Stats - Clickable */}
                 <div className="admin-dash__stats">
-                    <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                    <div 
+                        className="admin-dash__stat cursor-pointer" 
+                        onClick={() => openStatsModal("camps", "All Camps", allCamps)}
+                    >
                         <div className="admin-dash__stat-top">
                             <span className="admin-dash__stat-label">Total Camps</span>
                             <div className="admin-dash__stat-icon admin-dash__stat-icon--indigo">
@@ -1689,17 +1908,29 @@ const DoctorDashboard = () => {
                         <div className="admin-dash__stat-value">{allCamps.length}</div>
                         <div className="admin-dash__stat-meta">health camps</div>
                     </div>
-                    <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                    <div 
+                        className="admin-dash__stat cursor-pointer" 
+                        onClick={() => openStatsModal("active", "Active Camps", allCamps.filter(c => {
+                            const { status } = getCampStatus(c.date, c.time);
+                            return status === 'live' || status === 'today';
+                        }))}
+                    >
                         <div className="admin-dash__stat-top">
                             <span className="admin-dash__stat-label">Active Camps</span>
                             <div className="admin-dash__stat-icon admin-dash__stat-icon--emerald">
                                 <FiActivity />
                             </div>
                         </div>
-                        <div className="admin-dash__stat-value">{allCamps.filter(c => getCampStatus(c.date, c.time).status === 'live').length}</div>
+                        <div className="admin-dash__stat-value">{allCamps.filter(c => {
+                            const { status } = getCampStatus(c.date, c.time);
+                            return status === 'live' || status === 'today';
+                        }).length}</div>
                         <div className="admin-dash__stat-meta">currently running</div>
                     </div>
-                    <div className="admin-dash__stat" onClick={() => scrollToSection(campsSectionRef)}>
+                    <div 
+                        className="admin-dash__stat cursor-pointer" 
+                        onClick={() => openStatsModal("camps", "Created by You", createdCamps)}
+                    >
                         <div className="admin-dash__stat-top">
                             <span className="admin-dash__stat-label">Created by You</span>
                             <div className="admin-dash__stat-icon admin-dash__stat-icon--cyan">
@@ -1709,7 +1940,10 @@ const DoctorDashboard = () => {
                         <div className="admin-dash__stat-value">{createdCamps.length}</div>
                         <div className="admin-dash__stat-meta">your camps</div>
                     </div>
-                    <div className="admin-dash__stat" onClick={() => scrollToSection(patientsSectionRef)}>
+                    <div 
+                        className="admin-dash__stat cursor-pointer" 
+                        onClick={() => openStatsModal("camps", "Assigned to You", assignedCamps)}
+                    >
                         <div className="admin-dash__stat-top">
                             <span className="admin-dash__stat-label">Assigned to You</span>
                             <div className="admin-dash__stat-icon admin-dash__stat-icon--rose">
@@ -1719,7 +1953,10 @@ const DoctorDashboard = () => {
                         <div className="admin-dash__stat-value">{assignedCamps.length}</div>
                         <div className="admin-dash__stat-meta">assigned camps</div>
                     </div>
-                    <div className="admin-dash__stat" onClick={() => scrollToSection(patientsSectionRef)}>
+                    <div 
+                        className="admin-dash__stat cursor-pointer" 
+                        onClick={() => openStatsModal("patients", "All Patients", patients)}
+                    >
                         <div className="admin-dash__stat-top">
                             <span className="admin-dash__stat-label">Patients</span>
                             <div className="admin-dash__stat-icon admin-dash__stat-icon--amber">
@@ -1827,7 +2064,7 @@ const DoctorDashboard = () => {
                     </div>
                 </div>
 
-                {/* My Camps Section */}
+                {/* My Camps Section - UPDATED with VolunteerDisplay and PartnerDisplay */}
                 <div ref={campsSectionRef} className="admin-dash__card">
                     <div className="admin-dash__card-header py-3 px-4">
                         <h3 className="admin-dash__card-title text-sm">My Camps</h3>
@@ -1907,62 +2144,29 @@ const DoctorDashboard = () => {
                                                 <FiClock size={12} />
                                                 <span>{camp.time || "No time"}</span>
                                             </div>
+                                            
+                                            {/* 🔥 UPDATED: Using VolunteerDisplay component */}
                                             {camp.volunteers && camp.volunteers.length > 0 && (
                                                 <div className="mt-1.5">
-                                                    <div className={`text-[8px] font-semibold mb-0.5 ${isSelected ? "text-indigo-100" : "text-gray-600"}`}>
-                                                        <FiUser size={10} className="inline mr-0.5" />
-                                                        Volunteers:
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-0.5">
-                                                        {camp.volunteers.slice(0, 3).map((vol, index) => (
-                                                            <span key={index} className={`text-[7px] px-1.5 py-0.5 rounded-full border ${
-                                                                isSelected 
-                                                                    ? "bg-white/20 text-white border-white/30" 
-                                                                    : "bg-blue-50 text-blue-700 border-blue-200"
-                                                            }`}>
-                                                                {getVolunteerName(vol)}
-                                                            </span>
-                                                        ))}
-                                                        {camp.volunteers.length > 3 && (
-                                                            <span className={`text-[7px] px-1.5 py-0.5 rounded-full border ${
-                                                                isSelected 
-                                                                    ? "bg-white/20 text-white border-white/30" 
-                                                                    : "bg-gray-50 text-gray-500 border-gray-200"
-                                                            }`}>
-                                                                +{camp.volunteers.length - 3}
-                                                            </span>
-                                                        )}
-                                                    </div>
+                                                    <VolunteerDisplay
+                                                        volunteers={camp.volunteers}
+                                                        isSelected={isSelected}
+                                                        employeeMap={volunteerMap}
+                                                    />
                                                 </div>
                                             )}
+                                            
+                                            {/* 🔥 UPDATED: Using PartnerDisplay component */}
                                             {camp.partners && camp.partners.length > 0 && (
                                                 <div className="mt-1">
-                                                    <div className={`text-[8px] font-semibold mb-0.5 ${isSelected ? "text-indigo-100" : "text-gray-600"}`}>
-                                                        <FiUserCheck size={10} className="inline mr-0.5" />
-                                                        Partners:
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-0.5">
-                                                        {camp.partners.slice(0, 2).map((partner, index) => (
-                                                            <span key={index} className={`text-[7px] px-1.5 py-0.5 rounded-full border ${
-                                                                isSelected 
-                                                                    ? "bg-white/20 text-white border-white/30" 
-                                                                    : "bg-purple-50 text-purple-700 border-purple-200"
-                                                            }`}>
-                                                                {getPartnerName(partner)}
-                                                            </span>
-                                                        ))}
-                                                        {camp.partners.length > 2 && (
-                                                            <span className={`text-[7px] px-1.5 py-0.5 rounded-full border ${
-                                                                isSelected 
-                                                                    ? "bg-white/20 text-white border-white/30" 
-                                                                    : "bg-gray-50 text-gray-500 border-gray-200"
-                                                            }`}>
-                                                                +{camp.partners.length - 2}
-                                                            </span>
-                                                        )}
-                                                    </div>
+                                                    <PartnerDisplay
+                                                        partners={camp.partners}
+                                                        isSelected={isSelected}
+                                                        partnersList={partnerList}
+                                                    />
                                                 </div>
                                             )}
+                                            
                                             <div className={`mt-2 pt-2 border-t flex items-center justify-between ${isSelected ? "border-white/20" : "border-gray-50"}`}>
                                                 <span className={`text-[10px] font-bold ${isSelected ? "text-indigo-200" : "text-gray-500"}`}>
                                                     <FiUsers size={10} className="inline mr-0.5" />
@@ -2421,7 +2625,7 @@ const DoctorDashboard = () => {
                 document.body
             )}
 
-            {/* View Camp Modal */}
+            {/* View Camp Modal - UPDATED with VolunteerDisplay and PartnerDisplay */}
             {viewCamp && createPortal(
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -2442,24 +2646,26 @@ const DoctorDashboard = () => {
                                         <span>{viewCamp.time}</span>
                                     </div>
                                 </div>
+                                {/* 🔥 UPDATED: Using VolunteerDisplay component */}
                                 {viewCamp.volunteers && viewCamp.volunteers.length > 0 && (
                                     <div className="flex items-center gap-1.5 mt-1.5">
                                         <span className="text-[10px] font-semibold text-gray-600">Volunteers:</span>
-                                        {viewCamp.volunteers.map((vol, index) => (
-                                            <span key={index} className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full">
-                                                {getVolunteerName(vol)}
-                                            </span>
-                                        ))}
+                                        <VolunteerDisplay
+                                            volunteers={viewCamp.volunteers}
+                                            isSelected={false}
+                                            employeeMap={volunteerMap}
+                                        />
                                     </div>
                                 )}
+                                {/* 🔥 UPDATED: Using PartnerDisplay component */}
                                 {viewCamp.partners && viewCamp.partners.length > 0 && (
                                     <div className="flex items-center gap-1.5 mt-0.5">
                                         <span className="text-[10px] font-semibold text-gray-600">Partners:</span>
-                                        {viewCamp.partners.map((partner, index) => (
-                                            <span key={index} className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full">
-                                                {getPartnerName(partner)}
-                                            </span>
-                                        ))}
+                                        <PartnerDisplay
+                                            partners={viewCamp.partners}
+                                            isSelected={false}
+                                            partnersList={partnerList}
+                                        />
                                     </div>
                                 )}
                             </div>
@@ -2587,6 +2793,9 @@ const DoctorDashboard = () => {
                 </div>,
                 document.body
             )}
+
+            {/* Stats Modal */}
+            <StatsModal />
         </div>
     );
 };

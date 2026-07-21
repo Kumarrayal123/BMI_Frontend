@@ -20,6 +20,7 @@ import {
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import config from "../config";
+import { generateMedicalReport, generateMedicalReportFile } from "../utils/pdfGenerator";
 import "./Dashboard.css";
 
 const WithReports = () => {
@@ -66,6 +67,86 @@ const WithReports = () => {
             console.error("Failed to fetch patients:", err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // 🔥 Helper: Extract latest vitals
+    const extractLatestVitals = (tests = []) => {
+        const r = {};
+        if (!tests) return r;
+        tests.forEach(t => {
+            r.date = t.date;
+            if (t.type === "weight") r.weight = t.value;
+            if (t.type === "height") r.height = t.value;
+            if (t.type === "sugar") r.sugar = t.value;
+            if (t.type === "sugarType") r.sugarType = t.value;
+            if (t.type === "bp") {
+                r.systolic = t.value;
+                r.diastolic = t.value2;
+            }
+        });
+        return r;
+    };
+
+    const calculateBMI = (weight, heightCm) => {
+        if (!weight || !heightCm) return null;
+        const h = heightCm / 100;
+        return +(weight / (h * h)).toFixed(1);
+    };
+
+    const getBMICategory = (bmi) => {
+        if (!bmi) return "-";
+        if (bmi < 18.5) return "Underweight";
+        if (bmi < 25) return "Healthy";
+        if (bmi < 30) return "Overweight";
+        return "Obese";
+    };
+
+    // 🔥 Prepare report data (same as CampDashboard)
+    const prepareReportData = async (patientId) => {
+        try {
+            const res = await axios.get(`${config.API_BASE_URL}/patients/${patientId}`);
+            const fullPatient = res.data;
+
+            if (!fullPatient?.tests?.length) {
+                alert("No test data available for this patient.");
+                return null;
+            }
+
+            const test = extractLatestVitals(fullPatient.tests);
+            const bmiValue = calculateBMI(test.weight, test.height);
+
+            const patientData = {
+                name: fullPatient.name,
+                age: fullPatient.age,
+                gender: fullPatient.gender,
+                id: fullPatient._id.slice(-6).toUpperCase(),
+                date: new Date(test.date || Date.now()).toLocaleDateString(),
+                phone: fullPatient.contact,
+                address: fullPatient.address,
+            };
+
+            const testsData = {
+                weight: test.weight,
+                height: test.height,
+                sugar: test.sugar,
+                sugarType: test.sugarType || "Random",
+                systolic: test.systolic,
+                diastolic: test.diastolic,
+                heartRate: "-",
+            };
+
+            const bmiData = {
+                bmi: bmiValue,
+                category: getBMICategory(bmiValue),
+            };
+
+            return { patientData, testsData, bmiData };
+
+        } catch (err) {
+            console.error(err);
+            alert("Failed to fetch report data.");
+            return null;
         }
     };
 
@@ -186,24 +267,24 @@ const WithReports = () => {
         }
     };
 
-    // 🔥 Download Report
+    // 🔥 Download Report - FIXED using same method as CampDashboard
     const handleDownloadReport = async (patient) => {
         try {
             setGenerating(true);
-            const response = await axios.get(
-                `${config.API_BASE_URL}/reports/download/${patient._id}`,
-                {
-                    responseType: 'blob'
-                }
-            );
             
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `Health_Report_${patient.name}.pdf`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
+            // Prepare report data
+            const data = await prepareReportData(patient._id);
+            if (!data) {
+                setGenerating(false);
+                return;
+            }
+            
+            // Generate PDF using the same function as CampDashboard
+            await generateMedicalReport(
+                data.patientData, 
+                data.testsData, 
+                data.bmiData
+            );
             
         } catch (err) {
             console.error("Download error:", err);
@@ -240,8 +321,10 @@ const WithReports = () => {
         const sugarType = latestSugar?.sugarType || vitals.sugarType || 'Random';
         const bpSys = latestBP?.value || vitals.bpSys || '-';
         const bpDia = latestBP?.value2 || vitals.bpDia || '-';
-        const bmi = vitals.bmi || '-';
-        const bmiCategory = vitals.bmiCategory || '-';
+        
+        // Calculate BMI from weight and height
+        const bmi = (weight !== '-' && height !== '-') ? calculateBMI(parseFloat(weight), parseFloat(height)) : '-';
+        const bmiCategory = bmi !== '-' ? getBMICategory(bmi) : '-';
 
         return (
             <div 
@@ -467,37 +550,161 @@ const WithReports = () => {
             </div>
 
             <div className="space-y-10">
-                {/* Stats Cards */}
-                <div className="admin-dash__stats">
-                    <div className="admin-dash__stat">
-                        <div className="admin-dash__stat-top">
-                            <span className="admin-dash__stat-label">With Reports</span>
-                            <div className="admin-dash__stat-icon admin-dash__stat-icon--emerald">
-                                <FiCheckCircle />
+                {/* Stats Cards - Fixed with proper spacing */}
+                <div className="admin-dash__stats" style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(3, 1fr)', 
+                    gap: '1.5rem',
+                    marginBottom: '0'
+                }}>
+                    <div className="admin-dash__stat" style={{
+                        padding: '1.5rem 1.5rem 1.25rem',
+                        background: 'white',
+                        borderRadius: '1rem',
+                        border: '1px solid #e5e7eb',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.25rem'
+                    }}>
+                        <div className="admin-dash__stat-top" style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '0.5rem'
+                        }}>
+                            <span className="admin-dash__stat-label" style={{
+                                fontSize: '0.7rem',
+                                fontWeight: '700',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                            }}>With Reports</span>
+                            <div className="admin-dash__stat-icon admin-dash__stat-icon--emerald" style={{
+                                width: '2rem',
+                                height: '2rem',
+                                borderRadius: '0.5rem',
+                                background: '#d1fae5',
+                                color: '#059669',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.875rem'
+                            }}>
+                                <FiCheckCircle size={16} />
                             </div>
                         </div>
-                        <div className="admin-dash__stat-value">{totalWithReports}</div>
-                        <div className="admin-dash__stat-meta">patients have reports</div>
+                        <div className="admin-dash__stat-value" style={{
+                            fontSize: '2rem',
+                            fontWeight: '800',
+                            color: '#111827',
+                            lineHeight: '1.2'
+                        }}>{totalWithReports}</div>
+                        <div className="admin-dash__stat-meta" style={{
+                            fontSize: '0.75rem',
+                            color: '#9ca3af',
+                            fontWeight: '500'
+                        }}>patients have reports</div>
                     </div>
-                    <div className="admin-dash__stat">
-                        <div className="admin-dash__stat-top">
-                            <span className="admin-dash__stat-label">Total Tests</span>
-                            <div className="admin-dash__stat-icon admin-dash__stat-icon--indigo">
-                                <FiBarChart2 />
+
+                    <div className="admin-dash__stat" style={{
+                        padding: '1.5rem 1.5rem 1.25rem',
+                        background: 'white',
+                        borderRadius: '1rem',
+                        border: '1px solid #e5e7eb',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.25rem'
+                    }}>
+                        <div className="admin-dash__stat-top" style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '0.5rem'
+                        }}>
+                            <span className="admin-dash__stat-label" style={{
+                                fontSize: '0.7rem',
+                                fontWeight: '700',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                            }}>Total Tests</span>
+                            <div className="admin-dash__stat-icon admin-dash__stat-icon--indigo" style={{
+                                width: '2rem',
+                                height: '2rem',
+                                borderRadius: '0.5rem',
+                                background: '#eef2ff',
+                                color: '#4f46e5',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.875rem'
+                            }}>
+                                <FiBarChart2 size={16} />
                             </div>
                         </div>
-                        <div className="admin-dash__stat-value">{totalTests}</div>
-                        <div className="admin-dash__stat-meta">tests conducted</div>
+                        <div className="admin-dash__stat-value" style={{
+                            fontSize: '2rem',
+                            fontWeight: '800',
+                            color: '#111827',
+                            lineHeight: '1.2'
+                        }}>{totalTests}</div>
+                        <div className="admin-dash__stat-meta" style={{
+                            fontSize: '0.75rem',
+                            color: '#9ca3af',
+                            fontWeight: '500'
+                        }}>tests conducted</div>
                     </div>
-                    <div className="admin-dash__stat">
-                        <div className="admin-dash__stat-top">
-                            <span className="admin-dash__stat-label">Avg Tests/Patient</span>
-                            <div className="admin-dash__stat-icon admin-dash__stat-icon--amber">
-                                <FiTrendingUp />
+
+                    <div className="admin-dash__stat" style={{
+                        padding: '1.5rem 1.5rem 1.25rem',
+                        background: 'white',
+                        borderRadius: '1rem',
+                        border: '1px solid #e5e7eb',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.25rem'
+                    }}>
+                        <div className="admin-dash__stat-top" style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '0.5rem'
+                        }}>
+                            <span className="admin-dash__stat-label" style={{
+                                fontSize: '0.7rem',
+                                fontWeight: '700',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                            }}>Avg Tests/Patient</span>
+                            <div className="admin-dash__stat-icon admin-dash__stat-icon--amber" style={{
+                                width: '2rem',
+                                height: '2rem',
+                                borderRadius: '0.5rem',
+                                background: '#fef3c7',
+                                color: '#d97706',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.875rem'
+                            }}>
+                                <FiTrendingUp size={16} />
                             </div>
                         </div>
-                        <div className="admin-dash__stat-value">{avgTestsPerPatient}</div>
-                        <div className="admin-dash__stat-meta">average per patient</div>
+                        <div className="admin-dash__stat-value" style={{
+                            fontSize: '2rem',
+                            fontWeight: '800',
+                            color: '#111827',
+                            lineHeight: '1.2'
+                        }}>{avgTestsPerPatient}</div>
+                        <div className="admin-dash__stat-meta" style={{
+                            fontSize: '0.75rem',
+                            color: '#9ca3af',
+                            fontWeight: '500'
+                        }}>average per patient</div>
                     </div>
                 </div>
 
@@ -587,7 +794,7 @@ const WithReports = () => {
                                                     <tr key={patient._id} className="transition-colors group hover:bg-gray-50/80">
                                                         <td className="p-4">
                                                             <div className="flex items-center gap-3">
-                                                                <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-emerald-700 rounded-full bg-gradient-to-br from-emerald-100 to-teal-100">
+                                                                <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-emerald-700 rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 flex-shrink-0">
                                                                     {patient.name?.charAt(0)?.toUpperCase() || 'P'}
                                                                 </div>
                                                                 <div>
@@ -597,18 +804,18 @@ const WithReports = () => {
                                                             </div>
                                                         </td>
                                                         <td className="p-4">
-                                                            <span className="px-3 py-1 text-sm text-green-700 bg-green-100 rounded-full">
+                                                            <span className="px-3 py-1 text-sm text-green-700 bg-green-100 rounded-full whitespace-nowrap">
                                                                 {patient.campId?.name || "N/A"}
                                                             </span>
                                                         </td>
                                                         <td className="p-4">
                                                             <span className="text-sm font-medium text-gray-700 flex items-center gap-1">
-                                                                <FiPhone size={12} className="text-gray-400" />
+                                                                <FiPhone size={12} className="text-gray-400 flex-shrink-0" />
                                                                 {patient.contact || "N/A"}
                                                             </span>
                                                         </td>
                                                         <td className="p-4">
-                                                            <span className="px-3 py-1 text-sm font-semibold bg-emerald-100 text-emerald-700 rounded-full">
+                                                            <span className="px-3 py-1 text-sm font-semibold bg-emerald-100 text-emerald-700 rounded-full whitespace-nowrap">
                                                                 {testCount} tests
                                                             </span>
                                                         </td>
@@ -618,17 +825,17 @@ const WithReports = () => {
                                                             </span>
                                                         </td>
                                                         <td className="p-4">
-                                                            <div className="flex items-center gap-2">
+                                                            <div className="flex items-center gap-2 flex-wrap">
                                                                 <button
                                                                     onClick={() => handleViewReport(patient)}
-                                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors whitespace-nowrap"
                                                                 >
                                                                     <FiEye size={14} /> View
                                                                 </button>
                                                                 <button
                                                                     onClick={() => handleDownloadReport(patient)}
                                                                     disabled={generating}
-                                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                                                                 >
                                                                     <FiDownload size={14} /> Download
                                                                 </button>
