@@ -53,8 +53,8 @@ function App() {
   return (
     <Router>
       <Layout>
-        <Routes>
-          <Route path="/" element={<Login />} />
+        <Routes><Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
@@ -73,7 +73,7 @@ function App() {
           <Route path="/partners" element={<Partners />} /> {/* ✅ Partners Page */}
           <Route path="/employeedashboard" element={<EmployeeDashboard />} />
           <Route path="/adashboard" element={<ADashboard />} />
-          <Route path="/landing" element={<LandingPage />} />
+          
           <Route path="/all-reports" element={<AllReports />} />
           <Route path="/with-reports" element={<WithReports />} />
           <Route path="/pending-reports" element={<PendingReports />} />

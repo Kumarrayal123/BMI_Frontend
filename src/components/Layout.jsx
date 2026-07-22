@@ -21,8 +21,8 @@ const Layout = ({ children }) => {
         ? "/doctor"
         : "/dashboard";
 
-  // Hide Navbar on Login (path '/'), Register (path '/register'), and Landing (path '/landing')
-  const isAuthPage = location.pathname === "/" || location.pathname === "/register" || location.pathname === "/landing";
+  // Hide Navbar on Login (path '/login'), Register (path '/register'), and Landing (path '/' or '/landing')
+  const isAuthPage = location.pathname === "/" || location.pathname === "/login" || location.pathname === "/register" || location.pathname === "/landing";
 
   // Pages with full-screen admin dashboard styling (no padding)
   const isAdminDashPage = location.pathname === "/dashboard" || 
