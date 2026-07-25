@@ -4,27 +4,41 @@ import { createPortal } from 'react-dom';
 import axios from 'axios';
 import config from '../config';
 
-const VolunteerDisplay = ({ volunteers = [], isSelected = false }) => {
+const VolunteerDisplay = ({ volunteers = [], isSelected = false, employeeMap: externalEmployeeMap }) => {
     const [showModal, setShowModal] = useState(false);
     const [employeeMap, setEmployeeMap] = useState({});
 
     useEffect(() => {
         const loadEmployees = async () => {
             try {
-                const res = await axios.get(`${config.API_BASE_URL}/proxy/employees/get-employees`);
+                // Fetch proxy employees
+                const res = await axios.get(`${config.API_BASE_URL}/proxy/employees/get-employees`).catch(() => ({ data: [] }));
                 const empData = res.data || [];
                 const allEmployees = Array.isArray(empData) ? empData : empData.employees || empData.data || empData.value || [];
+                
+                // Fetch volunteers
+                const volRes = await axios.get(`${config.API_BASE_URL}/volunteers/all-volunteers`).catch(() => ({ data: [] }));
+                const volData = volRes.data?.volunteers || volRes.data || [];
+                
                 const map = {};
                 allEmployees.forEach(emp => {
                     if (emp && emp._id) map[String(emp._id)] = emp.name;
                 });
+                volData.forEach(vol => {
+                    if (vol && vol._id) map[String(vol._id)] = vol.name;
+                });
+                
+                if (externalEmployeeMap) {
+                    Object.assign(map, externalEmployeeMap);
+                }
+                
                 setEmployeeMap(map);
             } catch (err) {
-                console.error("VolunteerDisplay error fetching employees:", err);
+                console.error("VolunteerDisplay error fetching employees/volunteers:", err);
             }
         };
         loadEmployees();
-    }, []);
+    }, [externalEmployeeMap]);
 
     const getVolName = (v) => {
         if (!v) return "";

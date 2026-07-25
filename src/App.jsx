@@ -48,6 +48,7 @@ import LandingPage from "./pages/LandingPage";
 import AllReports from "./pages/AllReports";
 import WithReports from './pages/WithReports';
 import PendingReports from './pages/PendingReports';
+import PartnerVolunteers from './pages/PartnerVolunteers';
 
 function App() {
   return (
@@ -71,6 +72,7 @@ function App() {
           {/* <Route path="/join-us" element={<JoinUs />} /> */}
           <Route path="/admin/applications" element={<AdminApplications />} /> {/* ✅ Admin Applications */}
           <Route path="/partners" element={<Partners />} /> {/* ✅ Partners Page */}
+          <Route path="/partner-volunteers" element={<PartnerVolunteers />} /> {/* ✅ Partner Volunteers Page */}
           <Route path="/employeedashboard" element={<EmployeeDashboard />} />
           <Route path="/adashboard" element={<ADashboard />} />
           

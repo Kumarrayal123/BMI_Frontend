@@ -1,7 +1,7 @@
 import axios from "axios";
 import { Activity, FileDown, Calendar, User, Phone, MapPin, Ruler, Weight, Heart, Droplet, Thermometer, PlusCircle, X, Building2, Clock, Stethoscope, Eye, CheckCircle, AlertCircle, TrendingDown } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import AddTestForm from "../components/AddTestForm";
 import { generateMedicalReport } from "../utils/pdfGenerator";
 import config from "../config";
@@ -90,10 +90,48 @@ const getTestDisplay = (test) => {
 
 const PatientDetails = () => {
   const { id } = useParams();
+  const location = useLocation();
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAddTestModal, setShowAddTestModal] = useState(false);
   const [campDetails, setCampDetails] = useState(null);
+
+  const [vitals, setVitals] = useState({
+    weight: "",
+    height: "",
+    sugar: "",
+    systolic: "",
+    diastolic: "80"
+  });
+  const [vitalsLoading, setVitalsLoading] = useState(false);
+
+  useEffect(() => {
+    if (patient) {
+      setVitals({
+        weight: patient.vitals?.weight || "",
+        height: patient.vitals?.height || "",
+        sugar: patient.vitals?.sugar || "",
+        systolic: patient.vitals?.bpSys || "",
+        diastolic: patient.vitals?.bpDia || "80"
+      });
+    }
+  }, [patient]);
+
+  useEffect(() => {
+    if (location.state?.openAddTest) {
+      setShowAddTestModal(true);
+      // Clear state so it doesn't open again on page refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  const handleVitalChange = (e) => {
+    const { name, value } = e.target;
+    setVitals(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
   const fetchPatient = async () => {
     try {
@@ -112,6 +150,56 @@ const PatientDetails = () => {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateVitals = async () => {
+    setVitalsLoading(true);
+    try {
+      const testPromises = [];
+
+      const sendVitalTest = async (type, value, value2 = null, sugarType = "Random") => {
+        const payload = {
+          type,
+          value: parseFloat(value),
+          date: new Date()
+        };
+        if (type === "bp") {
+          payload.value2 = parseFloat(value2);
+        }
+        if (type === "sugar") {
+          payload.sugarType = sugarType;
+        }
+        await axios.post(`${config.API_BASE_URL}/patients/${id}/tests`, payload);
+      };
+
+      if (vitals.weight) {
+        testPromises.push(sendVitalTest("weight", vitals.weight));
+      }
+      if (vitals.height) {
+        testPromises.push(sendVitalTest("height", vitals.height));
+      }
+      if (vitals.sugar) {
+        testPromises.push(sendVitalTest("sugar", vitals.sugar));
+      }
+      if (vitals.systolic && vitals.diastolic) {
+        testPromises.push(sendVitalTest("bp", vitals.systolic, vitals.diastolic));
+      }
+
+      if (testPromises.length === 0) {
+        alert("Please fill at least one vital parameter");
+        setVitalsLoading(false);
+        return;
+      }
+
+      await Promise.all(testPromises);
+      alert("✅ Vitals updated successfully!");
+      fetchPatient(); // Reload patient data
+    } catch (err) {
+      console.error(err);
+      alert("Error updating vitals: " + (err.response?.data?.error || err.message));
+    } finally {
+      setVitalsLoading(false);
     }
   };
 
@@ -277,6 +365,9 @@ const PatientDetails = () => {
               <input 
                 type="number" 
                 step="0.1" 
+                name="weight"
+                value={vitals.weight}
+                onChange={handleVitalChange}
                 placeholder="e.g. 70" 
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 ring-indigo-500 outline-none transition text-sm"
               />
@@ -290,6 +381,9 @@ const PatientDetails = () => {
               <input 
                 type="number" 
                 step="0.1" 
+                name="height"
+                value={vitals.height}
+                onChange={handleVitalChange}
                 placeholder="e.g. 175" 
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 ring-indigo-500 outline-none transition text-sm"
               />
@@ -302,6 +396,9 @@ const PatientDetails = () => {
               </label>
               <input 
                 type="number" 
+                name="sugar"
+                value={vitals.sugar}
+                onChange={handleVitalChange}
                 placeholder="e.g. 90" 
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 ring-indigo-500 outline-none transition text-sm"
               />
@@ -315,12 +412,18 @@ const PatientDetails = () => {
               <div className="flex gap-2">
                 <input 
                   type="number" 
+                  name="systolic"
+                  value={vitals.systolic}
+                  onChange={handleVitalChange}
                   placeholder="Sys" 
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 ring-indigo-500 outline-none transition text-sm text-center"
                 />
                 <span className="self-center text-gray-400">/</span>
                 <input 
                   type="number" 
+                  name="diastolic"
+                  value={vitals.diastolic}
+                  onChange={handleVitalChange}
                   placeholder="Dia" 
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 ring-indigo-500 outline-none transition text-sm text-center"
                 />
@@ -329,10 +432,12 @@ const PatientDetails = () => {
           </div>
 
           <button 
-            className="mt-4 bg-indigo-600 text-white px-6 py-2.5 rounded-xl hover:bg-indigo-700 transition text-sm font-medium flex items-center gap-2"
+            onClick={handleUpdateVitals}
+            disabled={vitalsLoading}
+            className="mt-4 bg-indigo-600 text-white px-6 py-2.5 rounded-xl hover:bg-indigo-700 transition text-sm font-medium flex items-center gap-2 disabled:opacity-50"
           >
             <Activity size={18} />
-            Update Vitals
+            {vitalsLoading ? "Updating..." : "Update Vitals"}
           </button>
         </div>
 

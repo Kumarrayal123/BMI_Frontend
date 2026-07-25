@@ -86,6 +86,20 @@ const Login = () => {
         return;
       }
 
+      // 🔹 VOLUNTEER LOGIN
+      if (type === "volunteer") {
+        // Volunteer data ko extract karein
+        const volunteerData = data.volunteer || data;
+        localStorage.setItem("volunteerData", JSON.stringify(volunteerData));
+        localStorage.setItem("userId", volunteerData.id || volunteerData._id);
+        localStorage.setItem("employeeName", volunteerData.name);
+        localStorage.setItem("employeeEmail", volunteerData.email);
+        localStorage.setItem("role", "volunteer");
+        localStorage.setItem("token", data.token || "");
+        navigate("/dashboard");
+        return;
+      }
+
       throw new Error("Unknown user type");
 
     } catch (error) {

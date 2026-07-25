@@ -95,6 +95,25 @@ export default function MyCamps() {
     const [partnerList, setPartnerList] = useState([]);
     const [employeeMap, setEmployeeMap] = useState({});
 
+    const partnerMap = useMemo(() => {
+        const map = {};
+        partnerList.forEach(p => {
+            if (p && p._id) map[String(p._id)] = p.name;
+        });
+        return map;
+    }, [partnerList]);
+
+    const getPartnerName = (id) => {
+        if (!id) return 'Unknown';
+        if (typeof id === 'object') {
+            if (id.name) return id.name;
+            if (id.clinicName) return id.clinicName;
+            return id.name || 'Unknown';
+        }
+        const idStr = String(id);
+        return partnerMap[idStr] || idStr;
+    };
+
     const patientsSectionRef = useRef(null);
     const campsSectionRef = useRef(null);
 
@@ -125,7 +144,7 @@ export default function MyCamps() {
 
     useEffect(() => {
         const role = localStorage.getItem("role");
-        if (role !== "employee" && role !== "partner") {
+        if (role !== "employee" && role !== "partner" && role !== "volunteer") {
             navigate("/dashboard");
             return;
         }
@@ -142,9 +161,17 @@ export default function MyCamps() {
                 const employeesRes = await axios.get(`${API_BASE}/proxy/employees/get-employees`).catch(() => ({ data: [] }));
                 const empData = employeesRes.data || [];
                 const allEmployees = Array.isArray(empData) ? empData : empData.employees || empData.data || empData.value || [];
+                
+                // Fetch volunteers
+                const volRes = await axios.get(`${API_BASE}/volunteers/all-volunteers`).catch(() => ({ data: [] }));
+                const volData = volRes.data?.volunteers || volRes.data || [];
+                
                 const empMap = {};
                 allEmployees.forEach(emp => {
                     empMap[String(emp._id)] = emp.name;
+                });
+                volData.forEach(vol => {
+                    empMap[String(vol._id)] = vol.name;
                 });
                 setEmployeeMap(empMap);
 
@@ -184,12 +211,28 @@ export default function MyCamps() {
                         if (!Array.isArray(allCamps)) allCamps = [];
                     }
                     
-                    if (employeeName) {
+                    if (employeeName || userId) {
                         campsData = allCamps.filter(camp => {
                             if (!camp.volunteers || camp.volunteers.length === 0) return false;
                             return camp.volunteers.some(v => {
-                                const nameToCompare = typeof v === 'object' && v ? (v.name || v.email || '') : String(v);
-                                return nameToCompare.toLowerCase().trim() === String(employeeName).toLowerCase().trim();
+                                if (!v) return false;
+                                if (typeof v === 'object') {
+                                    if (v.$oid) {
+                                        return String(v.$oid).toLowerCase().trim() === String(userId).toLowerCase().trim();
+                                    }
+                                    const idStr = String(v._id || v.id || '').toLowerCase().trim();
+                                    if (userId && idStr && idStr === String(userId).toLowerCase().trim()) return true;
+                                    const nameStr = String(v.name || '').toLowerCase().trim();
+                                    if (employeeName && nameStr && nameStr === String(employeeName).toLowerCase().trim()) return true;
+                                    const emailStr = String(v.email || '').toLowerCase().trim();
+                                    const employeeEmail = localStorage.getItem("employeeEmail") || localStorage.getItem("email") || "";
+                                    if (employeeEmail && emailStr && emailStr === String(employeeEmail).toLowerCase().trim()) return true;
+                                    return false;
+                                }
+                                const valStr = String(v).toLowerCase().trim();
+                                if (userId && valStr === String(userId).toLowerCase().trim()) return true;
+                                if (employeeName && valStr === String(employeeName).toLowerCase().trim()) return true;
+                                return false;
                             });
                         });
                     } else {
@@ -869,6 +912,30 @@ export default function MyCamps() {
                                         <span>{camp.time || "Time TBD"}</span>
                                     </div>
 
+                                    {/* Creator Info */}
+                                    <div className={`text-[8px] font-semibold mt-1.5 ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                                        <span className="opacity-75">Created by: </span>
+                                        <span className="font-bold">
+                                            {camp.creatorRole === "admin"
+                                                ? (typeof camp.createdBy === 'object' && camp.createdBy ? (camp.createdBy.name || camp.createdBy.email) : (getPartnerName(camp.createdBy) !== camp.createdBy ? getPartnerName(camp.createdBy) : "Admin"))
+                                                : (typeof camp.createdBy === 'object' && camp.createdBy ? (camp.createdBy.name || camp.createdBy.clinicName) : (getPartnerName(camp.createdBy) || "Partner"))
+                                            }
+                                        </span>
+                                    </div>
+
+                                    {/* Assigned Partner Info */}
+                                    {camp.assignedPartner && (
+                                        <div className={`text-[8px] font-semibold mt-0.5 ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                                            <span className="opacity-75">Assigned Partner: </span>
+                                            <span className="font-bold">
+                                                {typeof camp.assignedPartner === 'object' && camp.assignedPartner
+                                                    ? (camp.assignedPartner.name || camp.assignedPartner.clinicName)
+                                                    : (getPartnerName(camp.assignedPartner) || "Partner")
+                                                }
+                                            </span>
+                                        </div>
+                                    )}
+
                                     {/* 🔥 Using VolunteerDisplay component */}
                                     {camp.volunteers && camp.volunteers.length > 0 && (
                                         <div className="mt-2">
@@ -938,13 +1005,15 @@ export default function MyCamps() {
                                 <span>Showing {filteredPatients.length} participants</span>
                             </div>
                             <div className="flex flex-wrap items-center gap-3">
-                                <button
-                                    onClick={() => navigate("/add-patient", { state: { campId: selectedCampId === "all" ? "" : selectedCampId } })}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition bg-indigo-600 rounded-xl hover:bg-indigo-700"
-                                >
-                                    <Plus size={16} />
-                                    Add Patient
-                                </button>
+                                {role !== "volunteer" && (
+                                    <button
+                                        onClick={() => navigate("/add-patient", { state: { campId: selectedCampId === "all" ? "" : selectedCampId } })}
+                                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition bg-indigo-600 rounded-xl hover:bg-indigo-700"
+                                    >
+                                        <Plus size={16} />
+                                        Add Patient
+                                    </button>
+                                )}
                                 <button
                                     onClick={handleBulkDownload}
                                     disabled={selectedCampId === "all" || loading}
@@ -1011,13 +1080,15 @@ export default function MyCamps() {
                                                             View
                                                         </button>
 
-                                                        <button
-                                                            onClick={() => navigate(`/patient/${patient._id}`)}
-                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors"
-                                                        >
-                                                            <Edit size={14} />
-                                                            Edit
-                                                        </button>
+                                                        {role !== "volunteer" && (
+                                                            <button
+                                                                onClick={() => navigate(`/patient/${patient._id}`)}
+                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors"
+                                                            >
+                                                                <Edit size={14} />
+                                                                Edit
+                                                            </button>
+                                                        )}
 
                                                         {/* 🔥 FIXED: Download button */}
                                                         <button
@@ -1129,6 +1200,30 @@ export default function MyCamps() {
                                         <Clock size={14} className="text-indigo-500" />
                                         <span>{viewCamp.time}</span>
                                     </div>
+                                </div>
+
+                                {/* Creator & Assigned Partner Info */}
+                                <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
+                                    <div className="flex items-center gap-1 text-gray-600 bg-gray-100 px-2 py-0.5 rounded-lg">
+                                        <span className="font-medium">Created by:</span>
+                                        <span className="font-bold text-gray-800">
+                                            {viewCamp.creatorRole === "admin"
+                                                ? (typeof viewCamp.createdBy === 'object' && viewCamp.createdBy ? (viewCamp.createdBy.name || viewCamp.createdBy.email) : (getPartnerName(viewCamp.createdBy) !== viewCamp.createdBy ? getPartnerName(viewCamp.createdBy) : "Admin"))
+                                                : (typeof viewCamp.createdBy === 'object' && viewCamp.createdBy ? (viewCamp.createdBy.name || viewCamp.createdBy.clinicName) : (getPartnerName(viewCamp.createdBy) || "Partner"))
+                                            }
+                                        </span>
+                                    </div>
+                                    {viewCamp.assignedPartner && (
+                                        <div className="flex items-center gap-1 text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100">
+                                            <span className="font-medium">Assigned Partner:</span>
+                                            <span className="font-bold">
+                                                {typeof viewCamp.assignedPartner === 'object' && viewCamp.assignedPartner
+                                                    ? (viewCamp.assignedPartner.name || viewCamp.assignedPartner.clinicName)
+                                                    : (getPartnerName(viewCamp.assignedPartner) || "Partner")
+                                                }
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* 🔥 Using VolunteerDisplay in View Modal */}

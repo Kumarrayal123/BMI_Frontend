@@ -1170,22 +1170,22 @@ export default function CampDashboard() {
   const [currentUserRole, setCurrentUserRole] = useState("");
   const [currentUserId, setCurrentUserId] = useState("");
 
-  // 🔥 Hidden Camps State
+  // Hidden Camps State
   const [hiddenCamps, setHiddenCamps] = useState([]);
   const [showHiddenModal, setShowHiddenModal] = useState(false);
   
-  // 🔥 Camp View Filter
+  // Camp View Filter
   const [campViewFilter, setCampViewFilter] = useState("active");
 
-  // 🔥 Stats Modal State
+  // Stats Modal State
   const [statsModal, setStatsModal] = useState({
     show: false,
     title: "",
     data: [],
-    type: "" // "camps", "patients", "active", "upcoming", "archived"
+    type: ""
   });
 
-  // 🔥 Add Patient Modal State (inside View Camp) - Complete form
+  // Add Patient Modal State
   const [showAddPatientModal, setShowAddPatientModal] = useState(false);
   const [addPatientLoading, setAddPatientLoading] = useState(false);
   const [addPatientForm, setAddPatientForm] = useState({
@@ -1253,49 +1253,25 @@ export default function CampDashboard() {
         }
         console.log(`📦 Total Camps: ${allCampsData.length}`);
 
-        // 🔥 DEBUG: Log all camps with their dates
-        console.log("📅 Camp Dates:");
-        allCampsData.forEach(camp => {
-          const date = camp.createdAt || camp.date || 'No date';
-          console.log(`  - ${camp.name}: ${date}`);
-        });
-
-        // 🔥 AUTO-HIDE: Force hide camps older than 10 days
+        // AUTO-HIDE LOGIC
         let archivedCount = 0;
         const now = new Date();
         
         for (const camp of allCampsData) {
-          // Skip if already hidden
-          if (camp.isHidden) {
-            console.log(`⏭️ Already hidden: ${camp.name}`);
-            continue;
-          }
+          if (camp.isHidden) continue;
           
-          // Get camp date (createdAt or date)
           let campDate = camp.createdAt || camp.date;
-          if (!campDate) {
-            console.log(`⚠️ No date for: ${camp.name}`);
-            continue;
-          }
+          if (!campDate) continue;
           
-          // Handle MongoDB date format
           if (typeof campDate === 'object' && campDate.$date) {
             campDate = campDate.$date;
           }
           
           const created = new Date(campDate);
-          
-          // Check if date is valid
-          if (isNaN(created.getTime())) {
-            console.log(`⚠️ Invalid date for: ${camp.name} - ${campDate}`);
-            continue;
-          }
+          if (isNaN(created.getTime())) continue;
           
           const diffDays = Math.floor((now - created) / (1000 * 60 * 60 * 24));
           
-          console.log(`📅 "${camp.name}" - ${diffDays} days old`);
-          
-          // 🔥 If camp is older than 10 days, auto-hide it
           if (diffDays > 10) {
             try {
               await axios.put(`${API_BASE}/camps/hide-camp/${camp._id}`, { isHidden: true });
@@ -1319,7 +1295,6 @@ export default function CampDashboard() {
           if (!Array.isArray(updatedCampsData)) updatedCampsData = [];
         }
 
-        // 🔥 Separate hidden and visible camps
         const finalHidden = updatedCampsData.filter(camp => camp.isHidden === true);
         const finalVisible = updatedCampsData.filter(camp => !camp.isHidden);
 
@@ -1368,25 +1343,32 @@ export default function CampDashboard() {
         }
         setPatients(allPatients);
 
-        // Fetch volunteers
+        // ============================================================
+        // ✅ FETCH ALL VOLUNTEERS - EMPLOYEES + PARTNER VOLUNTEERS
+        // ============================================================
+        
+        const empMap = {};
+        let allVolunteersList = [];
+
+        // 1️⃣ Fetch employees
         const employeesRes = await axios.get(`${API_BASE}/proxy/employees/get-employees`).catch(() => ({ data: [] }));
         const empData = employeesRes.data || [];
         const allEmployees = Array.isArray(empData) ? empData : empData.employees || empData.data || empData.value || [];
         
-        const empMap = {};
         allEmployees.forEach(emp => {
           empMap[String(emp._id)] = emp.name;
         });
-        setEmployeeMap(empMap);
 
         const allowedDepts = ["Laboratory Medicine", "Nursing", "Medical"];
-        const filteredVolunteers = allEmployees.filter(emp => {
+        const filteredEmployees = allEmployees.filter(emp => {
           const dept = (emp.department || "").trim();
           return allowedDepts.some(d => d.toLowerCase() === dept.toLowerCase());
         });
-        setVolunteers(filteredVolunteers);
         
-        // Fetch partners
+        // Add employees to volunteer list
+        allVolunteersList = [...filteredEmployees];
+
+        // 2️⃣ Fetch partners
         const partnersRes = await axios.get(`${API_BASE}/auth/partners`).catch(() => ({ data: [] }));
         let partnersData = partnersRes.data || [];
         if (!Array.isArray(partnersData)) {
@@ -1394,7 +1376,50 @@ export default function CampDashboard() {
           if (!Array.isArray(partnersData)) partnersData = [];
         }
         setPartnerList(partnersData);
+
+        // 3️⃣ Fetch partner volunteers
+        for (const partner of partnersData) {
+          try {
+            const partnerVolRes = await axios.get(`${API_BASE}/volunteers/partner-volunteers/${partner._id}`).catch(() => ({ data: [] }));
+            let pvData = partnerVolRes.data || [];
+            if (!Array.isArray(pvData)) {
+              pvData = pvData.volunteers || pvData.data || [];
+              if (!Array.isArray(pvData)) pvData = [];
+            }
+            
+            // Add partner volunteers to the list
+            pvData.forEach(pv => {
+              // Add to employeeMap for name lookup
+              if (pv._id) {
+                empMap[String(pv._id)] = pv.name || 'Unknown Volunteer';
+              }
+              // Add to volunteer list if not already there
+              const exists = allVolunteersList.some(v => String(v._id) === String(pv._id));
+              if (!exists) {
+                allVolunteersList.push({
+                  _id: pv._id,
+                  name: pv.name || 'Unknown Volunteer',
+                  designation: pv.designation || 'Volunteer',
+                  email: pv.email || '',
+                  phone: pv.phone || '',
+                  source: 'partner'
+                });
+              }
+            });
+            
+            console.log(`✅ Partner volunteers for ${partner.name || partner.clinicName}: ${pvData.length}`);
+          } catch (err) {
+            console.log(`⚠️ No volunteers for partner ${partner._id}`);
+          }
+        }
+
+        // 4️⃣ Set the combined volunteer list
+        setEmployeeMap(empMap);
+        setVolunteers(allVolunteersList);
         
+        console.log(`✅ Total Volunteers (Employees + Partner): ${allVolunteersList.length}`);
+        console.log("📋 Volunteer List:", allVolunteersList.map(v => v.name));
+
       } catch (err) {
         console.error("Failed to fetch data", err);
         setCamps([]);
@@ -1411,7 +1436,6 @@ export default function CampDashboard() {
 
   /* -------- HIDE/UNHIDE FUNCTIONS -------- */
 
-  // 🔥 Hide/Archive a camp
   const handleHideCamp = async (campId) => {
     if (!window.confirm("Are you sure you want to hide this camp? It will be moved to hidden.")) return;
     try {
@@ -1424,7 +1448,6 @@ export default function CampDashboard() {
     }
   };
 
-  // 🔥 Unhide/Restore a camp
   const handleUnhideCamp = async (campId) => {
     if (!window.confirm("Are you sure you want to restore this camp?")) return;
     try {
@@ -1438,7 +1461,6 @@ export default function CampDashboard() {
     }
   };
 
-  // 🔥 Manual Archive All Old Camps
   const handleManualArchive = async () => {
     if (!window.confirm("Are you sure you want to hide all camps older than 10 days?")) return;
     try {
@@ -1492,7 +1514,6 @@ export default function CampDashboard() {
       alert("✅ Patient added successfully!");
       setShowAddPatientModal(false);
       
-      // Reset form
       setAddPatientForm({
         salutation: "",
         name: "",
@@ -1503,7 +1524,6 @@ export default function CampDashboard() {
         campId: ""
       });
       
-      // Refresh patients list
       const patientsRes = await axios.get(`${API_BASE}/patients`).catch(() => ({ data: [] }));
       let allPatients = patientsRes.data || [];
       if (!Array.isArray(allPatients)) {
@@ -1560,7 +1580,6 @@ export default function CampDashboard() {
     return [...camps, ...hiddenCamps];
   }, [camps, createdCamps, hiddenCamps, currentUserRole]);
 
-  // 🔥 Modified displayCamps to filter based on view
   const displayCamps = useMemo(() => {
     let baseCamps = [];
     
@@ -1570,7 +1589,6 @@ export default function CampDashboard() {
       baseCamps = camps;
     }
 
-    // Filter based on view
     if (campViewFilter === "active") {
       return baseCamps.filter(camp => !camp.isHidden);
     } else {
@@ -2036,7 +2054,6 @@ export default function CampDashboard() {
         }}
       >
         <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-          {/* Header - Same gradient as Hidden Modal */}
           <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
             <div>
               <h3 className="text-xl font-bold text-white">{statsModal.title}</h3>
@@ -2052,7 +2069,6 @@ export default function CampDashboard() {
             </button>
           </div>
 
-          {/* Content */}
           <div className="overflow-auto flex-1 p-0">
             {statsModal.data.length === 0 ? (
               <div className="text-center py-12">
@@ -2152,7 +2168,6 @@ export default function CampDashboard() {
             )}
           </div>
 
-          {/* Footer */}
           <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
             <button
               onClick={closeStatsModal}
@@ -2180,7 +2195,6 @@ export default function CampDashboard() {
         }}
       >
         <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-          {/* Header */}
           <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
             <div>
               <h3 className="text-xl font-bold text-white">Hidden Camps</h3>
@@ -2196,7 +2210,6 @@ export default function CampDashboard() {
             </button>
           </div>
 
-          {/* Table */}
           <div className="overflow-auto flex-1 p-0">
             {hiddenCamps.length === 0 ? (
               <div className="text-center py-12">
@@ -2274,7 +2287,6 @@ export default function CampDashboard() {
             )}
           </div>
 
-          {/* Footer */}
           <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
             <button
               onClick={() => setShowHiddenModal(false)}
@@ -2319,7 +2331,6 @@ export default function CampDashboard() {
             </span>
           </div>
           
-          {/* 🔥 NEW: Manual Hide Button */}
           <button
             onClick={handleManualArchive}
             className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-xl font-semibold hover:bg-orange-700 transition shadow-lg shadow-orange-100"
@@ -3108,7 +3119,7 @@ export default function CampDashboard() {
               </button>
             </div>
 
-            {/* Toolbar - MODIFIED: Added Add Patient button */}
+            {/* Toolbar */}
             <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-4 bg-white">
               <div className="flex items-center gap-2">
                 <span className="px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
@@ -3118,10 +3129,8 @@ export default function CampDashboard() {
               </div>
 
               <div className="flex items-center gap-2">
-                {/* 🔥 NEW: Add Patient Button */}
                 <button
                   onClick={() => {
-                    // Set campId in form before opening modal
                     setAddPatientForm(prev => ({ ...prev, campId: viewCamp._id }));
                     setShowAddPatientModal(true);
                   }}
@@ -3218,7 +3227,7 @@ export default function CampDashboard() {
         document.body
       )}
 
-      {/* Add Patient Modal inside View Camp - COMPLETE FORM WITH CAMP PRE-SELECTED */}
+      {/* Add Patient Modal inside View Camp */}
       {showAddPatientModal && viewCamp && createPortal(
         <div className="fixed inset-0 z-[99999] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="w-full max-w-lg bg-white shadow-2xl rounded-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
@@ -3250,7 +3259,6 @@ export default function CampDashboard() {
             </div>
             
             <form onSubmit={handleAddPatientSubmit} className="p-6 space-y-5 overflow-y-auto flex-1">
-              {/* Camp - Pre-selected (Read-only) */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-1.5">
                   Camp <span className="text-red-500">*</span>
@@ -3260,7 +3268,6 @@ export default function CampDashboard() {
                 </div>
               </div>
 
-              {/* WhatsApp Number */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-1.5">
                   WhatsApp Number <span className="text-red-500">*</span>
@@ -3275,7 +3282,6 @@ export default function CampDashboard() {
                 />
               </div>
 
-              {/* Salutation */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-1.5">
                   Salutation
@@ -3297,7 +3303,6 @@ export default function CampDashboard() {
                 </div>
               </div>
 
-              {/* Patient Name */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-1.5">
                   Patient Name <span className="text-red-500">*</span>
@@ -3312,7 +3317,6 @@ export default function CampDashboard() {
                 />
               </div>
 
-              {/* Age & Gender */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-1.5">
@@ -3349,7 +3353,6 @@ export default function CampDashboard() {
                 </div>
               </div>
 
-              {/* Address */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-1.5">
                   Address <span className="text-red-500">*</span>
@@ -3365,7 +3368,6 @@ export default function CampDashboard() {
                 />
               </div>
 
-              {/* Buttons */}
               <div className="flex gap-3 pt-2 border-t border-gray-100 flex-shrink-0">
                 <button
                   type="button"

@@ -1180,6 +1180,7 @@ const DoctorDashboard = () => {
     const [patients, setPatients] = useState([]);
     const [loading, setLoading] = useState(true);
     const [volunteers, setVolunteers] = useState([]);
+    const [partnerVolunteers, setPartnerVolunteers] = useState([]); // ✅ ADDED
     const [partnerList, setPartnerList] = useState([]);
     const [volunteerMap, setVolunteerMap] = useState({});
     const [partnerMap, setPartnerMap] = useState({});
@@ -1310,6 +1311,26 @@ const DoctorDashboard = () => {
                 return allowedDepts.some(d => d.toLowerCase() === dept.toLowerCase());
             });
             setVolunteers(filteredVolunteers);
+
+            // ✅ FETCH PARTNER VOLUNTEERS
+            try {
+                const partnerVolRes = await axios.get(`${API_BASE}/volunteers/partner-volunteers/${partnerId}`);
+                let pvData = [];
+                if (partnerVolRes.data) {
+                    if (Array.isArray(partnerVolRes.data)) {
+                        pvData = partnerVolRes.data;
+                    } else if (partnerVolRes.data.volunteers) {
+                        pvData = partnerVolRes.data.volunteers;
+                    } else if (partnerVolRes.data.data) {
+                        pvData = partnerVolRes.data.data;
+                    }
+                }
+                setPartnerVolunteers(pvData);
+                console.log("✅ Partner Volunteers loaded:", pvData.length);
+            } catch (err) {
+                console.error("❌ Error fetching partner volunteers:", err);
+                setPartnerVolunteers([]);
+            }
 
             // Fetch partners
             const partnersRes = await axios.get(`${API_BASE}/auth/partners`).catch(() => ({ data: [] }));
@@ -2355,7 +2376,7 @@ const DoctorDashboard = () => {
                 </div>
             </div>
 
-            {/* Create Camp Modal */}
+            {/* ✅ UPDATED Create Camp Modal with Partner Volunteers */}
             {showCampModal && createPortal(
                 <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="w-full max-w-lg bg-white shadow-2xl rounded-2xl overflow-hidden animate-in zoom-in-95 duration-300">
@@ -2416,12 +2437,19 @@ const DoctorDashboard = () => {
                                     onChange={e => setCampForm({ ...campForm, time: e.target.value })} 
                                 />
                             </div>
+                            
+                            {/* ✅ UPDATED VOLUNTEERS SECTION - Partner Volunteers + All Volunteers */}
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Assign Volunteers</label>
                                 <div className="flex flex-wrap gap-1.5 mb-1.5">
                                     {campForm.volunteers.map((vol, index) => (
-                                        <span key={index} className="bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-indigo-100 flex items-center gap-1 shadow-sm">
+                                        <span key={index} className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 shadow-sm ${
+                                            partnerVolunteers.some(pv => pv._id === vol) 
+                                                ? 'bg-green-50 text-green-700 border-green-200' 
+                                                : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                                        }`}>
                                             {getVolunteerName(vol)}
+                                            {partnerVolunteers.some(pv => pv._id === vol) && ' ⭐'}
                                             <FiX 
                                                 size={12} 
                                                 className="cursor-pointer opacity-60 hover:opacity-100" 
@@ -2436,13 +2464,39 @@ const DoctorDashboard = () => {
                                     onChange={handleAddVolunteer}
                                 >
                                     <option value="">+ Add Staff/Volunteer</option>
-                                    {volunteers.map(v => (
-                                        <option key={v._id} value={v._id}>
-                                            {v.name} ({v.designation || "Staff"})
-                                        </option>
-                                    ))}
+                                    
+                                    {/* Partner Volunteers Group */}
+                                    {partnerVolunteers && partnerVolunteers.length > 0 && (
+                                        <optgroup label="⭐ My Volunteers (Partner)">
+                                            {partnerVolunteers.map(v => (
+                                                <option key={v._id} value={v._id} className="text-green-600 font-medium">
+                                                    {v.name} ({v.designation || "Volunteer"})
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    )}
+                                    
+                                    {/* All Other Volunteers */}
+                                    {volunteers && volunteers.length > 0 && (
+                                        <optgroup label="👥 All Volunteers">
+                                            {volunteers
+                                                .filter(v => !partnerVolunteers?.some(pv => pv._id === v._id))
+                                                .map(v => (
+                                                    <option key={v._id} value={v._id}>
+                                                        {v.name} ({v.designation || "Staff"})
+                                                    </option>
+                                                ))
+                                            }
+                                        </optgroup>
+                                    )}
                                 </select>
+                                {partnerVolunteers && partnerVolunteers.length > 0 && (
+                                    <p className="text-[10px] text-green-600 mt-1">
+                                        ✅ {partnerVolunteers.length} volunteers from your organization available
+                                    </p>
+                                )}
                             </div>
+                            
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Assign Partners (Doctors)</label>
                                 <div className="flex flex-wrap gap-1.5 mb-1.5">
@@ -2555,8 +2609,13 @@ const DoctorDashboard = () => {
                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Assign Volunteers</label>
                                 <div className="flex flex-wrap gap-1.5 mb-1.5">
                                     {campForm.volunteers.map((vol, index) => (
-                                        <span key={index} className="bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-indigo-100 flex items-center gap-1 shadow-sm">
+                                        <span key={index} className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 shadow-sm ${
+                                            partnerVolunteers.some(pv => pv._id === vol) 
+                                                ? 'bg-green-50 text-green-700 border-green-200' 
+                                                : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                                        }`}>
                                             {getVolunteerName(vol)}
+                                            {partnerVolunteers.some(pv => pv._id === vol) && ' ⭐'}
                                             <FiX 
                                                 size={12} 
                                                 className="cursor-pointer opacity-60 hover:opacity-100" 
@@ -2625,7 +2684,7 @@ const DoctorDashboard = () => {
                 document.body
             )}
 
-            {/* View Camp Modal - UPDATED with VolunteerDisplay and PartnerDisplay */}
+            {/* View Camp Modal */}
             {viewCamp && createPortal(
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">

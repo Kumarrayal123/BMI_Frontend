@@ -84,7 +84,7 @@ const Layout = ({ children }) => {
                 <span>Requests</span>
               </NavLink>
             )} */}
-            {role === "employee" ? (
+            {(role === "employee" || role === "volunteer") ? (
               <NavLink to="/my-camps" className={getLinkClass} onClick={close}>
                 <span>My Camps</span>
               </NavLink>
@@ -97,6 +97,11 @@ const Layout = ({ children }) => {
                 <span>Camps</span>
               </NavLink>
             )}
+            {role === "partner" && (
+  <NavLink to="/partner-volunteers" className={getLinkClass} onClick={close}>
+    <span>My Volunteers</span>
+  </NavLink>
+)}
             {/* <NavLink to="/add-patient" className={getLinkClass} onClick={close}>
               <span>Add Patient</span>
             </NavLink> */}

@@ -828,8 +828,14 @@ const VolunteerDashboard = () => {
             const employeesRes = await axios.get(`${API_BASE}/proxy/employees/get-employees`).catch(() => ({ data: [] }));
             const empData = employeesRes.data || [];
             const allEmployees = Array.isArray(empData) ? empData : empData.employees || empData.data || empData.value || [];
+            
+            // Fetch volunteers
+            const volRes = await axios.get(`${API_BASE}/volunteers/all-volunteers`).catch(() => ({ data: [] }));
+            const volData = volRes.data?.volunteers || volRes.data || [];
+            
             const volMap = {};
             allEmployees.forEach(emp => { volMap[emp._id] = emp.name; });
+            volData.forEach(vol => { volMap[vol._id] = vol.name; });
             setVolunteerMap(volMap);
 
             // Fetch all camps
@@ -844,8 +850,24 @@ const VolunteerDashboard = () => {
             const volunteerCamps = allCamps.filter(camp => {
                 if (!camp.volunteers || camp.volunteers.length === 0) return false;
                 return camp.volunteers.some(v => {
-                    const nameToCompare = typeof v === 'object' && v ? (v.name || v.email || '') : String(v);
-                    return nameToCompare.toLowerCase().trim() === String(volunteerName).toLowerCase().trim();
+                    if (!v) return false;
+                    if (typeof v === 'object') {
+                        if (v.$oid) {
+                            return String(v.$oid).toLowerCase().trim() === String(volunteerId).toLowerCase().trim();
+                        }
+                        const idStr = String(v._id || v.id || '').toLowerCase().trim();
+                        if (volunteerId && idStr && idStr === String(volunteerId).toLowerCase().trim()) return true;
+                        const nameStr = String(v.name || '').toLowerCase().trim();
+                        if (volunteerName && nameStr && nameStr === String(volunteerName).toLowerCase().trim()) return true;
+                        const emailStr = String(v.email || '').toLowerCase().trim();
+                        const volunteerEmail = localStorage.getItem("employeeEmail") || localStorage.getItem("email") || "";
+                        if (volunteerEmail && emailStr && emailStr === String(volunteerEmail).toLowerCase().trim()) return true;
+                        return false;
+                    }
+                    const valStr = String(v).toLowerCase().trim();
+                    if (volunteerId && valStr === String(volunteerId).toLowerCase().trim()) return true;
+                    if (volunteerName && valStr === String(volunteerName).toLowerCase().trim()) return true;
+                    return false;
                 });
             });
             setCamps(volunteerCamps);
@@ -1500,8 +1522,8 @@ const VolunteerDashboard = () => {
                                                     <span className="opacity-75">Created by: </span>
                                                     <span className="font-bold">
                                                         {camp.creatorRole === "admin"
-                                                            ? (typeof camp.createdBy === 'object' && camp.createdBy ? (camp.createdBy.name || camp.createdBy.email) : (camp.createdBy || "Admin"))
-                                                            : (typeof camp.createdBy === 'object' && camp.createdBy ? (camp.createdBy.name || camp.createdBy.clinicName) : (camp.createdBy || "Partner"))
+                                                            ? (typeof camp.createdBy === 'object' && camp.createdBy ? (camp.createdBy.name || camp.createdBy.email) : (getPartnerName(camp.createdBy) !== camp.createdBy ? getPartnerName(camp.createdBy) : "Admin"))
+                                                            : (typeof camp.createdBy === 'object' && camp.createdBy ? (camp.createdBy.name || camp.createdBy.clinicName) : (getPartnerName(camp.createdBy) || "Partner"))
                                                         }
                                                     </span>
                                                 </div>
@@ -1513,7 +1535,7 @@ const VolunteerDashboard = () => {
                                                         <span className="font-bold">
                                                             {typeof camp.assignedPartner === 'object' && camp.assignedPartner
                                                                 ? (camp.assignedPartner.name || camp.assignedPartner.clinicName)
-                                                                : camp.assignedPartner
+                                                                : (getPartnerName(camp.assignedPartner) || "Partner")
                                                             }
                                                         </span>
                                                     </div>
@@ -1723,8 +1745,8 @@ const VolunteerDashboard = () => {
                                             <span className="font-medium">Created by:</span>
                                             <span className="font-bold text-gray-800">
                                                 {viewCamp.creatorRole === "admin"
-                                                    ? (typeof viewCamp.createdBy === 'object' && viewCamp.createdBy ? (viewCamp.createdBy.name || viewCamp.createdBy.email) : (viewCamp.createdBy || "Admin"))
-                                                    : (typeof viewCamp.createdBy === 'object' && viewCamp.createdBy ? (viewCamp.createdBy.name || viewCamp.createdBy.clinicName) : (viewCamp.createdBy || "Partner"))
+                                                    ? (typeof viewCamp.createdBy === 'object' && viewCamp.createdBy ? (viewCamp.createdBy.name || viewCamp.createdBy.email) : (getPartnerName(viewCamp.createdBy) !== viewCamp.createdBy ? getPartnerName(viewCamp.createdBy) : "Admin"))
+                                                    : (typeof viewCamp.createdBy === 'object' && viewCamp.createdBy ? (viewCamp.createdBy.name || viewCamp.createdBy.clinicName) : (getPartnerName(viewCamp.createdBy) || "Partner"))
                                                 }
                                             </span>
                                         </div>
@@ -1734,7 +1756,7 @@ const VolunteerDashboard = () => {
                                                 <span className="font-bold">
                                                     {typeof viewCamp.assignedPartner === 'object' && viewCamp.assignedPartner
                                                         ? (viewCamp.assignedPartner.name || viewCamp.assignedPartner.clinicName)
-                                                        : viewCamp.assignedPartner
+                                                        : (getPartnerName(viewCamp.assignedPartner) || "Partner")
                                                     }
                                                 </span>
                                             </div>

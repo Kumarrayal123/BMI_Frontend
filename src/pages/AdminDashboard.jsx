@@ -910,24 +910,20 @@ const AdminDashboard = () => {
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
 
-    // 🔥 Hidden Camps State
     const [hiddenCamps, setHiddenCamps] = useState([]);
     const [showHiddenModal, setShowHiddenModal] = useState(false);
 
-    // 🔥 Stats Modal State
     const [statsModal, setStatsModal] = useState({
         show: false,
         title: "",
         data: [],
-        type: "" // "camps", "patients", "active", "upcoming", "archived"
+        type: ""
     });
 
-    // 🔥 Patients Filter States
     const [patientFilter, setPatientFilter] = useState("name");
     const [patientSearch, setPatientSearch] = useState("");
     const [showPatientDropdown, setShowPatientDropdown] = useState(false);
 
-    // 🔥 Partners Filter States
     const [partnerFilter, setPartnerFilter] = useState("name");
     const [partnerSearchText, setPartnerSearchText] = useState("");
     const [showPartnerDropdown, setShowPartnerDropdown] = useState(false);
@@ -1002,7 +998,6 @@ const AdminDashboard = () => {
                     campsData = res.data.camps;
                 }
             }
-            // Separate hidden and visible camps
             const hidden = campsData.filter(camp => camp.isHidden === true);
             const visible = campsData.filter(camp => !camp.isHidden);
             setHiddenCamps(hidden);
@@ -1031,22 +1026,69 @@ const AdminDashboard = () => {
 
     const fetchVolunteers = async () => {
         try {
+            const empMap = {};
+            let allVolunteersList = [];
+
+            // 1️⃣ Fetch employees
             const res = await axios.get(`${config.API_BASE_URL}/proxy/employees/get-employees`).catch(() => ({ data: [] }));
             const empData = res.data || [];
             const allEmployees = Array.isArray(empData) ? empData : empData.employees || empData.data || empData.value || [];
             
-            const empMap = {};
             allEmployees.forEach(emp => {
                 empMap[String(emp._id)] = emp.name;
             });
-            setEmployeeMap(empMap);
 
             const allowedDepts = ["Laboratory Medicine", "Nursing", "Medical"];
-            const filteredVolunteers = allEmployees.filter(emp => {
+            const filteredEmployees = allEmployees.filter(emp => {
                 const dept = (emp.department || "").trim();
                 return allowedDepts.some(d => d.toLowerCase() === dept.toLowerCase());
             });
-            setVolunteers(filteredVolunteers);
+            
+            allVolunteersList = [...filteredEmployees];
+
+            // 2️⃣ Fetch partners
+            const partnersRes = await axios.get(`${config.API_BASE_URL}/auth/partners`).catch(() => ({ data: [] }));
+            let partnerData = partnersRes.data || [];
+            if (!Array.isArray(partnerData)) {
+                partnerData = partnerData.data || partnerData.partners || [];
+                if (!Array.isArray(partnerData)) partnerData = [];
+            }
+
+            // 3️⃣ Fetch partner volunteers
+            for (const partner of partnerData) {
+                try {
+                    const partnerVolRes = await axios.get(`${config.API_BASE_URL}/volunteers/partner-volunteers/${partner._id}`).catch(() => ({ data: [] }));
+                    let pvData = partnerVolRes.data || [];
+                    if (!Array.isArray(pvData)) {
+                        pvData = pvData.volunteers || pvData.data || [];
+                        if (!Array.isArray(pvData)) pvData = [];
+                    }
+                    
+                    pvData.forEach(pv => {
+                        if (pv._id) {
+                            empMap[String(pv._id)] = pv.name || 'Unknown Volunteer';
+                        }
+                        const exists = allVolunteersList.some(v => String(v._id) === String(pv._id));
+                        if (!exists) {
+                            allVolunteersList.push({
+                                _id: pv._id,
+                                name: pv.name || 'Unknown Volunteer',
+                                designation: pv.designation || 'Volunteer',
+                                email: pv.email || '',
+                                phone: pv.phone || '',
+                                source: 'partner'
+                            });
+                        }
+                    });
+                } catch (err) {
+                    console.log(`⚠️ No volunteers for partner ${partner._id}`);
+                }
+            }
+
+            setEmployeeMap(empMap);
+            setVolunteers(allVolunteersList);
+            
+            console.log(`✅ Total Volunteers (Employees + Partner): ${allVolunteersList.length}`);
         } catch (err) {
             console.error("Failed to fetch volunteers:", err);
             setVolunteers([]);
@@ -1060,7 +1102,6 @@ const AdminDashboard = () => {
         fetchVolunteers();
     }, []);
 
-    // 🔥 Hide/Archive a camp
     const handleHideCamp = async (campId) => {
         if (!window.confirm("Are you sure you want to archive this camp? It will be moved to archived.")) return;
         try {
@@ -1073,7 +1114,6 @@ const AdminDashboard = () => {
         }
     };
 
-    // 🔥 Unhide/Restore a camp
     const handleUnhideCamp = async (campId) => {
         if (!window.confirm("Are you sure you want to restore this camp?")) return;
         try {
@@ -1269,7 +1309,6 @@ const AdminDashboard = () => {
         }
     };
 
-    // 🔥 Stats Modal Handlers
     const openStatsModal = (type, title, data) => {
         setStatsModal({
             show: true,
@@ -1338,7 +1377,6 @@ const AdminDashboard = () => {
             : (p.campId?._id || p.campId) === selectedCampId;
     });
 
-    // 🔥 Get unique values for dropdowns
     const uniquePatientNames = useMemo(() => {
         return [...new Set(patients.map(p => p.name).filter(Boolean))].sort();
     }, [patients]);
@@ -1355,7 +1393,6 @@ const AdminDashboard = () => {
         return [...new Set(patients.map(p => p.createdAt ? new Date(p.createdAt).toLocaleDateString() : null).filter(Boolean))].sort();
     }, [patients]);
 
-    // 🔥 Unique values for Partners
     const uniquePartnerNames = useMemo(() => {
         return [...new Set(partners.map(p => p.name).filter(Boolean))].sort();
     }, [partners]);
@@ -1372,7 +1409,6 @@ const AdminDashboard = () => {
         return [...new Set(partners.map(p => p.mobile).filter(Boolean))].sort();
     }, [partners]);
 
-    // 🔥 Updated Patients Filter with multiple columns
     const filteredPatients = campOnlyFilteredPatients.filter((p) => {
         if (!patientSearch.trim()) return true;
         const searchLower = patientSearch.toLowerCase();
@@ -1390,7 +1426,6 @@ const AdminDashboard = () => {
         }
     });
 
-    // 🔥 Updated Partners Filter with multiple columns
     const filteredPartners = partners.filter((p) => {
         if (!partnerSearchText.trim()) return true;
         const searchLower = partnerSearchText.toLowerCase();
@@ -1531,7 +1566,6 @@ const AdminDashboard = () => {
         return "Unknown";
     };
 
-    // Patient Filter Options
     const patientFilterOptions = [
         { value: "name", label: "Name" },
         { value: "phone", label: "Phone" },
@@ -1539,7 +1573,6 @@ const AdminDashboard = () => {
         { value: "date", label: "Date" }
     ];
 
-    // Partner Filter Options
     const partnerFilterOptions = [
         { value: "name", label: "Name" },
         { value: "email", label: "Email" },
@@ -1549,7 +1582,6 @@ const AdminDashboard = () => {
         { value: "created", label: "Created Camps" }
     ];
 
-    // Get dropdown options based on selected filter
     const getPatientDropdownOptions = () => {
         switch(patientFilter) {
             case "name": return uniquePatientNames;
@@ -1570,7 +1602,6 @@ const AdminDashboard = () => {
         }
     };
 
-    // Filter dropdown options based on search
     const filteredPatientDropdownOptions = getPatientDropdownOptions().filter(option =>
         option.toLowerCase().includes(patientSearch.toLowerCase())
     );
@@ -1579,7 +1610,6 @@ const AdminDashboard = () => {
         option.toLowerCase().includes(partnerSearchText.toLowerCase())
     );
 
-    // Close dropdowns on outside click
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (!e.target.closest('.patient-search-container')) {
@@ -1593,7 +1623,6 @@ const AdminDashboard = () => {
         return () => document.removeEventListener('click', handleClickOutside);
     }, []);
 
-    // Stats Modal Component
     const StatsModal = () => {
         if (!statsModal.show) return null;
 
@@ -1607,7 +1636,6 @@ const AdminDashboard = () => {
                 }}
             >
                 <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-                    {/* Header - Same gradient as Archived Modal */}
                     <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
                         <div>
                             <h3 className="text-xl font-bold text-white">{statsModal.title}</h3>
@@ -1623,7 +1651,6 @@ const AdminDashboard = () => {
                         </button>
                     </div>
 
-                    {/* Content */}
                     <div className="overflow-auto flex-1 p-0">
                         {statsModal.data.length === 0 ? (
                             <div className="text-center py-12">
@@ -1723,7 +1750,6 @@ const AdminDashboard = () => {
                         )}
                     </div>
 
-                    {/* Footer */}
                     <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
                         <button
                             onClick={closeStatsModal}
@@ -1737,7 +1763,6 @@ const AdminDashboard = () => {
         );
     };
 
-    // Hidden Camps Modal
     const HiddenCampsModal = () => {
         if (!showHiddenModal) return null;
 
@@ -1751,7 +1776,6 @@ const AdminDashboard = () => {
                 }}
             >
                 <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-                    {/* Header */}
                     <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
                         <div>
                             <h3 className="text-xl font-bold text-white">Hidden Camps</h3>
@@ -1767,7 +1791,6 @@ const AdminDashboard = () => {
                         </button>
                     </div>
 
-                    {/* Table */}
                     <div className="overflow-auto flex-1 p-0">
                         {hiddenCamps.length === 0 ? (
                             <div className="text-center py-12">
@@ -1845,7 +1868,6 @@ const AdminDashboard = () => {
                         )}
                     </div>
 
-                    {/* Footer */}
                     <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
                         <button
                             onClick={() => setShowHiddenModal(false)}
@@ -1883,7 +1905,6 @@ const AdminDashboard = () => {
                         </span>
                     </div>
                     
-                    {/* 🔥 Archived Button */}
                     <button
                         onClick={() => setShowHiddenModal(true)}
                         className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition shadow-lg shadow-purple-100 relative"
@@ -1908,7 +1929,6 @@ const AdminDashboard = () => {
             </div>
 
             <div className="space-y-10">
-                {/* Top Summary Stats - All Clickable */}
                 <div className="admin-dash__stats">
                     <div 
                         className="admin-dash__stat cursor-pointer" 
@@ -1981,48 +2001,6 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
-                {/* <div className="admin-dash__card">
-                    <div className="admin-dash__card-body">
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
-                                    <FiCalendar size={20} />
-                                </div>
-                                <div>
-                                    <h4 className="text-sm font-bold text-gray-800">Filter Analytics</h4>
-                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Select Date Range</p>
-                                </div>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-                                <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border flex-1 md:flex-none">
-                                    <span className="text-[10px] font-black text-gray-400 uppercase">From</span>
-                                    <input
-                                        type="date"
-                                        value={dateFrom}
-                                        onChange={(e) => setDateFrom(e.target.value)}
-                                        className="bg-transparent text-sm font-bold outline-none text-gray-700"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border flex-1 md:flex-none">
-                                    <span className="text-[10px] font-black text-gray-400 uppercase">To</span>
-                                    <input
-                                        type="date"
-                                        value={dateTo}
-                                        onChange={(e) => setDateTo(e.target.value)}
-                                        className="bg-transparent text-sm font-bold outline-none text-gray-700"
-                                    />
-                                </div>
-                                <button
-                                    onClick={() => { setDateFrom(""); setDateTo(""); }}
-                                    className="px-4 py-2 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
-                                >
-                                    Reset
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div> */}
-
                 <div className="admin-dash__charts-grid">
                     <div className="admin-dash__card admin-dash__chart-wrap">
                         <div className="admin-dash__card-header">
@@ -2075,7 +2053,6 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
-                {/* Camps Section - UPDATED with VolunteerDisplay and PartnerDisplay */}
                 <div ref={campsSectionRef} className="admin-dash__card">
                     <div className="admin-dash__card-header">
                         <h3 className="admin-dash__card-title">All Camps</h3>
@@ -2144,7 +2121,6 @@ const AdminDashboard = () => {
                                                 <span>{camp.time || "No time"}</span>
                                             </div>
                                             
-                                            {/* 🔥 ONLY VolunteerDisplay - No manual display */}
                                             {camp.volunteers && camp.volunteers.length > 0 && (
                                                 <div className="mt-2">
                                                     <VolunteerDisplay
@@ -2155,7 +2131,6 @@ const AdminDashboard = () => {
                                                 </div>
                                             )}
                                             
-                                            {/* 🔥 ONLY PartnerDisplay - No manual display */}
                                             {camp.partners && camp.partners.length > 0 && (
                                                 <div className="mt-1">
                                                     <PartnerDisplay
@@ -2230,7 +2205,6 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
-                {/* ===== PATIENTS TABLE WITH SMART DROPDOWN FILTER ===== */}
                 <div ref={patientsSectionRef} className="admin-dash__card">
                     <div className="admin-dash__card-header">
                         <h3 className="admin-dash__card-title">Patients</h3>
@@ -2250,7 +2224,6 @@ const AdminDashboard = () => {
                                     ))}
                                 </select>
                             </div>
-                            {/* Search with Dropdown */}
                             <div className="relative patient-search-container w-full sm:w-64">
                                 <FiSearch
                                     size={18}
@@ -2361,7 +2334,6 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
-                {/* ===== PARTNERS TABLE WITH SMART DROPDOWN FILTER ===== */}
                 <div ref={partnersSectionRef} className="admin-dash__card">
                     <div className="admin-dash__card-header">
                         <h3 className="admin-dash__card-title">Registered Partners</h3>
@@ -2381,7 +2353,6 @@ const AdminDashboard = () => {
                                     ))}
                                 </select>
                             </div>
-                            {/* Search with Dropdown */}
                             <div className="relative partner-search-container w-full sm:w-64">
                                 <FiSearch
                                     size={18}
@@ -2519,7 +2490,7 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
-                {/* Create Camp Modal */}
+                {/* Create Camp Modal - WITH PARTNER VOLUNTEERS */}
                 {showCampModal && createPortal(
                     <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4">
                         <div className="w-full max-w-lg bg-white shadow-2xl rounded-2xl overflow-hidden animate-in zoom-in-95 duration-300">
@@ -2580,6 +2551,8 @@ const AdminDashboard = () => {
                                         />
                                     </div>
                                 </div>
+
+                                {/* 🔥 VOLUNTEERS SECTION - Show Partner Volunteers */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-700">Select Volunteers</label>
                                     <div className="flex flex-wrap gap-2 mb-2">
@@ -2596,11 +2569,36 @@ const AdminDashboard = () => {
                                         defaultValue=""
                                     >
                                         <option value="">+ Add Volunteer</option>
-                                        {volunteers.map(vol => (
-                                            <option key={vol._id} value={vol.name}>{vol.name} ({vol.designation || vol.role || "Staff"})</option>
-                                        ))}
+                                        
+                                        {/* Partner Volunteers Group */}
+                                        {volunteers.filter(v => v.source === 'partner').length > 0 && (
+                                            <optgroup label="⭐ Partner Volunteers">
+                                                {volunteers.filter(v => v.source === 'partner').map(vol => (
+                                                    <option key={vol._id} value={vol.name}>
+                                                        {vol.name} ({vol.designation || "Volunteer"}) ⭐
+                                                    </option>
+                                                ))}
+                                            </optgroup>
+                                        )}
+                                        
+                                        {/* Employee Volunteers Group */}
+                                        {volunteers.filter(v => v.source !== 'partner').length > 0 && (
+                                            <optgroup label="👥 Employee Volunteers">
+                                                {volunteers.filter(v => v.source !== 'partner').map(vol => (
+                                                    <option key={vol._id} value={vol.name}>
+                                                        {vol.name} ({vol.designation || vol.role || "Staff"})
+                                                    </option>
+                                                ))}
+                                            </optgroup>
+                                        )}
                                     </select>
+                                    {volunteers.filter(v => v.source === 'partner').length > 0 && (
+                                        <p className="text-xs text-green-600 mt-1">
+                                            ✅ {volunteers.filter(v => v.source === 'partner').length} partner volunteers available
+                                        </p>
+                                    )}
                                 </div>
+
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-700">Assign Partners (Doctors)</label>
                                     <div className="flex flex-wrap gap-2 mb-2">
@@ -2641,7 +2639,7 @@ const AdminDashboard = () => {
                     </div>, document.body
                 )}
 
-                {/* Edit Camp Modal */}
+                {/* Edit Camp Modal - WITH PARTNER VOLUNTEERS */}
                 {showEditCampModal && editingCamp && createPortal(
                     <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4">
                         <div className="w-full max-w-lg bg-white shadow-2xl rounded-2xl overflow-hidden animate-in zoom-in-95 duration-300">
@@ -2702,6 +2700,8 @@ const AdminDashboard = () => {
                                         />
                                     </div>
                                 </div>
+
+                                {/* 🔥 VOLUNTEERS SECTION - Show Partner Volunteers in Edit */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-700">Select Volunteers</label>
                                     <div className="flex flex-wrap gap-2 mb-2">
@@ -2718,11 +2718,36 @@ const AdminDashboard = () => {
                                         defaultValue=""
                                     >
                                         <option value="">+ Add Volunteer</option>
-                                        {volunteers.map(vol => (
-                                            <option key={vol._id} value={vol.name}>{vol.name} ({vol.designation || vol.role || "Staff"})</option>
-                                        ))}
+                                        
+                                        {/* Partner Volunteers Group */}
+                                        {volunteers.filter(v => v.source === 'partner').length > 0 && (
+                                            <optgroup label="⭐ Partner Volunteers">
+                                                {volunteers.filter(v => v.source === 'partner').map(vol => (
+                                                    <option key={vol._id} value={vol.name}>
+                                                        {vol.name} ({vol.designation || "Volunteer"}) ⭐
+                                                    </option>
+                                                ))}
+                                            </optgroup>
+                                        )}
+                                        
+                                        {/* Employee Volunteers Group */}
+                                        {volunteers.filter(v => v.source !== 'partner').length > 0 && (
+                                            <optgroup label="👥 Employee Volunteers">
+                                                {volunteers.filter(v => v.source !== 'partner').map(vol => (
+                                                    <option key={vol._id} value={vol.name}>
+                                                        {vol.name} ({vol.designation || vol.role || "Staff"})
+                                                    </option>
+                                                ))}
+                                            </optgroup>
+                                        )}
                                     </select>
+                                    {volunteers.filter(v => v.source === 'partner').length > 0 && (
+                                        <p className="text-xs text-green-600 mt-1">
+                                            ✅ {volunteers.filter(v => v.source === 'partner').length} partner volunteers available
+                                        </p>
+                                    )}
                                 </div>
+
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-700">Assign Partners (Doctors)</label>
                                     <div className="flex flex-wrap gap-2 mb-2">
@@ -2762,7 +2787,7 @@ const AdminDashboard = () => {
                     </div>, document.body
                 )}
 
-                {/* View Camp Modal - UPDATED with VolunteerDisplay and PartnerDisplay */}
+                {/* View Camp Modal */}
                 {viewCamp && createPortal(
                     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
                         <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
@@ -2801,7 +2826,6 @@ const AdminDashboard = () => {
                                         </span>
                                     </div>
                                     
-                                    {/* 🔥 ONLY VolunteerDisplay in View Modal */}
                                     {viewCamp.volunteers && viewCamp.volunteers.length > 0 && (
                                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                                             <span className="text-xs font-semibold text-gray-600">Volunteers:</span>
@@ -2813,7 +2837,6 @@ const AdminDashboard = () => {
                                         </div>
                                     )}
                                     
-                                    {/* 🔥 ONLY PartnerDisplay in View Modal */}
                                     {viewCamp.partners && viewCamp.partners.length > 0 && (
                                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                                             <span className="text-xs font-semibold text-gray-600">Partners:</span>
@@ -2918,10 +2941,7 @@ const AdminDashboard = () => {
                     document.body
                 )}
 
-                {/* Stats Modal */}
                 <StatsModal />
-
-                {/* Hidden Camps Modal */}
                 <HiddenCampsModal />
             </div>
         </div>

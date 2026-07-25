@@ -358,7 +358,7 @@ const AddPatient = () => {
       setLoading(true);
       const res = await axios.post(`${config.API_BASE_URL}/patients`, formData);
       const newPatientId = res.data._id;
-      navigate(`/patient/${newPatientId}`);
+      navigate(`/patient/${newPatientId}`, { state: { openAddTest: true } });
     } catch (err) {
       console.error("ADD PATIENT ERROR 👉", err.response?.data || err);
       alert(err.response?.data?.error || "Error adding patient");

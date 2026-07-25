@@ -2442,8 +2442,6 @@ import "./Dashboard.css";
 
 const API_BASE = config.API_BASE_URL;
 
-/* ================= UTILS ================= */
-
 const calculateBMI = (weight, heightCm) => {
     if (!weight || !heightCm) return null;
     const h = heightCm / 100;
@@ -2476,8 +2474,6 @@ const extractLatestVitals = (tests = []) => {
     return r;
 };
 
-/* ================= COMPONENT ================= */
-
 const DoctorCamps = () => {
     const navigate = useNavigate();
     const [camps, setCamps] = useState([]);
@@ -2486,8 +2482,8 @@ const DoctorCamps = () => {
     const [loading, setLoading] = useState(true);
     const [partnerList, setPartnerList] = useState([]);
     const [volunteers, setVolunteers] = useState([]);
+    const [partnerVolunteers, setPartnerVolunteers] = useState([]);
 
-    // ✅ Maps for quick name lookup
     const [volunteerMap, setVolunteerMap] = useState({});
     const [partnerMap, setPartnerMap] = useState({});
 
@@ -2495,7 +2491,6 @@ const DoctorCamps = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const [activeTab, setActiveTab] = useState("assigned");
 
-    // 🔥 Stats Modal State
     const [statsModal, setStatsModal] = useState({
         show: false,
         title: "",
@@ -2536,7 +2531,6 @@ const DoctorCamps = () => {
         }
     }, [partnerId]);
 
-    // 🔥 Stats Modal Handlers
     const openStatsModal = (type, title, data) => {
         setStatsModal({
             show: true,
@@ -2555,7 +2549,6 @@ const DoctorCamps = () => {
         });
     };
 
-    // Helper functions to get names
     const getVolunteerName = (id) => {
         if (!id) return 'Unknown';
         if (typeof id === 'object') {
@@ -2589,14 +2582,12 @@ const DoctorCamps = () => {
         return partnerMap[idStr] || idStr;
     };
 
-    // ✅ FINAL FIXED: fetchData function
     const fetchData = async () => {
         try {
             setLoading(true);
             
             console.log("🔍 Partner ID:", partnerId);
             
-            // 1. Fetch employees
             const employeesRes = await axios.get(`${API_BASE}/proxy/employees/get-employees`).catch(() => ({ data: [] }));
             const empData = employeesRes.data || [];
             const allEmployees = Array.isArray(empData) ? empData : empData.employees || empData.data || empData.value || [];
@@ -2615,7 +2606,25 @@ const DoctorCamps = () => {
             setVolunteers(filteredVolunteers);
             console.log("✅ Volunteers loaded:", filteredVolunteers.length);
 
-            // 2. Fetch partners
+            try {
+                const partnerVolRes = await axios.get(`${API_BASE}/volunteers/partner-volunteers/${partnerId}`);
+                let pvData = [];
+                if (partnerVolRes.data) {
+                    if (Array.isArray(partnerVolRes.data)) {
+                        pvData = partnerVolRes.data;
+                    } else if (partnerVolRes.data.volunteers) {
+                        pvData = partnerVolRes.data.volunteers;
+                    } else if (partnerVolRes.data.data) {
+                        pvData = partnerVolRes.data.data;
+                    }
+                }
+                setPartnerVolunteers(pvData);
+                console.log("✅ Partner Volunteers loaded:", pvData.length);
+            } catch (err) {
+                console.error("❌ Error fetching partner volunteers:", err);
+                setPartnerVolunteers([]);
+            }
+
             const partnersRes = await axios.get(`${API_BASE}/auth/partners`).catch(() => ({ data: [] }));
             let partnerData = partnersRes.data || [];
             if (!Array.isArray(partnerData)) {
@@ -2631,7 +2640,6 @@ const DoctorCamps = () => {
             setPartnerMap(pMap);
             console.log("✅ Partners loaded:", partnerData.length);
 
-            // 3. ✅ FETCH ASSIGNED CAMPS
             let assignedData = [];
             try {
                 const assignedRes = await axios.get(`${API_BASE}/camps/assigned-camps/${partnerId}`);
@@ -2651,7 +2659,6 @@ const DoctorCamps = () => {
                 console.error("❌ Assigned camps API failed:", err.message);
             }
 
-            // 4. ✅ FETCH CREATED CAMPS
             let createdData = [];
             try {
                 const createdRes = await axios.get(`${API_BASE}/camps/partner-created-camps/${partnerId}`);
@@ -2671,7 +2678,6 @@ const DoctorCamps = () => {
                 console.error("❌ Created camps API failed:", err.message);
             }
 
-            // ✅ 5. REMOVE DUPLICATES
             const uniqueAssigned = assignedData.filter((camp, index, self) => 
                 index === self.findIndex(c => c._id === camp._id)
             );
@@ -2683,11 +2689,9 @@ const DoctorCamps = () => {
             console.log("✅ Assigned Camps:", uniqueAssigned.length);
             console.log("✅ Created Camps:", uniqueCreated.length);
             
-            // ✅ Set state
             setCamps(uniqueAssigned);
             setCreatedCamps(uniqueCreated);
 
-            // 6. ✅ FETCH PATIENTS
             try {
                 const patientsRes = await axios.get(`${API_BASE}/patients`);
                 let patientData = [];
@@ -2724,7 +2728,6 @@ const DoctorCamps = () => {
         }
     };
 
-    // Combine assigned and created camps for display
     const allCamps = useMemo(() => {
         const map = new Map();
         [...camps, ...createdCamps].forEach(camp => {
@@ -2764,7 +2767,6 @@ const DoctorCamps = () => {
         });
     }, [displayCamps, patients]);
 
-    // 🔥 Stats Modal Component
     const StatsModal = () => {
         if (!statsModal.show) return null;
 
@@ -2778,7 +2780,6 @@ const DoctorCamps = () => {
                 }}
             >
                 <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-                    {/* Header */}
                     <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
                         <div>
                             <h3 className="text-xl font-bold text-white">{statsModal.title}</h3>
@@ -2794,7 +2795,6 @@ const DoctorCamps = () => {
                         </button>
                     </div>
 
-                    {/* Content */}
                     <div className="overflow-auto flex-1 p-0">
                         {statsModal.data.length === 0 ? (
                             <div className="text-center py-12">
@@ -2897,7 +2897,6 @@ const DoctorCamps = () => {
                         )}
                     </div>
 
-                    {/* Footer */}
                     <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
                         <button
                             onClick={closeStatsModal}
@@ -2911,7 +2910,6 @@ const DoctorCamps = () => {
         );
     };
 
-    // ✅ Create Camp Handler
     const handleCreateCamp = async () => {
         try {
             if (!campForm.name || !campForm.location || !campForm.date || !campForm.time) {
@@ -2956,7 +2954,6 @@ const DoctorCamps = () => {
         }
     };
 
-    // ✅ Update Camp Handler
     const handleUpdateCamp = async () => {
         try {
             if (!editingCamp) return;
@@ -3050,7 +3047,6 @@ const DoctorCamps = () => {
         });
     };
 
-    // Report functions
     const prepareReportData = async (patientId) => {
         try {
             const res = await axios.get(`${API_BASE}/patients/${patientId}`);
@@ -3254,7 +3250,6 @@ const DoctorCamps = () => {
             </div>
 
             <div className="space-y-10">
-                {/* Stats - Clickable */}
                 <div className="admin-dash__stats">
                     <div 
                         className="admin-dash__stat cursor-pointer" 
@@ -3323,7 +3318,6 @@ const DoctorCamps = () => {
                     </div>
                 </div>
 
-                {/* Camps Section - UPDATED with VolunteerDisplay and PartnerDisplay */}
                 <div className="admin-dash__card">
                     <div className="admin-dash__card-header">
                         <h3 className="admin-dash__card-title">My Camps</h3>
@@ -3406,27 +3400,25 @@ const DoctorCamps = () => {
                                                     <span>{camp.time || "No time"}</span>
                                                 </div>
                                                 
-                                                {/* 🔥 UPDATED: Using VolunteerDisplay component */}
+                                                {/* ✅ FIXED: VolunteerDisplay with partnerVolunteers */}
                                                 {camp.volunteers && camp.volunteers.length > 0 && (
                                                     <div className="mt-1">
                                                         <VolunteerDisplay
                                                             volunteers={camp.volunteers}
                                                             isSelected={isSelected}
                                                             employeeMap={volunteerMap}
+                                                            partnerVolunteers={partnerVolunteers}
                                                         />
                                                     </div>
                                                 )}
                                                 
-                                                {/* 🔥 UPDATED: Using PartnerDisplay component */}
-                                                {camp.partners && camp.partners.length > 0 && (
-                                                    <div className="mt-1">
-                                                        <PartnerDisplay
-                                                            partners={camp.partners}
-                                                            isSelected={isSelected}
-                                                            partnersList={partnerList}
-                                                        />
-                                                    </div>
-                                                )}
+                                                <div className="mt-1">
+                                                    <PartnerDisplay
+                                                        partners={camp.partners}
+                                                        isSelected={isSelected}
+                                                        partnersList={partnerList}
+                                                    />
+                                                </div>
                                             </div>
                                             <div className={`mt-5 pt-4 border-t flex items-center justify-between ${isSelected ? "border-white/20" : "border-gray-50"}`}>
                                                 <div className={`flex items-center gap-2 text-xs font-bold ${isSelected ? "text-indigo-200" : "text-gray-400"}`}>
@@ -3492,7 +3484,6 @@ const DoctorCamps = () => {
                     </div>
                 </div>
 
-                {/* Patients Section */}
                 <div className="admin-dash__card">
                     <div className="admin-dash__card-header">
                         <h3 className="admin-dash__card-title">Participants</h3>
@@ -3672,6 +3663,7 @@ const DoctorCamps = () => {
                                     onChange={e => setCampForm({ ...campForm, time: e.target.value })} 
                                 />
                             </div>
+                            
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Assign Volunteers</label>
                                 <div className="flex flex-wrap gap-2 mb-2">
@@ -3692,13 +3684,37 @@ const DoctorCamps = () => {
                                     onChange={handleAddVolunteer}
                                 >
                                     <option value="">+ Add Staff/Volunteer</option>
-                                    {volunteers.map(v => (
-                                        <option key={v._id} value={v._id}>
-                                            {v.name} ({v.designation || "Staff"})
-                                        </option>
-                                    ))}
+                                    
+                                    {partnerVolunteers && partnerVolunteers.length > 0 && (
+                                        <optgroup label="⭐ My Volunteers (Partner)">
+                                            {partnerVolunteers.map(v => (
+                                                <option key={v._id} value={v._id} className="text-green-600 font-medium">
+                                                    {v.name} ({v.designation || "Volunteer"})
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    )}
+                                    
+                                    {volunteers && volunteers.length > 0 && (
+                                        <optgroup label="👥 All Volunteers">
+                                            {volunteers
+                                                .filter(v => !partnerVolunteers?.some(pv => pv._id === v._id))
+                                                .map(v => (
+                                                    <option key={v._id} value={v._id}>
+                                                        {v.name} ({v.designation || "Staff"})
+                                                    </option>
+                                                ))
+                                            }
+                                        </optgroup>
+                                    )}
                                 </select>
+                                {partnerVolunteers && partnerVolunteers.length > 0 && (
+                                    <p className="text-xs text-green-600 mt-1">
+                                        ✅ {partnerVolunteers.length} volunteers from your organization available
+                                    </p>
+                                )}
                             </div>
+                            
                             <div className="space-y-2 pt-2 border-t border-gray-100">
                                 <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Assign Partners</label>
                                 <div className="flex flex-wrap gap-2 mb-2">
@@ -3856,7 +3872,7 @@ const DoctorCamps = () => {
                                     </div>
                                 </div>
                                 
-                                {/* 🔥 UPDATED: Using VolunteerDisplay component */}
+                                {/* ✅ FIXED: VolunteerDisplay with partnerVolunteers */}
                                 {viewCamp.volunteers && viewCamp.volunteers.length > 0 && (
                                     <div className="flex items-center gap-2 mt-2">
                                         <span className="text-xs font-semibold text-gray-600">Volunteers:</span>
@@ -3864,21 +3880,19 @@ const DoctorCamps = () => {
                                             volunteers={viewCamp.volunteers}
                                             isSelected={false}
                                             employeeMap={volunteerMap}
+                                            partnerVolunteers={partnerVolunteers}
                                         />
                                     </div>
                                 )}
                                 
-                                {/* 🔥 UPDATED: Using PartnerDisplay component */}
-                                {viewCamp.partners && viewCamp.partners.length > 0 && (
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-xs font-semibold text-gray-600">Partners:</span>
-                                        <PartnerDisplay
-                                            partners={viewCamp.partners}
-                                            isSelected={false}
-                                            partnersList={partnerList}
-                                        />
-                                    </div>
-                                )}
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-xs font-semibold text-gray-600">Partners:</span>
+                                    <PartnerDisplay
+                                        partners={viewCamp.partners}
+                                        isSelected={false}
+                                        partnersList={partnerList}
+                                    />
+                                </div>
                             </div>
                             <button onClick={() => setViewCamp(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition shadow-sm">
                                 <FiX size={16} />
@@ -4005,7 +4019,6 @@ const DoctorCamps = () => {
                 document.body
             )}
 
-            {/* Stats Modal */}
             <StatsModal />
         </div>
     );

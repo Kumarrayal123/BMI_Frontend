@@ -363,55 +363,52 @@ const AddTestForm = ({ patientId, onSuccess = () => {}, isModal = false, onClose
   }
 
   return (
-    <div className={`${isModal ? '' : 'bg-white rounded-2xl shadow-sm border border-gray-100 p-8 mb-6'}`}>
+    <div className={`${isModal ? '' : 'bg-white rounded-3xl shadow-xl border border-slate-100 p-8 mb-6'}`}>
       {isModal && (
-        <div className="flex justify-between items-center mb-8">
-          <h3 className="text-xl font-bold text-gray-800 flex items-center gap-3">
-            <Activity size={20} className="text-indigo-600" />
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold text-slate-800 flex items-center gap-3">
+            <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600">
+              <Activity size={22} />
+            </div>
             Add Medical Test
           </h3>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-all duration-200">
-            <X size={22} className="text-gray-500" />
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-all duration-200">
+            <X size={22} />
           </button>
         </div>
       )}
 
-      {/* Camp Details - Clean Card */}
-      {selectedCampDetails && (
-        <div className="mb-8 p-5 bg-gray-50 rounded-2xl border border-gray-200">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2.5">
-              <Building2 size={16} className="text-gray-500" />
-              <span className="font-medium text-gray-700 text-sm">Camp:</span>
-              <span className="font-semibold text-gray-900 text-sm">{selectedCampDetails.name}</span>
-            </div>
-            {selectedCampDetails.location && (
-              <div className="flex items-center gap-2 text-gray-600 text-sm">
-                <MapPin size={14} /> 
-                <span>{selectedCampDetails.location}</span>
-              </div>
-            )}
-            {selectedCampDetails.date && (
-              <div className="flex items-center gap-2 text-gray-500 text-sm ml-auto">
-                <Calendar size={14} /> 
-                <span>{new Date(selectedCampDetails.date).toLocaleDateString()}</span>
-              </div>
-            )}
+      {/* Camp Information Banner */}
+      <div className="bg-gradient-to-r from-slate-50 to-indigo-50/20 border border-slate-100 rounded-2xl p-5 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <span className="text-[11px] font-bold text-indigo-600 uppercase tracking-widest">Active Camp Assignment</span>
+          <h4 className="text-base font-bold text-slate-800">{formData.campName || selectedCampDetails?.name || "General Camp"}</h4>
+        </div>
+        <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+          <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-slate-100 shadow-sm">
+            <MapPin size={15} className="text-indigo-500" />
+            <span className="font-medium text-slate-700">{formData.campLocation || selectedCampDetails?.location || "N/A"}</span>
+          </div>
+          <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-slate-100 shadow-sm">
+            <Calendar size={15} className="text-indigo-500" />
+            <span className="font-medium text-slate-700">
+              {formData.campDate ? new Date(formData.campDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "N/A"}
+            </span>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Test Type Selection */}
       <div className="mb-8">
-        <label className="text-sm font-semibold text-gray-700 block mb-4">Select Test Type</label>
+        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-4">Select Test Type</label>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <button 
             type="button" 
             onClick={() => handleCampTypeChange("general")} 
-            className={`py-3.5 px-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-center gap-2.5 text-sm font-medium ${
+            className={`py-3.5 px-4 rounded-xl border transition-all duration-300 flex items-center justify-center gap-2.5 text-sm font-semibold hover:scale-[1.02] active:scale-[0.98] ${
               selectedCampType === "general" 
-                ? "border-indigo-500 bg-indigo-50 text-indigo-700" 
-                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700"
+                ? "border-indigo-500 bg-indigo-50/70 text-indigo-700 shadow-sm shadow-indigo-100/50" 
+                : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-600"
             }`}
           >
             <Stethoscope size={18} /> General
@@ -419,10 +416,10 @@ const AddTestForm = ({ patientId, onSuccess = () => {}, isModal = false, onClose
           <button 
             type="button" 
             onClick={() => handleCampTypeChange("eye")} 
-            className={`py-3.5 px-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-center gap-2.5 text-sm font-medium ${
+            className={`py-3.5 px-4 rounded-xl border transition-all duration-300 flex items-center justify-center gap-2.5 text-sm font-semibold hover:scale-[1.02] active:scale-[0.98] ${
               selectedCampType === "eye" 
-                ? "border-indigo-500 bg-indigo-50 text-indigo-700" 
-                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700"
+                ? "border-indigo-500 bg-indigo-50/70 text-indigo-700 shadow-sm shadow-indigo-100/50" 
+                : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-600"
             }`}
           >
             <Eye size={18} /> Eye
@@ -430,10 +427,10 @@ const AddTestForm = ({ patientId, onSuccess = () => {}, isModal = false, onClose
           <button 
             type="button" 
             onClick={() => handleCampTypeChange("blood")} 
-            className={`py-3.5 px-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-center gap-2.5 text-sm font-medium ${
+            className={`py-3.5 px-4 rounded-xl border transition-all duration-300 flex items-center justify-center gap-2.5 text-sm font-semibold hover:scale-[1.02] active:scale-[0.98] ${
               selectedCampType === "blood" 
-                ? "border-indigo-500 bg-indigo-50 text-indigo-700" 
-                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700"
+                ? "border-indigo-500 bg-indigo-50/70 text-indigo-700 shadow-sm shadow-indigo-100/50" 
+                : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-600"
             }`}
           >
             <Droplet size={18} /> Blood
@@ -441,10 +438,10 @@ const AddTestForm = ({ patientId, onSuccess = () => {}, isModal = false, onClose
           <button 
             type="button" 
             onClick={() => handleCampTypeChange("full-body")} 
-            className={`py-3.5 px-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-center gap-2.5 text-sm font-medium ${
+            className={`py-3.5 px-4 rounded-xl border transition-all duration-300 flex items-center justify-center gap-2.5 text-sm font-semibold hover:scale-[1.02] active:scale-[0.98] ${
               selectedCampType === "full-body" 
-                ? "border-indigo-500 bg-indigo-50 text-indigo-700" 
-                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700"
+                ? "border-indigo-500 bg-indigo-50/70 text-indigo-700 shadow-sm shadow-indigo-100/50" 
+                : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-600"
             }`}
           >
             <Heart size={18} /> Full Body
@@ -453,55 +450,15 @@ const AddTestForm = ({ patientId, onSuccess = () => {}, isModal = false, onClose
       </div>
 
       <form onSubmit={handleSubmit}>
-        {/* Camp Name, Location, Date - Read Only */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="space-y-2.5">
-            <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-              <FileText size={15} className="text-gray-400" /> Camp Name
-            </label>
-            <input 
-              name="campName" 
-              type="text" 
-              value={formData.campName} 
-              placeholder="Camp Name" 
-              className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl outline-none text-gray-800 text-sm cursor-not-allowed"
-              readOnly
-            />
-          </div>
-          <div className="space-y-2.5">
-            <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-              <MapPin size={15} className="text-gray-400" /> Camp Location
-            </label>
-            <input 
-              name="campLocation" 
-              type="text" 
-              value={formData.campLocation} 
-              placeholder="Location" 
-              className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl outline-none text-gray-800 text-sm cursor-not-allowed"
-              readOnly
-            />
-          </div>
-          <div className="space-y-2.5">
-            <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-              <Calendar size={15} className="text-gray-400" /> Camp Date
-            </label>
-            <input 
-              name="campDate" 
-              type="date" 
-              value={formData.campDate} 
-              className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl outline-none text-gray-800 text-sm cursor-not-allowed"
-              readOnly
-            />
-          </div>
-        </div>
-
         {/* Basic Vitals */}
-        <div className="border-t-2 border-gray-100 pt-8 mb-8">
-          <h4 className="font-semibold text-gray-700 text-base mb-5">Basic Vitals</h4>
+        <div className="border-t border-slate-100 pt-6 mb-6">
+          <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider mb-5 flex items-center gap-2">
+            <Activity size={16} className="text-indigo-500" /> Basic Vitals
+          </h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div className="space-y-2.5">
-              <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                <Weight size={15} className="text-gray-400" /> Weight (kg)
+              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <Weight size={15} className="text-slate-400" /> Weight (kg)
               </label>
               <input 
                 name="weight" 
@@ -510,12 +467,12 @@ const AddTestForm = ({ patientId, onSuccess = () => {}, isModal = false, onClose
                 value={formData.weight} 
                 onChange={handleInputChange} 
                 placeholder="e.g. 70" 
-                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm"
+                className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
               />
             </div>
             <div className="space-y-2.5">
-              <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                <Ruler size={15} className="text-gray-400" /> Height (cm)
+              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <Ruler size={15} className="text-slate-400" /> Height (cm)
               </label>
               <input 
                 name="height" 
@@ -524,12 +481,12 @@ const AddTestForm = ({ patientId, onSuccess = () => {}, isModal = false, onClose
                 value={formData.height} 
                 onChange={handleInputChange} 
                 placeholder="e.g. 175" 
-                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm"
+                className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
               />
             </div>
             <div className="space-y-2.5">
-              <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                <Droplet size={15} className="text-gray-400" /> Sugar (mg/dL)
+              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <Droplet size={15} className="text-slate-400" /> Sugar (mg/dL)
               </label>
               <div className="flex gap-2">
                 <input 
@@ -538,13 +495,13 @@ const AddTestForm = ({ patientId, onSuccess = () => {}, isModal = false, onClose
                   value={formData.sugar} 
                   onChange={handleInputChange} 
                   placeholder="e.g. 90" 
-                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm"
+                  className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400 flex-1"
                 />
                 <select 
                   name="sugarType" 
                   value={formData.sugarType} 
                   onChange={handleInputChange} 
-                  className="bg-gray-50 border border-gray-200 rounded-xl text-xs px-4 outline-none text-gray-600"
+                  className="bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-xl text-xs px-3 outline-none text-slate-600 focus:ring-4 focus:ring-indigo-500/10 transition-all cursor-pointer font-medium"
                 >
                   <option value="Fasting">Fasting</option>
                   <option value="Random">Random</option>
@@ -553,8 +510,8 @@ const AddTestForm = ({ patientId, onSuccess = () => {}, isModal = false, onClose
               </div>
             </div>
             <div className="space-y-2.5">
-              <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                <Heart size={15} className="text-gray-400" /> BP (Sys/Dia)
+              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <Heart size={15} className="text-slate-400" /> BP (Sys/Dia)
               </label>
               <div className="flex gap-2">
                 <input 
@@ -563,16 +520,16 @@ const AddTestForm = ({ patientId, onSuccess = () => {}, isModal = false, onClose
                   value={formData.systolic} 
                   onChange={handleInputChange} 
                   placeholder="Sys" 
-                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm text-center"
+                  className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400 text-center"
                 />
-                <span className="self-center text-gray-400 text-base font-medium">/</span>
+                <span className="self-center text-slate-400 text-base font-medium">/</span>
                 <input 
                   name="diastolic" 
                   type="number" 
                   value={formData.diastolic} 
                   onChange={handleInputChange} 
                   placeholder="Dia" 
-                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm text-center"
+                  className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400 text-center"
                 />
               </div>
             </div>
@@ -581,212 +538,307 @@ const AddTestForm = ({ patientId, onSuccess = () => {}, isModal = false, onClose
 
         {/* BMI Display */}
         {bmiData && (
-          <div className={`mb-8 p-5 rounded-2xl border-2 flex items-center justify-between ${
-            bmiData.category === 'Healthy' ? 'bg-green-50 border-green-200 text-green-700' :
-            bmiData.category === 'Obese' || bmiData.category === 'Underweight' ? 'bg-red-50 border-red-200 text-red-700' : 
-            'bg-orange-50 border-orange-200 text-orange-700'
+          <div className={`mb-8 p-5 rounded-2xl border flex items-center justify-between shadow-sm transition-all duration-300 ${
+            bmiData.category === 'Healthy' ? 'bg-emerald-50/55 border-emerald-100 text-emerald-800' :
+            bmiData.category === 'Obese' || bmiData.category === 'Underweight' ? 'bg-rose-50/55 border-rose-100 text-rose-800' : 
+            'bg-amber-50/55 border-amber-100 text-amber-800'
           }`}>
             <div>
-              <span className="text-xs font-semibold uppercase tracking-wider opacity-70">BMI</span>
-              <div className="text-3xl font-bold">{bmiData.value}</div>
+              <span className="text-xs font-bold uppercase tracking-wider opacity-75">BMI Score</span>
+              <div className="text-3xl font-extrabold tracking-tight">{bmiData.value}</div>
             </div>
             <div className="text-right">
-              <div className="font-semibold text-base">{bmiData.category}</div>
-              <div className="text-xs opacity-75">18.5-24.9 Healthy</div>
+              <div className="font-bold text-base">{bmiData.category}</div>
+              <div className="text-xs opacity-75">Normal Range: 18.5 - 24.9</div>
             </div>
           </div>
         )}
 
         {/* Camp Specific Fields */}
-        <div className="border-t-2 border-gray-100 pt-8 mb-8">
-          {selectedCampType === "eye" && (
-            <div className="space-y-4">
-              <h4 className="font-semibold text-gray-700 text-base mb-5">👁️ Eye Camp Details</h4>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                <div className="space-y-2.5">
-                  <label className="text-sm font-semibold text-gray-700">Left Vision</label>
-                  <input 
-                    name="eyeVisionLeft" 
-                    type="number" 
-                    step="0.1" 
-                    value={formData.eyeVisionLeft} 
-                    onChange={handleInputChange} 
-                    placeholder="6/6" 
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm"
-                  />
-                </div>
-                <div className="space-y-2.5">
-                  <label className="text-sm font-semibold text-gray-700">Right Vision</label>
-                  <input 
-                    name="eyeVisionRight" 
-                    type="number" 
-                    step="0.1" 
-                    value={formData.eyeVisionRight} 
-                    onChange={handleInputChange} 
-                    placeholder="6/6" 
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm"
-                  />
-                </div>
-                <div className="space-y-2.5">
-                  <label className="text-sm font-semibold text-gray-700">Pressure (L)</label>
-                  <input 
-                    name="eyePressureLeft" 
-                    type="number" 
-                    step="0.1" 
-                    value={formData.eyePressureLeft} 
-                    onChange={handleInputChange} 
-                    placeholder="mmHg" 
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm"
-                  />
-                </div>
-                <div className="space-y-2.5">
-                  <label className="text-sm font-semibold text-gray-700">Pressure (R)</label>
-                  <input 
-                    name="eyePressureRight" 
-                    type="number" 
-                    step="0.1" 
-                    value={formData.eyePressureRight} 
-                    onChange={handleInputChange} 
-                    placeholder="mmHg" 
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm"
-                  />
-                </div>
-                <div className="space-y-2.5">
-                  <label className="text-sm font-semibold text-gray-700">Color Vision</label>
-                  <select 
-                    name="eyeColorVision" 
-                    value={formData.eyeColorVision} 
-                    onChange={handleInputChange} 
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm"
-                  >
-                    <option value="normal">Normal</option>
-                    <option value="deficient">Deficient</option>
-                    <option value="blind">Blind</option>
-                  </select>
-                </div>
-                <div className="space-y-2.5">
-                  <label className="text-sm font-semibold text-gray-700">Cataract</label>
-                  <select 
-                    name="eyeCataract" 
-                    value={formData.eyeCataract} 
-                    onChange={handleInputChange} 
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm"
-                  >
-                    <option value="none">None</option>
-                    <option value="mild">Mild</option>
-                    <option value="moderate">Moderate</option>
-                    <option value="severe">Severe</option>
-                  </select>
-                </div>
-                <div className="space-y-2.5">
-                  <label className="text-sm font-semibold text-gray-700">Glaucoma</label>
-                  <select 
-                    name="eyeGlaucoma" 
-                    value={formData.eyeGlaucoma} 
-                    onChange={handleInputChange} 
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm"
-                  >
-                    <option value="no">No</option>
-                    <option value="suspect">Suspect</option>
-                    <option value="confirmed">Confirmed</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {selectedCampType === "blood" && (
-            <div className="space-y-4">
-              <h4 className="font-semibold text-gray-700 text-base mb-5">🩸 Blood Test Details</h4>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                <div className="space-y-2.5">
-                  <label className="text-sm font-semibold text-gray-700">Hemoglobin (g/dL)</label>
-                  <input 
-                    name="hemoglobin" 
-                    type="number" 
-                    step="0.1" 
-                    value={formData.hemoglobin} 
-                    onChange={handleInputChange} 
-                    placeholder="14" 
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm"
-                  />
-                </div>
-                <div className="space-y-2.5">
-                  <label className="text-sm font-semibold text-gray-700">WBC (×10³/µL)</label>
-                  <input 
-                    name="whiteBloodCells" 
-                    type="number" 
-                    step="0.1" 
-                    value={formData.whiteBloodCells} 
-                    onChange={handleInputChange} 
-                    placeholder="7.5" 
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm"
-                  />
-                </div>
-                <div className="space-y-2.5">
-                  <label className="text-sm font-semibold text-gray-700">Platelets (×10³/µL)</label>
-                  <input 
-                    name="platelets" 
-                    type="number" 
-                    value={formData.platelets} 
-                    onChange={handleInputChange} 
-                    placeholder="250" 
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm"
-                  />
-                </div>
-                <div className="space-y-2.5">
-                  <label className="text-sm font-semibold text-gray-700">Cholesterol (mg/dL)</label>
-                  <input 
-                    name="cholesterol" 
-                    type="number" 
-                    value={formData.cholesterol} 
-                    onChange={handleInputChange} 
-                    placeholder="180" 
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm"
-                  />
-                </div>
-                <div className="space-y-2.5">
-                  <label className="text-sm font-semibold text-gray-700">Triglycerides (mg/dL)</label>
-                  <input 
-                    name="triglycerides" 
-                    type="number" 
-                    value={formData.triglycerides} 
-                    onChange={handleInputChange} 
-                    placeholder="150" 
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm"
-                  />
-                </div>
-                <div className="space-y-2.5">
-                  <label className="text-sm font-semibold text-gray-700">HbA1c (%)</label>
-                  <input 
-                    name="hba1c" 
-                    type="number" 
-                    step="0.1" 
-                    value={formData.hba1c} 
-                    onChange={handleInputChange} 
-                    placeholder="5.7" 
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 ring-indigo-500 outline-none transition text-sm"
-                  />
+        {selectedCampType !== "general" && (
+          <div className="border-t border-slate-100 pt-6 mb-8">
+            {selectedCampType === "eye" && (
+              <div className="space-y-4">
+                <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider mb-5 flex items-center gap-2">
+                  <span>👁️</span> Eye Camp Details
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">Left Vision</label>
+                    <input 
+                      name="eyeVisionLeft" 
+                      type="number" 
+                      step="0.1" 
+                      value={formData.eyeVisionLeft} 
+                      onChange={handleInputChange} 
+                      placeholder="6/6" 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">Right Vision</label>
+                    <input 
+                      name="eyeVisionRight" 
+                      type="number" 
+                      step="0.1" 
+                      value={formData.eyeVisionRight} 
+                      onChange={handleInputChange} 
+                      placeholder="6/6" 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">Pressure (L)</label>
+                    <input 
+                      name="eyePressureLeft" 
+                      type="number" 
+                      step="0.1" 
+                      value={formData.eyePressureLeft} 
+                      onChange={handleInputChange} 
+                      placeholder="mmHg" 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">Pressure (R)</label>
+                    <input 
+                      name="eyePressureRight" 
+                      type="number" 
+                      step="0.1" 
+                      value={formData.eyePressureRight} 
+                      onChange={handleInputChange} 
+                      placeholder="mmHg" 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">Color Vision</label>
+                    <select 
+                      name="eyeColorVision" 
+                      value={formData.eyeColorVision} 
+                      onChange={handleInputChange} 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 cursor-pointer font-medium"
+                    >
+                      <option value="normal">Normal</option>
+                      <option value="deficient">Deficient</option>
+                      <option value="blind">Blind</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">Cataract</label>
+                    <select 
+                      name="eyeCataract" 
+                      value={formData.eyeCataract} 
+                      onChange={handleInputChange} 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 cursor-pointer font-medium"
+                    >
+                      <option value="none">None</option>
+                      <option value="mild">Mild</option>
+                      <option value="moderate">Moderate</option>
+                      <option value="severe">Severe</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">Glaucoma</label>
+                    <select 
+                      name="eyeGlaucoma" 
+                      value={formData.eyeGlaucoma} 
+                      onChange={handleInputChange} 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 cursor-pointer font-medium"
+                    >
+                      <option value="no">No</option>
+                      <option value="suspect">Suspect</option>
+                      <option value="confirmed">Confirmed</option>
+                    </select>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
 
-        {/* Action Buttons - Clean */}
-        <div className="flex items-center gap-4 pt-2">
+            {selectedCampType === "blood" && (
+              <div className="space-y-4">
+                <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider mb-5 flex items-center gap-2">
+                  <span>🩸</span> Blood Test Details
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">Hemoglobin (g/dL)</label>
+                    <input 
+                      name="hemoglobin" 
+                      type="number" 
+                      step="0.1" 
+                      value={formData.hemoglobin} 
+                      onChange={handleInputChange} 
+                      placeholder="14" 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">WBC (×10³/µL)</label>
+                    <input 
+                      name="whiteBloodCells" 
+                      type="number" 
+                      step="0.1" 
+                      value={formData.whiteBloodCells} 
+                      onChange={handleInputChange} 
+                      placeholder="7.5" 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">Platelets (×10³/µL)</label>
+                    <input 
+                      name="platelets" 
+                      type="number" 
+                      value={formData.platelets} 
+                      onChange={handleInputChange} 
+                      placeholder="250" 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">Cholesterol (mg/dL)</label>
+                    <input 
+                      name="cholesterol" 
+                      type="number" 
+                      value={formData.cholesterol} 
+                      onChange={handleInputChange} 
+                      placeholder="180" 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">Triglycerides (mg/dL)</label>
+                    <input 
+                      name="triglycerides" 
+                      type="number" 
+                      value={formData.triglycerides} 
+                      onChange={handleInputChange} 
+                      placeholder="150" 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">HbA1c (%)</label>
+                    <input 
+                      name="hba1c" 
+                      type="number" 
+                      step="0.1" 
+                      value={formData.hba1c} 
+                      onChange={handleInputChange} 
+                      placeholder="5.7" 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {selectedCampType === "full-body" && (
+              <div className="space-y-4">
+                <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider mb-5 flex items-center gap-2">
+                  <span>✨</span> Full Body Details
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">Hemoglobin (g/dL)</label>
+                    <input 
+                      name="hemoglobin" 
+                      type="number" 
+                      step="0.1" 
+                      value={formData.hemoglobin} 
+                      onChange={handleInputChange} 
+                      placeholder="14" 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">WBC (×10³/µL)</label>
+                    <input 
+                      name="whiteBloodCells" 
+                      type="number" 
+                      step="0.1" 
+                      value={formData.whiteBloodCells} 
+                      onChange={handleInputChange} 
+                      placeholder="7.5" 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">Platelets (×10³/µL)</label>
+                    <input 
+                      name="platelets" 
+                      type="number" 
+                      value={formData.platelets} 
+                      onChange={handleInputChange} 
+                      placeholder="250" 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">Cholesterol (mg/dL)</label>
+                    <input 
+                      name="cholesterol" 
+                      type="number" 
+                      value={formData.cholesterol} 
+                      onChange={handleInputChange} 
+                      placeholder="180" 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">Triglycerides (mg/dL)</label>
+                    <input 
+                      name="triglycerides" 
+                      type="number" 
+                      value={formData.triglycerides} 
+                      onChange={handleInputChange} 
+                      placeholder="150" 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <label className="text-sm font-semibold text-slate-700">HbA1c (%)</label>
+                    <input 
+                      name="hba1c" 
+                      type="number" 
+                      step="0.1" 
+                      value={formData.hba1c} 
+                      onChange={handleInputChange} 
+                      placeholder="5.7" 
+                      className="w-full p-3.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 text-sm text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Action Buttons - Premium */}
+        <div className="flex items-center gap-4 pt-5 border-t border-slate-100">
           <button 
             type="submit" 
             disabled={loading} 
-            className="bg-indigo-600 text-white py-4 px-12 rounded-xl font-semibold hover:bg-indigo-700 transition-all duration-300 flex items-center gap-3 text-sm flex-1 justify-center shadow-sm hover:shadow-md"
+            className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white py-3.5 px-8 rounded-xl font-bold transition-all duration-300 flex items-center gap-2.5 text-sm flex-1 justify-center shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/25 active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none"
           >
-            {loading ? "Saving..." : <><Save size={18} /> Update Vitals</>}
+            {loading ? (
+              <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <Save size={18} />
+            )}
+            {loading ? "Saving Records..." : (
+              selectedCampType === "eye" ? "Save Eye Exam & Vitals" :
+              selectedCampType === "blood" ? "Save Blood Test & Vitals" :
+              selectedCampType === "full-body" ? "Save Full Body Checkup" :
+              "Save General Checkup & Vitals"
+            )}
           </button>
           {isModal && (
             <button 
               type="button" 
               onClick={onClose} 
-              className="px-10 py-4 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all duration-200 text-sm"
+              className="px-8 py-3.5 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl font-semibold transition-all duration-200 text-sm active:scale-[0.99]"
             >
               Cancel
             </button>
@@ -795,24 +847,24 @@ const AddTestForm = ({ patientId, onSuccess = () => {}, isModal = false, onClose
 
         {/* Feedback Messages */}
         {error && (
-          <div className="mt-6 p-5 bg-red-50 text-red-600 rounded-xl text-sm font-medium border-2 border-red-100">
+          <div className="mt-6 p-4 bg-rose-50 text-rose-600 rounded-xl text-sm font-semibold border border-rose-100">
             {error}
           </div>
         )}
         {successMsg && (
-          <div className="mt-6 p-5 bg-green-50 text-green-600 rounded-xl text-sm font-medium border-2 border-green-100">
+          <div className="mt-6 p-4 bg-emerald-50 text-emerald-600 rounded-xl text-sm font-semibold border border-emerald-100">
             {successMsg}
           </div>
         )}
 
         {/* Recent History Preview */}
         {tests.length > 0 && (
-          <div className="mt-8 pt-8 border-t-2 border-gray-100">
-            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Recent Entries</h4>
+          <div className="mt-8 pt-6 border-t border-slate-100">
+            <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4">Recent Entries</h4>
             <div className="space-y-3 max-h-44 overflow-y-auto pr-2">
               {tests.slice().reverse().map((t, i) => (
-                <div key={i} className="text-sm text-gray-700 flex justify-between items-center bg-gray-50 p-4 rounded-xl hover:bg-gray-100 transition-colors border border-gray-200">
-                  <span>{formatTest(t)}</span>
+                <div key={i} className="text-sm text-slate-700 flex justify-between items-center bg-slate-50/50 p-4 rounded-xl hover:bg-slate-50 transition-colors border border-slate-100">
+                  <span className="font-medium">{formatTest(t)}</span>
                 </div>
               ))}
             </div>

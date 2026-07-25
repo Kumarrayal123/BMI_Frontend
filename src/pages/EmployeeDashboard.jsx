@@ -44,10 +44,23 @@ const EmployeeDashboard = () => {
             const employeeName = empData.name;
 
             const assigned = allCamps.filter(camp =>
-                (camp.volunteers || []).some(v =>
-                    v.toLowerCase() === employeeName.toLowerCase() ||
-                    (empId && v === empId)
-                )
+                (camp.volunteers || []).some(v => {
+                    if (!v) return false;
+                    if (typeof v === 'object') {
+                        if (v.$oid) {
+                            return String(v.$oid).toLowerCase().trim() === String(empId).toLowerCase().trim();
+                        }
+                        const idStr = String(v._id || v.id || '').toLowerCase().trim();
+                        if (empId && idStr && idStr === String(empId).toLowerCase().trim()) return true;
+                        const nameStr = String(v.name || '').toLowerCase().trim();
+                        if (employeeName && nameStr && nameStr === String(employeeName).toLowerCase().trim()) return true;
+                        return false;
+                    }
+                    const valStr = String(v).toLowerCase().trim();
+                    if (empId && valStr === String(empId).toLowerCase().trim()) return true;
+                    if (employeeName && valStr === String(employeeName).toLowerCase().trim()) return true;
+                    return false;
+                })
             );
 
             setAssignedCamps(assigned);
