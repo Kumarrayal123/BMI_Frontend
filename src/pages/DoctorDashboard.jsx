@@ -1138,7 +1138,7 @@ import "./Dashboard.css";
 
 const API_BASE = config.API_BASE_URL;
 
-// 🔥 FIXED: extractLatestVitals function
+// extractLatestVitals function
 const extractLatestVitals = (tests = []) => {
     const r = {};
     if (!tests || tests.length === 0) return r;
@@ -1180,7 +1180,7 @@ const DoctorDashboard = () => {
     const [patients, setPatients] = useState([]);
     const [loading, setLoading] = useState(true);
     const [volunteers, setVolunteers] = useState([]);
-    const [partnerVolunteers, setPartnerVolunteers] = useState([]); // ✅ ADDED
+    const [partnerVolunteers, setPartnerVolunteers] = useState([]);
     const [partnerList, setPartnerList] = useState([]);
     const [volunteerMap, setVolunteerMap] = useState({});
     const [partnerMap, setPartnerMap] = useState({});
@@ -1199,6 +1199,12 @@ const DoctorDashboard = () => {
         data: [],
         type: ""
     });
+
+    // 🔥 Delete Confirmation Modal State
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [deleteType, setDeleteType] = useState("");
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const [showCampModal, setShowCampModal] = useState(false);
     const [viewCamp, setViewCamp] = useState(null);
@@ -1285,6 +1291,77 @@ const DoctorDashboard = () => {
         });
     };
 
+    // 🔥 DELETE MODAL HANDLERS
+    const openDeleteModal = (target, type) => {
+        setDeleteTarget(target);
+        setDeleteType(type);
+        setShowDeleteModal(true);
+    };
+
+    const closeDeleteModal = () => {
+        setShowDeleteModal(false);
+        setDeleteTarget(null);
+        setDeleteType("");
+        setIsDeleting(false);
+    };
+
+    // 🔥 Confirm Delete Patient
+    const confirmDeletePatient = async () => {
+        if (!deleteTarget) return;
+        
+        setIsDeleting(true);
+        try {
+            await axios.delete(`${API_BASE}/patients/${deleteTarget._id}`);
+            alert("✅ Patient deleted successfully!");
+            
+            // Refresh patients
+            const patientsRes = await axios.get(`${API_BASE}/patients`);
+            let patientData = [];
+            if (patientsRes.data) {
+                if (Array.isArray(patientsRes.data)) patientData = patientsRes.data;
+                else if (patientsRes.data.data && Array.isArray(patientsRes.data.data)) patientData = patientsRes.data.data;
+                else if (patientsRes.data.patients && Array.isArray(patientsRes.data.patients)) patientData = patientsRes.data.patients;
+            }
+            const allCampIds = [...assignedCamps.map(c => String(c._id)), ...createdCamps.map(c => String(c._id))];
+            const filteredPatients = patientData.filter(p =>
+                p.campId && allCampIds.includes(String(p.campId?._id || p.campId))
+            );
+            setPatients(filteredPatients);
+            
+            closeDeleteModal();
+        } catch (err) {
+            console.error("Delete patient error:", err);
+            alert("❌ Failed to delete patient: " + (err.response?.data?.message || err.message));
+            setIsDeleting(false);
+        }
+    };
+
+    // 🔥 Confirm Delete Camp
+    const confirmDeleteCamp = async () => {
+        if (!deleteTarget) return;
+        
+        setIsDeleting(true);
+        try {
+            await axios.delete(`${API_BASE}/camps/delete-partner-camp/${deleteTarget._id}`);
+            alert("✅ Camp deleted successfully!");
+            fetchData();
+            closeDeleteModal();
+        } catch (err) {
+            console.error("Delete camp error:", err);
+            alert("❌ Failed to delete camp: " + (err.response?.data?.message || err.message));
+            setIsDeleting(false);
+        }
+    };
+
+    // 🔥 Handle delete based on type
+    const handleConfirmDelete = () => {
+        if (deleteType === "patient") {
+            confirmDeletePatient();
+        } else if (deleteType === "camp") {
+            confirmDeleteCamp();
+        }
+    };
+
     useEffect(() => {
         if (partnerId) {
             fetchData();
@@ -1312,7 +1389,7 @@ const DoctorDashboard = () => {
             });
             setVolunteers(filteredVolunteers);
 
-            // ✅ FETCH PARTNER VOLUNTEERS
+            // Fetch partner volunteers
             try {
                 const partnerVolRes = await axios.get(`${API_BASE}/volunteers/partner-volunteers/${partnerId}`);
                 let pvData = [];
@@ -1566,18 +1643,6 @@ const DoctorDashboard = () => {
         }
     };
 
-    const handleDeleteCamp = async (campId) => {
-        if (!window.confirm("Are you sure you want to delete this camp?")) return;
-        try {
-            await axios.delete(`${API_BASE}/camps/delete-partner-camp/${campId}`);
-            alert("✅ Camp deleted successfully");
-            fetchData();
-        } catch (err) {
-            console.error("Delete camp error:", err);
-            alert("❌ Failed to delete camp");
-        }
-    };
-
     const openEditModal = (camp) => {
         setEditingCamp(camp);
         setCampForm({
@@ -1592,7 +1657,7 @@ const DoctorDashboard = () => {
         setShowEditModal(true);
     };
 
-    // 🔥 FIXED: prepareReportData - using extractLatestVitals
+    // prepareReportData
     const prepareReportData = async (patientId) => {
         try {
             const res = await axios.get(`${API_BASE}/patients/${patientId}`);
@@ -1606,7 +1671,6 @@ const DoctorDashboard = () => {
                 return null;
             }
 
-            // 🔥 Use extractLatestVitals to get data from tests
             const test = extractLatestVitals(fullPatient.tests);
             console.log("📊 Extracted Vitals:", test);
 
@@ -1731,6 +1795,86 @@ const DoctorDashboard = () => {
         document.body.removeChild(link);
     };
 
+    // 🔥 Delete Confirmation Modal Component
+    const DeleteConfirmationModal = () => {
+        if (!showDeleteModal) return null;
+
+        const isPatient = deleteType === "patient";
+        const name = deleteTarget?.name || "Unknown";
+
+        return createPortal(
+            <div 
+                className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                        closeDeleteModal();
+                    }
+                }}
+            >
+                <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+                    <div className="bg-gradient-to-r from-red-600 to-red-700 p-6 text-white">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-white/20 rounded-xl">
+                                <FiTrash2 size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold">Delete {isPatient ? 'Patient' : 'Camp'}</h3>
+                                <p className="text-sm text-red-100">This action cannot be undone</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-6">
+                        <p className="text-gray-700 text-center py-4">
+                            Are you sure you want to delete <br />
+                            <strong className="text-red-600 text-lg">{name}</strong>?
+                        </p>
+                        {isPatient && deleteTarget?.contact && (
+                            <p className="text-xs text-gray-400 text-center">
+                                Phone: {deleteTarget.contact}
+                            </p>
+                        )}
+                        {!isPatient && deleteTarget?._id && (
+                            <p className="text-xs text-gray-400 text-center">
+                                Camp ID: {deleteTarget._id.slice(-6).toUpperCase()}
+                            </p>
+                        )}
+
+                        <div className="flex gap-3 pt-6 border-t border-gray-200">
+                            <button
+                                type="button"
+                                onClick={closeDeleteModal}
+                                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition"
+                                disabled={isDeleting}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmDelete}
+                                disabled={isDeleting}
+                                className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {isDeleting ? (
+                                    <>
+                                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                        Deleting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <FiTrash2 size={16} />
+                                        Delete {isPatient ? 'Patient' : 'Camp'}
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        );
+    };
+
     // 🔥 Stats Modal Component
     const StatsModal = () => {
         if (!statsModal.show) return null;
@@ -1745,7 +1889,6 @@ const DoctorDashboard = () => {
                 }}
             >
                 <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-                    {/* Header */}
                     <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
                         <div>
                             <h3 className="text-xl font-bold text-white">{statsModal.title}</h3>
@@ -1761,7 +1904,6 @@ const DoctorDashboard = () => {
                         </button>
                     </div>
 
-                    {/* Content */}
                     <div className="overflow-auto flex-1 p-0">
                         {statsModal.data.length === 0 ? (
                             <div className="text-center py-12">
@@ -1858,7 +2000,6 @@ const DoctorDashboard = () => {
                         )}
                     </div>
 
-                    {/* Footer */}
                     <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
                         <button
                             onClick={closeStatsModal}
@@ -2085,7 +2226,7 @@ const DoctorDashboard = () => {
                     </div>
                 </div>
 
-                {/* My Camps Section - UPDATED with VolunteerDisplay and PartnerDisplay */}
+                {/* My Camps Section */}
                 <div ref={campsSectionRef} className="admin-dash__card">
                     <div className="admin-dash__card-header py-3 px-4">
                         <h3 className="admin-dash__card-title text-sm">My Camps</h3>
@@ -2166,7 +2307,6 @@ const DoctorDashboard = () => {
                                                 <span>{camp.time || "No time"}</span>
                                             </div>
                                             
-                                            {/* 🔥 UPDATED: Using VolunteerDisplay component */}
                                             {camp.volunteers && camp.volunteers.length > 0 && (
                                                 <div className="mt-1.5">
                                                     <VolunteerDisplay
@@ -2177,7 +2317,6 @@ const DoctorDashboard = () => {
                                                 </div>
                                             )}
                                             
-                                            {/* 🔥 UPDATED: Using PartnerDisplay component */}
                                             {camp.partners && camp.partners.length > 0 && (
                                                 <div className="mt-1">
                                                     <PartnerDisplay
@@ -2210,10 +2349,11 @@ const DoctorDashboard = () => {
                                                             >
                                                                 <FiEdit size={12} />
                                                             </button>
+                                                            {/* 🔥 DELETE CAMP BUTTON */}
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    handleDeleteCamp(camp._id);
+                                                                    openDeleteModal(camp, "camp");
                                                                 }}
                                                                 className={`p-1 rounded-lg transition-colors ${
                                                                     isSelected 
@@ -2354,6 +2494,13 @@ const DoctorDashboard = () => {
                                                         >
                                                             <FiMessageCircle size={12} /> WhatsApp
                                                         </button>
+                                                        {/* 🔥 DELETE PATIENT BUTTON */}
+                                                        <button 
+                                                            onClick={() => openDeleteModal(patient, "patient")}
+                                                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+                                                        >
+                                                            <FiTrash2 size={12} /> Delete
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -2376,7 +2523,7 @@ const DoctorDashboard = () => {
                 </div>
             </div>
 
-            {/* ✅ UPDATED Create Camp Modal with Partner Volunteers */}
+            {/* Create Camp Modal */}
             {showCampModal && createPortal(
                 <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="w-full max-w-lg bg-white shadow-2xl rounded-2xl overflow-hidden animate-in zoom-in-95 duration-300">
@@ -2438,7 +2585,6 @@ const DoctorDashboard = () => {
                                 />
                             </div>
                             
-                            {/* ✅ UPDATED VOLUNTEERS SECTION - Partner Volunteers + All Volunteers */}
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Assign Volunteers</label>
                                 <div className="flex flex-wrap gap-1.5 mb-1.5">
@@ -2464,8 +2610,6 @@ const DoctorDashboard = () => {
                                     onChange={handleAddVolunteer}
                                 >
                                     <option value="">+ Add Staff/Volunteer</option>
-                                    
-                                    {/* Partner Volunteers Group */}
                                     {partnerVolunteers && partnerVolunteers.length > 0 && (
                                         <optgroup label="⭐ My Volunteers (Partner)">
                                             {partnerVolunteers.map(v => (
@@ -2475,8 +2619,6 @@ const DoctorDashboard = () => {
                                             ))}
                                         </optgroup>
                                     )}
-                                    
-                                    {/* All Other Volunteers */}
                                     {volunteers && volunteers.length > 0 && (
                                         <optgroup label="👥 All Volunteers">
                                             {volunteers
@@ -2705,7 +2847,6 @@ const DoctorDashboard = () => {
                                         <span>{viewCamp.time}</span>
                                     </div>
                                 </div>
-                                {/* 🔥 UPDATED: Using VolunteerDisplay component */}
                                 {viewCamp.volunteers && viewCamp.volunteers.length > 0 && (
                                     <div className="flex items-center gap-1.5 mt-1.5">
                                         <span className="text-[10px] font-semibold text-gray-600">Volunteers:</span>
@@ -2716,7 +2857,6 @@ const DoctorDashboard = () => {
                                         />
                                     </div>
                                 )}
-                                {/* 🔥 UPDATED: Using PartnerDisplay component */}
                                 {viewCamp.partners && viewCamp.partners.length > 0 && (
                                     <div className="flex items-center gap-1.5 mt-0.5">
                                         <span className="text-[10px] font-semibold text-gray-600">Partners:</span>
@@ -2855,6 +2995,9 @@ const DoctorDashboard = () => {
 
             {/* Stats Modal */}
             <StatsModal />
+
+            {/* 🔥 DELETE CONFIRMATION MODAL */}
+            <DeleteConfirmationModal />
         </div>
     );
 };

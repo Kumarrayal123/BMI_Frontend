@@ -14,6 +14,7 @@ import h5 from "../assets/img5.jpg"
 import h6 from "../assets/img6.jpg"
 import h7 from "../assets/h1.jpg";
 import h8 from "../assets/h2.jpg";
+import logo from "../assets/Iyrax 001.png";
 import h9 from "../assets/h4.jpg"
 
 /* ─── Scroll Fade-in Intersection Observer Hook ─────── */
@@ -274,9 +275,9 @@ function LandingPage() {
           <div className="flex justify-between items-center h-20">
             
             {/* Brand Logo */}
-            <Link to="/landing" className="flex items-center space-x-3 group">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 flex items-center justify-center text-white shadow-md shadow-indigo-200 group-hover:scale-105 transition-transform">
-                <Heart className="h-6 w-6 fill-white" />
+            <Link to="/" className="flex items-center space-x-3 group">
+             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 flex items-center justify-center shadow-md shadow-indigo-200 group-hover:scale-105 transition-transform overflow-hidden">
+             <img src={logo} alt="Iyrax Logo" className="w-7 h-7 object-contain"/>
               </div>
               <div className="flex flex-col">
                 <span className="text-2xl font-black text-slate-900 tracking-tight leading-none group-hover:text-indigo-600 transition-colors">

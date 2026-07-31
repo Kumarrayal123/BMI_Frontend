@@ -14,10 +14,11 @@ import {
     FiSave,
     FiUser,
     FiBriefcase,
-    FiFilter
+    FiTrash2,
 } from "react-icons/fi";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import ReactDOM from "react-dom";
 import config from "../config";
 import "./Dashboard.css";
 
@@ -26,14 +27,16 @@ const Partners = () => {
     const [partners, setPartners] = useState([]);
     const [loading, setLoading] = useState(true);
     
-    // 🔥 Filter States
+    // TABLE SEARCH STATES
     const [filterType, setFilterType] = useState("name");
-    const [searchQuery, setSearchQuery] = useState("");
-    const [showDropdown, setShowDropdown] = useState(false);
+    const [tableSearchQuery, setTableSearchQuery] = useState("");
     
     const [selectedPartner, setSelectedPartner] = useState(null);
     const [showViewModal, setShowViewModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false); // 🔥 NEW
+    
+    // EDIT FORM STATES
     const [editFormData, setEditFormData] = useState({
         name: '',
         email: '',
@@ -46,12 +49,28 @@ const Partners = () => {
     const [isUpdating, setIsUpdating] = useState(false);
     const [updateMessage, setUpdateMessage] = useState('');
     const [updateSuccess, setUpdateSuccess] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false); // 🔥 NEW
+
+    // REFS to track which input is focused
+    const activeFieldRef = useRef(null);
 
     useEffect(() => {
         fetchPartners();
     }, []);
 
-    // 🔒 SCROLL LOCK FUNCTION
+    const fetchPartners = async () => {
+        try {
+            setLoading(true);
+            const res = await axios.get(`${config.API_BASE_URL}/auth/partners`);
+            setPartners(res.data || []);
+        } catch (err) {
+            console.error("Failed to fetch partners:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // SCROLL LOCK
     const lockScroll = () => {
         document.body.style.overflow = 'hidden';
         document.body.style.position = 'fixed';
@@ -64,37 +83,7 @@ const Partners = () => {
         document.body.style.width = 'auto';
     };
 
-    const fetchPartners = async () => {
-        try {
-            setLoading(true);
-            const res = await axios.get(`${config.API_BASE_URL}/auth/partners`);
-            console.log("Fetched partners:", res.data);
-            setPartners(res.data || []);
-        } catch (err) {
-            console.error("Failed to fetch partners:", err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // 🔥 Get unique values for dropdown
-    const uniqueNames = useMemo(() => {
-        return [...new Set(partners.map(p => p.name).filter(Boolean))].sort();
-    }, [partners]);
-
-    const uniqueEmails = useMemo(() => {
-        return [...new Set(partners.map(p => p.email).filter(Boolean))].sort();
-    }, [partners]);
-
-    const uniqueCenters = useMemo(() => {
-        return [...new Set(partners.map(p => p.clinicName).filter(Boolean))].sort();
-    }, [partners]);
-
-    const uniquePhones = useMemo(() => {
-        return [...new Set(partners.map(p => p.mobile).filter(Boolean))].sort();
-    }, [partners]);
-
-    // 🔥 Filter Options
+    // Filter Options
     const filterOptions = [
         { value: "name", label: "Name" },
         { value: "email", label: "Email" },
@@ -102,26 +91,10 @@ const Partners = () => {
         { value: "phone", label: "Phone" }
     ];
 
-    // 🔥 Get dropdown options based on selected filter
-    const getDropdownOptions = () => {
-        switch(filterType) {
-            case "name": return uniqueNames;
-            case "email": return uniqueEmails;
-            case "center": return uniqueCenters;
-            case "phone": return uniquePhones;
-            default: return [];
-        }
-    };
-
-    // 🔥 Filter dropdown options based on search
-    const filteredDropdownOptions = getDropdownOptions().filter(option =>
-        option.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    // 🔥 Filter Partners
+    // Filter Partners
     const filteredPartners = useMemo(() => {
-        if (!searchQuery.trim()) return partners;
-        const searchLower = searchQuery.toLowerCase();
+        if (!tableSearchQuery.trim()) return partners;
+        const searchLower = tableSearchQuery.toLowerCase();
         return partners.filter((p) => {
             switch(filterType) {
                 case "name":
@@ -136,18 +109,7 @@ const Partners = () => {
                     return p.name?.toLowerCase().includes(searchLower);
             }
         });
-    }, [partners, searchQuery, filterType]);
-
-    // 🔥 Close dropdown on outside click
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (!e.target.closest('.partner-search-container')) {
-                setShowDropdown(false);
-            }
-        };
-        document.addEventListener('click', handleClickOutside);
-        return () => document.removeEventListener('click', handleClickOutside);
-    }, []);
+    }, [partners, tableSearchQuery, filterType]);
 
     const formatDate = (dateString) => {
         if (!dateString) return "N/A";
@@ -159,15 +121,8 @@ const Partners = () => {
         });
     };
 
-    // Handle View Partner
-    const handleViewPartner = (partner) => {
-        lockScroll();
-        setSelectedPartner(partner);
-        setShowViewModal(true);
-    };
-
     // Handle Edit Partner
-    const handleEditPartner = (partner) => {
+    const handleEditPartner = useCallback((partner) => {
         lockScroll();
         setSelectedPartner(partner);
         setEditFormData({
@@ -182,21 +137,79 @@ const Partners = () => {
         setShowEditModal(true);
         setUpdateMessage('');
         setUpdateSuccess(false);
+    }, []);
+
+    // Handle View Partner
+    const handleViewPartner = useCallback((partner) => {
+        lockScroll();
+        setSelectedPartner(partner);
+        setShowViewModal(true);
+    }, []);
+
+    // 🔥 Handle Delete Partner - Open Delete Modal
+    const handleDeletePartner = useCallback((partner) => {
+        lockScroll();
+        setSelectedPartner(partner);
+        setShowDeleteModal(true);
+    }, []);
+
+    // 🔥 Confirm Delete Partner
+    const confirmDeletePartner = async () => {
+        if (!selectedPartner) {
+            alert("No partner selected!");
+            return;
+        }
+
+        setIsDeleting(true);
+
+        try {
+            const response = await axios.delete(
+                `${config.API_BASE_URL}/auth/partner/${selectedPartner._id}`
+            );
+
+            console.log("Delete response:", response);
+
+            if (response.data) {
+                alert("Partner deleted successfully! ✅");
+                await fetchPartners();
+                closeDeleteModal();
+            }
+        } catch (err) {
+            console.error("Delete error:", err);
+            alert(
+                err.response?.data?.message || 
+                err.response?.data?.error || 
+                'Failed to delete partner. Please try again.'
+            );
+        } finally {
+            setIsDeleting(false);
+        }
     };
 
-    // Handle Input Change
-    const handleEditInputChange = (e) => {
+    // Input change handler with focus preservation
+    const handleEditInputChange = useCallback((e) => {
         const { name, value } = e.target;
+        activeFieldRef.current = name;
         setEditFormData(prev => ({
             ...prev,
             [name]: value
         }));
-    };
+    }, []);
+
+    // On blur, clear active field
+    const handleInputBlur = useCallback(() => {
+        activeFieldRef.current = null;
+    }, []);
+
+    // On focus, store field name
+    const handleInputFocus = useCallback((e) => {
+        activeFieldRef.current = e.target.name;
+    }, []);
 
     // Handle Update Partner
     const handleUpdatePartner = async () => {
         if (!selectedPartner) {
-            console.error("No partner selected");
+            alert("No partner selected!");
             return;
         }
 
@@ -215,25 +228,16 @@ const Partners = () => {
                 bio: editFormData.bio || ''
             };
 
-            console.log("Updating partner:", selectedPartner._id);
-            console.log("Update data:", updateData);
-
             const response = await axios.put(
                 `${config.API_BASE_URL}/auth/update-partner/${selectedPartner._id}`,
                 updateData
             );
 
-            console.log("Update response:", response);
-
             if (response.data) {
                 setUpdateSuccess(true);
                 setUpdateMessage('Partner updated successfully! ✅');
-                
                 await fetchPartners();
-                
-                setTimeout(() => {
-                    closeEditModal();
-                }, 2000);
+                setTimeout(() => closeEditModal(), 1500);
             }
         } catch (err) {
             console.error("Update error:", err);
@@ -264,6 +268,7 @@ const Partners = () => {
         });
         setUpdateMessage('');
         setUpdateSuccess(false);
+        activeFieldRef.current = null;
     };
 
     // Close View Modal
@@ -271,6 +276,14 @@ const Partners = () => {
         unlockScroll();
         setShowViewModal(false);
         setSelectedPartner(null);
+    };
+
+    // 🔥 Close Delete Modal
+    const closeDeleteModal = () => {
+        unlockScroll();
+        setShowDeleteModal(false);
+        setSelectedPartner(null);
+        setIsDeleting(false);
     };
 
     // Handle WhatsApp
@@ -281,13 +294,294 @@ const Partners = () => {
         }
     };
 
-    // View Modal Component
-    const ViewPartnerModal = () => {
+    // ============ DELETE MODAL ============
+    const DeletePartnerModal = useMemo(() => {
+        if (!showDeleteModal || !selectedPartner) return null;
+
+        return ReactDOM.createPortal(
+            <div 
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                onMouseDown={(e) => {
+                    if (e.target === e.currentTarget) {
+                        closeDeleteModal();
+                    }
+                }}
+            >
+                <div 
+                    className="bg-white rounded-3xl w-full max-w-md shadow-2xl"
+                    onMouseDown={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="p-6 bg-gradient-to-br from-red-600 to-red-700 text-white rounded-t-3xl">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-white/20 rounded-xl">
+                                <FiTrash2 size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-2xl font-bold">Delete Partner</h3>
+                                <p className="text-sm text-red-100">This action cannot be undone</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Body */}
+                    <div className="p-6">
+                        <p className="text-gray-700 text-center py-4">
+                            Are you sure you want to delete <br />
+                            <strong className="text-red-600 text-lg">{selectedPartner.name}</strong>?
+                        </p>
+                        <p className="text-xs text-gray-400 text-center">
+                            Partner ID: {selectedPartner._id}
+                        </p>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-wrap gap-3 pt-6 border-t border-gray-200">
+                            <button
+                                type="button"
+                                onClick={closeDeleteModal}
+                                className="flex-1 min-w-[120px] py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition shadow-sm active:scale-[0.98]"
+                                disabled={isDeleting}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmDeletePartner}
+                                disabled={isDeleting}
+                                className="flex-1 min-w-[120px] py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl font-bold hover:from-red-700 hover:to-red-800 transition shadow-sm active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isDeleting ? (
+                                    <>
+                                        <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
+                                        Deleting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <FiTrash2 size={16} className="inline mr-2" />
+                                        Delete Partner
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        );
+    }, [showDeleteModal, selectedPartner, isDeleting]);
+
+    // ============ EDIT MODAL ============
+    const EditPartnerModal = useMemo(() => {
+        if (!showEditModal || !selectedPartner) return null;
+
+        return ReactDOM.createPortal(
+            <div 
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                onMouseDown={(e) => {
+                    if (e.target === e.currentTarget) {
+                        closeEditModal();
+                    }
+                }}
+            >
+                <div 
+                    className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl"
+                    onMouseDown={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="p-6 bg-gradient-to-br from-purple-600 to-indigo-600 text-white sticky top-0 z-10">
+                        <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-white/20 rounded-xl">
+                                    <FiEdit size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-bold">Edit Partner</h3>
+                                    <p className="text-sm text-purple-100">Update partner information</p>
+                                    <p className="text-xs text-purple-200 mt-1">
+                                        Editing: <strong>{selectedPartner.name}</strong>
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={closeEditModal}
+                                className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                            >
+                                <FiX size={20} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Form */}
+                    <div className="p-6 space-y-6">
+                        {updateMessage && (
+                            <div className={`p-4 rounded-xl text-sm font-medium ${
+                                updateSuccess 
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                    : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}>
+                                {updateMessage}
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="col-span-1">
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                    <FiUser className="inline mr-1" size={14} />
+                                    Full Name *
+                                </label>
+                                <input
+                                    type="text"
+                                    name="name"
+                                    value={editFormData.name}
+                                    onChange={handleEditInputChange}
+                                    onFocus={handleInputFocus}
+                                    onBlur={handleInputBlur}
+                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
+                                    placeholder="Enter full name"
+                                />
+                            </div>
+                            <div className="col-span-1">
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                    <FiMail className="inline mr-1" size={14} />
+                                    Email *
+                                </label>
+                                <input
+                                    type="email"
+                                    name="email"
+                                    value={editFormData.email}
+                                    onChange={handleEditInputChange}
+                                    onFocus={handleInputFocus}
+                                    onBlur={handleInputBlur}
+                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
+                                    placeholder="Enter email address"
+                                />
+                            </div>
+                            <div className="col-span-1">
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                    <FiPhone className="inline mr-1" size={14} />
+                                    Mobile *
+                                </label>
+                                <input
+                                    type="text"
+                                    name="mobile"
+                                    value={editFormData.mobile}
+                                    onChange={handleEditInputChange}
+                                    onFocus={handleInputFocus}
+                                    onBlur={handleInputBlur}
+                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
+                                    placeholder="Enter mobile number"
+                                />
+                            </div>
+                            <div className="col-span-1">
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                    <FiBriefcase className="inline mr-1" size={14} />
+                                    Specialization
+                                </label>
+                                <input
+                                    type="text"
+                                    name="specialization"
+                                    value={editFormData.specialization}
+                                    onChange={handleEditInputChange}
+                                    onFocus={handleInputFocus}
+                                    onBlur={handleInputBlur}
+                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
+                                    placeholder="e.g., Cardiologist"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                <FiHome className="inline mr-1" size={14} />
+                                Center Name *
+                            </label>
+                            <input
+                                type="text"
+                                name="clinicName"
+                                value={editFormData.clinicName}
+                                onChange={handleEditInputChange}
+                                onFocus={handleInputFocus}
+                                onBlur={handleInputBlur}
+                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
+                                placeholder="Enter center name"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                <FiMapPin className="inline mr-1" size={14} />
+                                Address
+                            </label>
+                            <textarea
+                                name="address"
+                                value={editFormData.address}
+                                onChange={handleEditInputChange}
+                                onFocus={handleInputFocus}
+                                onBlur={handleInputBlur}
+                                rows="3"
+                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition resize-none"
+                                placeholder="Enter clinic address"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                About / Bio
+                            </label>
+                            <textarea
+                                name="bio"
+                                value={editFormData.bio}
+                                onChange={handleEditInputChange}
+                                onFocus={handleInputFocus}
+                                onBlur={handleInputBlur}
+                                rows="3"
+                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition resize-none"
+                                placeholder="Enter bio or description"
+                            />
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
+                            <button
+                                type="button"
+                                onClick={closeEditModal}
+                                className="flex-1 min-w-[120px] py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition shadow-sm active:scale-[0.98]"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleUpdatePartner}
+                                disabled={isUpdating}
+                                className="flex-1 min-w-[120px] py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-bold hover:from-purple-700 hover:to-indigo-700 transition shadow-sm active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isUpdating ? (
+                                    <>
+                                        <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
+                                        Updating...
+                                    </>
+                                ) : (
+                                    <>
+                                        <FiSave size={16} className="inline mr-2" />
+                                        Update Partner
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        );
+    }, [showEditModal, selectedPartner, editFormData, updateMessage, updateSuccess, isUpdating, handleEditInputChange, handleInputFocus, handleInputBlur]);
+
+    // ============ VIEW MODAL ============
+    const ViewPartnerModal = useMemo(() => {
         if (!showViewModal || !selectedPartner) return null;
 
         const partner = selectedPartner;
 
-        return (
+        return ReactDOM.createPortal(
             <div 
                 className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
                 onClick={(e) => {
@@ -371,7 +665,6 @@ const Partners = () => {
                             </div>
                         )}
 
-                        {/* Action Buttons */}
                         <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
                             <button
                                 onClick={() => {
@@ -382,6 +675,16 @@ const Partners = () => {
                             >
                                 <FiEdit size={16} className="inline mr-2" />
                                 Edit Partner
+                            </button>
+                            <button
+                                onClick={() => {
+                                    closeViewModal();
+                                    setTimeout(() => handleDeletePartner(partner), 100);
+                                }}
+                                className="flex-1 min-w-[120px] py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition shadow-sm active:scale-[0.98]"
+                            >
+                                <FiTrash2 size={16} className="inline mr-2" />
+                                Delete
                             </button>
                             {partner.mobile && (
                                 <button
@@ -395,196 +698,10 @@ const Partners = () => {
                         </div>
                     </div>
                 </div>
-            </div>
+            </div>,
+            document.body
         );
-    };
-
-    // Edit Modal Component
-    const EditPartnerModal = () => {
-        if (!showEditModal || !selectedPartner) return null;
-
-        return (
-            <div 
-                className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-                onClick={(e) => {
-                    if (e.target === e.currentTarget) {
-                        closeEditModal();
-                    }
-                }}
-            >
-                <div 
-                    className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    {/* Header */}
-                    <div className="p-6 bg-gradient-to-br from-purple-600 to-indigo-600 text-white sticky top-0 z-10">
-                        <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-white/20 rounded-xl">
-                                    <FiEdit size={24} />
-                                </div>
-                                <div>
-                                    <h3 className="text-2xl font-bold">Edit Partner</h3>
-                                    <p className="text-sm text-purple-100">Update partner information</p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={closeEditModal}
-                                className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-                            >
-                                <FiX size={20} />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Form */}
-                    <div className="p-6 space-y-6">
-                        {updateMessage && (
-                            <div className={`p-4 rounded-xl text-sm font-medium ${
-                                updateSuccess 
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                                    : 'bg-rose-50 text-rose-700 border border-rose-200'
-                            }`}>
-                                {updateMessage}
-                            </div>
-                        )}
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="col-span-1">
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                                    <FiUser className="inline mr-1" size={14} />
-                                    Full Name *
-                                </label>
-                                <input
-                                    type="text"
-                                    name="name"
-                                    value={editFormData.name}
-                                    onChange={handleEditInputChange}
-                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
-                                    placeholder="Enter full name"
-                                />
-                            </div>
-                            <div className="col-span-1">
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                                    <FiMail className="inline mr-1" size={14} />
-                                    Email *
-                                </label>
-                                <input
-                                    type="email"
-                                    name="email"
-                                    value={editFormData.email}
-                                    onChange={handleEditInputChange}
-                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
-                                    placeholder="Enter email address"
-                                />
-                            </div>
-                            <div className="col-span-1">
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                                    <FiPhone className="inline mr-1" size={14} />
-                                    Mobile *
-                                </label>
-                                <input
-                                    type="text"
-                                    name="mobile"
-                                    value={editFormData.mobile}
-                                    onChange={handleEditInputChange}
-                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
-                                    placeholder="Enter mobile number"
-                                />
-                            </div>
-                            <div className="col-span-1">
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                                    <FiBriefcase className="inline mr-1" size={14} />
-                                    Specialization
-                                </label>
-                                <input
-                                    type="text"
-                                    name="specialization"
-                                    value={editFormData.specialization}
-                                    onChange={handleEditInputChange}
-                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
-                                    placeholder="e.g., Cardiologist"
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                                <FiHome className="inline mr-1" size={14} />
-                                Center Name *
-                            </label>
-                            <input
-                                type="text"
-                                name="clinicName"
-                                value={editFormData.clinicName}
-                                onChange={handleEditInputChange}
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
-                                placeholder="Enter center name"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                                <FiMapPin className="inline mr-1" size={14} />
-                                Address
-                            </label>
-                            <textarea
-                                name="address"
-                                value={editFormData.address}
-                                onChange={handleEditInputChange}
-                                rows="3"
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition resize-none"
-                                placeholder="Enter clinic address"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                                About / Bio
-                            </label>
-                            <textarea
-                                name="bio"
-                                value={editFormData.bio}
-                                onChange={handleEditInputChange}
-                                rows="3"
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition resize-none"
-                                placeholder="Enter bio or description"
-                            />
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
-                            <button
-                                type="button"
-                                onClick={closeEditModal}
-                                className="flex-1 min-w-[120px] py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition shadow-sm active:scale-[0.98]"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleUpdatePartner}
-                                disabled={isUpdating}
-                                className="flex-1 min-w-[120px] py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-bold hover:from-purple-700 hover:to-indigo-700 transition shadow-sm active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isUpdating ? (
-                                    <>
-                                        <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
-                                        Updating...
-                                    </>
-                                ) : (
-                                    <>
-                                        <FiSave size={16} className="inline mr-2" />
-                                        Update Partner
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    };
+    }, [showViewModal, selectedPartner, handleEditPartner, handleDeletePartner]);
 
     return (
         <div className="admin-dash">
@@ -612,19 +729,16 @@ const Partners = () => {
             </div>
 
             <div className="space-y-10">
-                {/* Partners Table Section */}
                 <div className="admin-dash__card">
                     <div className="admin-dash__card-header">
                         <h3 className="admin-dash__card-title">Registered Partners</h3>
                         <div className="flex flex-wrap items-center gap-3">
-                            {/* Filter Dropdown */}
                             <div className="flex items-center gap-2">
                                 <select
                                     value={filterType}
                                     onChange={(e) => {
                                         setFilterType(e.target.value);
-                                        setSearchQuery("");
-                                        setShowDropdown(false);
+                                        setTableSearchQuery("");
                                     }}
                                     className="px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white"
                                 >
@@ -633,44 +747,22 @@ const Partners = () => {
                                     ))}
                                 </select>
                             </div>
-                            {/* Search with Dropdown */}
                             <div className="relative partner-search-container w-full sm:w-64">
                                 <FiSearch
                                     size={18}
-                                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10"
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10 pointer-events-none"
                                 />
                                 <input
                                     type="text"
                                     placeholder={`Search by ${filterOptions.find(o => o.value === filterType)?.label || 'Name'}...`}
-                                    value={searchQuery}
-                                    onChange={(e) => {
-                                        setSearchQuery(e.target.value);
-                                        setShowDropdown(true);
-                                    }}
-                                    onFocus={() => setShowDropdown(true)}
+                                    value={tableSearchQuery}
+                                    onChange={(e) => setTableSearchQuery(e.target.value)}
                                     className="w-full pl-10 pr-4 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20"
                                 />
-                                {showDropdown && filteredDropdownOptions.length > 0 && searchQuery.length > 0 && (
-                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto z-50">
-                                        {filteredDropdownOptions.map((option, index) => (
-                                            <div
-                                                key={index}
-                                                className="px-4 py-2 text-sm hover:bg-indigo-50 cursor-pointer transition-colors"
-                                                onClick={() => {
-                                                    setSearchQuery(option);
-                                                    setShowDropdown(false);
-                                                }}
-                                            >
-                                                {option}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Table Container */}
                     <div className="admin-dash__card-body p-0">
                         {loading ? (
                             <div className="flex flex-col items-center justify-center gap-3 py-20">
@@ -735,6 +827,13 @@ const Partners = () => {
                                                             >
                                                                 <FiEdit size={14} /> Edit
                                                             </button>
+                                                            {/* 🔥 DELETE BUTTON IN TABLE */}
+                                                            <button
+                                                                onClick={() => handleDeletePartner(partner)}
+                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+                                                            >
+                                                                <FiTrash2 size={14} /> Delete
+                                                            </button>
                                                             {partner.mobile && (
                                                                 <button
                                                                     onClick={() => handleWhatsAppChat(partner.mobile)}
@@ -766,11 +865,9 @@ const Partners = () => {
                 </div>
             </div>
 
-            {/* View Modal */}
-            <ViewPartnerModal />
-
-            {/* Edit Modal */}
-            <EditPartnerModal />
+            {EditPartnerModal}
+            {ViewPartnerModal}
+            {DeletePartnerModal}
         </div>
     );
 };

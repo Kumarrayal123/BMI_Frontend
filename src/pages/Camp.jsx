@@ -1198,6 +1198,12 @@ export default function CampDashboard() {
     campId: ""
   });
 
+  // Delete Confirmation Modal State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteType, setDeleteType] = useState(""); // "patient" or "camp"
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Filters
   const [selectedCampId, setSelectedCampId] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1389,11 +1395,9 @@ export default function CampDashboard() {
             
             // Add partner volunteers to the list
             pvData.forEach(pv => {
-              // Add to employeeMap for name lookup
               if (pv._id) {
                 empMap[String(pv._id)] = pv.name || 'Unknown Volunteer';
               }
-              // Add to volunteer list if not already there
               const exists = allVolunteersList.some(v => String(v._id) === String(pv._id));
               if (!exists) {
                 allVolunteersList.push({
@@ -1413,12 +1417,10 @@ export default function CampDashboard() {
           }
         }
 
-        // 4️⃣ Set the combined volunteer list
         setEmployeeMap(empMap);
         setVolunteers(allVolunteersList);
         
         console.log(`✅ Total Volunteers (Employees + Partner): ${allVolunteersList.length}`);
-        console.log("📋 Volunteer List:", allVolunteersList.map(v => v.name));
 
       } catch (err) {
         console.error("Failed to fetch data", err);
@@ -1476,7 +1478,86 @@ export default function CampDashboard() {
     }
   };
 
-  /* -------- ADD PATIENT FROM VIEW CAMP MODAL -------- */
+  /* -------- 🔥 DELETE FUNCTIONS -------- */
+
+  // Open delete confirmation modal
+  const openDeleteModal = (target, type) => {
+    setDeleteTarget(target);
+    setDeleteType(type);
+    setShowDeleteModal(true);
+  };
+
+  // Close delete confirmation modal
+  const closeDeleteModal = () => {
+    setShowDeleteModal(false);
+    setDeleteTarget(null);
+    setDeleteType("");
+    setIsDeleting(false);
+  };
+
+  // Confirm delete - Patient
+  const confirmDeletePatient = async () => {
+    if (!deleteTarget) return;
+    
+    setIsDeleting(true);
+    try {
+      await axios.delete(`${API_BASE}/patients/${deleteTarget._id}`);
+      alert("✅ Patient deleted successfully!");
+      
+      // Refresh patients
+      const patientsRes = await axios.get(`${API_BASE}/patients`).catch(() => ({ data: [] }));
+      let allPatients = patientsRes.data || [];
+      if (!Array.isArray(allPatients)) {
+        allPatients = allPatients.data || allPatients.patients || [];
+        if (!Array.isArray(allPatients)) allPatients = [];
+      }
+      
+      if (currentUserRole === "partner" && currentUserId) {
+        const allIds = camps.map(c => String(c._id));
+        allPatients = allPatients.filter(p => p.campId && allIds.includes(String(p.campId?._id || p.campId)));
+      }
+      setPatients(allPatients);
+      
+      closeDeleteModal();
+    } catch (err) {
+      console.error("Delete patient error:", err);
+      alert("❌ Failed to delete patient: " + (err.response?.data?.message || err.message));
+      setIsDeleting(false);
+    }
+  };
+
+  // Confirm delete - Camp
+  const confirmDeleteCamp = async () => {
+    if (!deleteTarget) return;
+    
+    setIsDeleting(true);
+    try {
+      const endpoint = currentUserRole === "partner" 
+        ? `${API_BASE}/camps/partner/delete-camp/${currentUserId}/${deleteTarget._id}`
+        : `${API_BASE}/camps/delete-camp/${deleteTarget._id}`;
+      
+      await axios.delete(endpoint);
+      alert("✅ Camp deleted successfully!");
+      
+      window.location.reload();
+    } catch (err) {
+      console.error("Delete camp error:", err);
+      alert("❌ Failed to delete camp: " + (err.response?.data?.message || err.message));
+      setIsDeleting(false);
+    }
+  };
+
+  // Handle delete based on type
+  const handleConfirmDelete = () => {
+    if (deleteType === "patient") {
+      confirmDeletePatient();
+    } else if (deleteType === "camp") {
+      confirmDeleteCamp();
+    }
+  };
+
+  /* -------- ADD PATIENT FUNCTIONS -------- */
+  
   const handleAddPatientChange = (e) => {
     const { name, value } = e.target;
     setAddPatientForm((prev) => ({
@@ -1977,18 +2058,6 @@ export default function CampDashboard() {
     }
   };
 
-  const handleDeleteCamp = async (campId) => {
-    if (!window.confirm("Are you sure you want to delete this camp?")) return;
-    try {
-      await axios.delete(`${API_BASE}/camps/partner/delete-camp/${currentUserId}/${campId}`);
-      alert("✅ Camp deleted successfully");
-      window.location.reload();
-    } catch (err) {
-      console.error("Delete camp error:", err);
-      alert("❌ Failed to delete camp: " + (err.response?.data?.message || err.message));
-    }
-  };
-
   const openEditModal = (camp) => {
     setEditingCamp(camp);
     setCampForm({
@@ -2038,6 +2107,88 @@ export default function CampDashboard() {
       };
     }
     return { label: "Unknown", color: "bg-gray-100 text-gray-700" };
+  };
+
+  // ============================================================
+  // 🔥 DELETE CONFIRMATION MODAL
+  // ============================================================
+  const DeleteConfirmationModal = () => {
+    if (!showDeleteModal) return null;
+
+    const isPatient = deleteType === "patient";
+    const name = deleteTarget?.name || deleteTarget?.patientName || "Unknown";
+
+    return createPortal(
+      <div 
+        className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            closeDeleteModal();
+          }
+        }}
+      >
+        <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+          <div className={`p-6 ${isPatient ? 'bg-gradient-to-r from-red-600 to-red-700' : 'bg-gradient-to-r from-red-600 to-red-700'} text-white`}>
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white/20 rounded-xl">
+                <FiTrash2 size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">Delete {isPatient ? 'Patient' : 'Camp'}</h3>
+                <p className="text-sm text-red-100">This action cannot be undone</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6">
+            <p className="text-gray-700 text-center py-4">
+              Are you sure you want to delete <br />
+              <strong className="text-red-600 text-lg">{name}</strong>?
+            </p>
+            {isPatient && deleteTarget?.contact && (
+              <p className="text-xs text-gray-400 text-center">
+                Phone: {deleteTarget.contact}
+              </p>
+            )}
+            {!isPatient && deleteTarget?._id && (
+              <p className="text-xs text-gray-400 text-center">
+                Camp ID: {deleteTarget._id.slice(-6).toUpperCase()}
+              </p>
+            )}
+
+            <div className="flex gap-3 pt-6 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition"
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? (
+                  <>
+                    <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <FiTrash2 size={16} className="inline mr-2" />
+                    Delete {isPatient ? 'Patient' : 'Camp'}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
   };
 
   // Stats Modal Component
@@ -2276,6 +2427,13 @@ export default function CampDashboard() {
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
                             >
                               <FiEyeShow size={14} /> Restore
+                            </button>
+                            {/* 🔥 DELETE BUTTON IN HIDDEN MODAL */}
+                            <button
+                              onClick={() => openDeleteModal(camp, "camp")}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+                            >
+                              <FiTrash2 size={14} /> Delete
                             </button>
                           </div>
                         </td>
@@ -2573,7 +2731,7 @@ export default function CampDashboard() {
                       <span>{camp.time || "No time"}</span>
                     </div>
 
-                    {/* 🔥 Show assigned partners using PartnerDisplay component */}
+                    {/* Show assigned partners using PartnerDisplay component */}
                     {camp.partners && camp.partners.length > 0 && (
                       <div className="mt-2">
                         <PartnerDisplay
@@ -2584,7 +2742,7 @@ export default function CampDashboard() {
                       </div>
                     )}
 
-                    {/* 🔥 Show volunteers using VolunteerDisplay component */}
+                    {/* Show volunteers using VolunteerDisplay component */}
                     {camp.volunteers && camp.volunteers.length > 0 && (
                       <div className="mt-2">
                         <VolunteerDisplay
@@ -2616,10 +2774,11 @@ export default function CampDashboard() {
                           >
                             <FiEdit size={12} />
                           </button>
+                          {/* 🔥 DELETE BUTTON IN CAMP CARD */}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDeleteCamp(camp._id);
+                              openDeleteModal(camp, "camp");
                             }}
                             className={`p-1.5 rounded-lg transition-colors ${
                               isSelected 
@@ -2647,20 +2806,37 @@ export default function CampDashboard() {
                         </>
                       )}
                       {isHidden && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleUnhideCamp(camp._id);
-                          }}
-                          className={`p-1.5 rounded-lg transition-colors ${
-                            isSelected 
-                              ? "text-white hover:bg-white/20" 
-                              : "text-emerald-600 hover:bg-emerald-50"
-                          }`}
-                          title="Restore Camp"
-                        >
-                          <FiEyeShow size={12} />
-                        </button>
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUnhideCamp(camp._id);
+                            }}
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              isSelected 
+                                ? "text-white hover:bg-white/20" 
+                                : "text-emerald-600 hover:bg-emerald-50"
+                            }`}
+                            title="Restore Camp"
+                          >
+                            <FiEyeShow size={12} />
+                          </button>
+                          {/* 🔥 DELETE BUTTON FOR HIDDEN CAMP */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openDeleteModal(camp, "camp");
+                            }}
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              isSelected 
+                                ? "text-white hover:bg-white/20" 
+                                : "text-red-600 hover:bg-red-50"
+                            }`}
+                            title="Delete Camp"
+                          >
+                            <FiTrash2 size={12} />
+                          </button>
+                        </>
                       )}
                       <button
                         onClick={(e) => {
@@ -2736,12 +2912,13 @@ export default function CampDashboard() {
                   <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Phone</th>
                   <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Camp</th>
                   <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Reports</th>
+                  <th className="p-4 text-xs font-bold tracking-wider text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={4} className="p-8 text-center text-gray-500">
+                    <td colSpan={5} className="p-8 text-center text-gray-500">
                       <div className="flex flex-col items-center gap-2">
                         <div className="w-6 h-6 border-2 border-indigo-500 rounded-full border-t-transparent animate-spin"></div>
                         <span>Loading participants...</span>
@@ -2771,7 +2948,7 @@ export default function CampDashboard() {
                         </span>
                       </td>
                       <td className="p-4">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <button onClick={() => viewReport(patient)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors">
                             <FiEye size={14} /> View
                           </button>
@@ -2786,11 +2963,20 @@ export default function CampDashboard() {
                           </button>
                         </div>
                       </td>
+                      <td className="p-4">
+                        {/* 🔥 DELETE BUTTON IN PATIENT TABLE */}
+                        <button
+                          onClick={() => openDeleteModal(patient, "patient")}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+                        >
+                          <FiTrash2 size={14} /> Delete
+                        </button>
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="p-12 text-center">
+                    <td colSpan={5} className="p-12 text-center">
                       <div className="flex flex-col items-center justify-center gap-3 text-gray-400">
                         <FiUsers size={48} className="opacity-20" />
                         <p className="text-lg font-medium">No participants found</p>
@@ -3050,7 +3236,7 @@ export default function CampDashboard() {
         </div>, document.body
       )}
 
-      {/* View Camp Modal - WITH ADD PATIENT BUTTON AND COMPONENTS */}
+      {/* View Camp Modal - WITH ADD PATIENT BUTTON AND DELETE */}
       {viewCamp && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
@@ -3086,7 +3272,7 @@ export default function CampDashboard() {
                   </span>
                 </div>
                 
-                {/* 🔥 Show assigned partners using PartnerDisplay component */}
+                {/* Show assigned partners */}
                 {viewCamp.partners && viewCamp.partners.length > 0 && (
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-xs font-semibold text-gray-600">Partners:</span>
@@ -3098,7 +3284,7 @@ export default function CampDashboard() {
                   </div>
                 )}
                 
-                {/* 🔥 Show volunteers using VolunteerDisplay component */}
+                {/* Show volunteers */}
                 {viewCamp.volunteers && viewCamp.volunteers.length > 0 && (
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-xs font-semibold text-gray-600">Volunteers:</span>
@@ -3197,15 +3383,27 @@ export default function CampDashboard() {
                             >
                               View Details <FiChevronRight size={12} />
                             </button>
+                            {/* 🔥 DELETE BUTTON IN VIEW CAMP MODAL */}
+                            <button
+                              onClick={() => {
+                                setViewCamp(null);
+                                setTimeout(() => openDeleteModal(patient, "patient"), 100);
+                              }}
+                              className="inline-flex items-center gap-1 text-xs font-bold text-red-600 hover:text-red-800 hover:underline"
+                            >
+                              <FiTrash2 size={12} /> Delete
+                            </button>
                           </div>
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={5} className="p-12 text-center text-gray-400 flex flex-col items-center gap-3">
-                        <FiUsers size={32} className="opacity-20" />
-                        <span className="text-sm font-medium">No patients found in this camp yet.</span>
+                      <td colSpan={5} className="p-12 text-center text-gray-400">
+                        <div className="flex flex-col items-center gap-3">
+                          <FiUsers size={32} className="opacity-20" />
+                          <span className="text-sm font-medium">No patients found in this camp yet.</span>
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -3416,6 +3614,10 @@ export default function CampDashboard() {
 
       {/* Hidden Camps Modal */}
       <HiddenCampsModal />
+
+      {/* 🔥 DELETE CONFIRMATION MODAL */}
+      <DeleteConfirmationModal />
+
       </div>
     </div>
   );

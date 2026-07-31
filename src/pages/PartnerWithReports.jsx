@@ -13,12 +13,12 @@ import {
     FiFileText,
     FiCheckCircle,
     FiClock,
-    FiActivity,
     FiUserCheck,
-    FiTrendingUp,
-    FiBarChart2,
+    FiActivity,
     FiCheckSquare,
-    FiSquare
+    FiSquare,
+    FiBriefcase,
+    FiTrendingUp
 } from "react-icons/fi";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
@@ -26,32 +26,32 @@ import config from "../config";
 import { generateMedicalReport, generateMedicalReportFile } from "../utils/pdfGenerator";
 import "./Dashboard.css";
 
-const WithReports = () => {
+const PartnerWithReports = () => {
     const navigate = useNavigate();
     const [patients, setPatients] = useState([]);
+    const [camps, setCamps] = useState([]);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
+    const [partnerId, setPartnerId] = useState(null);
+    const [partnerName, setPartnerName] = useState("");
     
-    // 🔥 Bulk Download States
     const [selectedIds, setSelectedIds] = useState([]);
     const [bulkDownloading, setBulkDownloading] = useState(false);
     
-    // 🔥 Filter States
     const [filterType, setFilterType] = useState("name");
     const [searchQuery, setSearchQuery] = useState("");
     const [showDropdown, setShowDropdown] = useState(false);
+    const [selectedCampId, setSelectedCampId] = useState("all");
     
-    // 🔥 Selected Patient for Report
     const [selectedPatient, setSelectedPatient] = useState(null);
     const [showReportModal, setShowReportModal] = useState(false);
     const [reportData, setReportData] = useState(null);
     const [reportLoading, setReportLoading] = useState(false);
 
     useEffect(() => {
-        fetchPatients();
+        fetchPartnerData();
     }, []);
 
-    // 🔒 SCROLL LOCK FUNCTION
     const lockScroll = () => {
         document.body.style.overflow = 'hidden';
         document.body.style.position = 'fixed';
@@ -64,21 +64,77 @@ const WithReports = () => {
         document.body.style.width = 'auto';
     };
 
-    const fetchPatients = async () => {
+    const fetchPartnerData = async () => {
         try {
             setLoading(true);
-            const res = await axios.get(`${config.API_BASE_URL}/patients`);
-            console.log("Fetched patients:", res.data);
-            setPatients(res.data || []);
+            
+            const userId = localStorage.getItem("userId");
+            const userDataStr = localStorage.getItem("userData");
+            const userData = userDataStr ? JSON.parse(userDataStr) : null;
+            const id = userId || userData?.id;
+            
+            console.log("🔍 Partner ID:", id);
+            
+            setPartnerId(id);
+            setPartnerName(localStorage.getItem("name") || userData?.name || "Partner");
+
+            const campsRes = await axios.get(`${config.API_BASE_URL}/camps/allcamps`);
+            let campsData = campsRes.data || [];
+            if (!Array.isArray(campsData)) {
+                campsData = campsData.data || campsData.camps || [];
+                if (!Array.isArray(campsData)) campsData = [];
+            }
+
+            // 🔥 FIX: Filter camps - ASSIGNED + CREATED + IN PARTNERS
+            const partnerCamps = campsData.filter(camp => {
+                const assignedPartnerId = camp.assignedPartner?._id || camp.assignedPartner;
+                const isAssigned = assignedPartnerId && String(assignedPartnerId) === String(id);
+                
+                let isInPartners = false;
+                if (camp.partners && Array.isArray(camp.partners)) {
+                    isInPartners = camp.partners.some(p => {
+                        const pId = p?._id || p?.partnerId?._id || p?.partnerId || p;
+                        return String(pId) === String(id);
+                    });
+                }
+                
+                const createdBy = camp.createdBy?._id || camp.createdBy;
+                const isCreated = createdBy && String(createdBy) === String(id);
+                const isCreator = camp.creatorRole === "partner" && createdBy && String(createdBy) === String(id);
+                
+                return isAssigned || isInPartners || isCreated || isCreator;
+            });
+
+            console.log("✅ Partner Camps:", partnerCamps.length);
+            setCamps(partnerCamps);
+
+            const patientsRes = await axios.get(`${config.API_BASE_URL}/patients`);
+            let allPatients = patientsRes.data || [];
+            if (!Array.isArray(allPatients)) {
+                allPatients = allPatients.data || allPatients.patients || [];
+                if (!Array.isArray(allPatients)) allPatients = [];
+            }
+
+            const campIds = partnerCamps.map(c => String(c._id));
+            const filteredPatients = allPatients.filter(p => {
+                const patientCampId = String(p.campId?._id || p.campId);
+                return campIds.includes(patientCampId);
+            });
+
+            // ONLY patients with tests
+            const patientsWithTests = filteredPatients.filter(p => p.tests && p.tests.length > 0);
+
+            setPatients(patientsWithTests);
             setSelectedIds([]);
+
         } catch (err) {
-            console.error("Failed to fetch patients:", err);
+            console.error("❌ Failed to fetch partner data:", err);
+            alert("Failed to load data. Please try again.");
         } finally {
             setLoading(false);
         }
     };
 
-    // 🔥 Helper: Extract latest vitals
     const extractLatestVitals = (tests = []) => {
         const r = {};
         if (!tests) return r;
@@ -110,7 +166,6 @@ const WithReports = () => {
         return "Obese";
     };
 
-    // 🔥 Prepare report data
     const prepareReportData = async (patientId) => {
         try {
             const res = await axios.get(`${config.API_BASE_URL}/patients/${patientId}`);
@@ -134,18 +189,18 @@ const WithReports = () => {
             };
 
             const testsData = {
-                weight: test.weight,
-                height: test.height,
-                sugar: test.sugar,
+                weight: test.weight || "-",
+                height: test.height || "-",
+                sugar: test.sugar || "-",
                 sugarType: test.sugarType || "Random",
-                systolic: test.systolic,
-                diastolic: test.diastolic,
+                systolic: test.systolic || "-",
+                diastolic: test.diastolic || "-",
                 heartRate: "-",
             };
 
             const bmiData = {
-                bmi: bmiValue,
-                category: getBMICategory(bmiValue),
+                bmi: bmiValue || "-",
+                category: bmiValue ? getBMICategory(bmiValue) : "-",
             };
 
             return { patientData, testsData, bmiData };
@@ -156,73 +211,63 @@ const WithReports = () => {
         }
     };
 
-    // 🔥 Filter only patients with reports (tests)
-    const patientsWithReports = useMemo(() => {
-        return patients.filter(p => p.tests && p.tests.length > 0);
+    const uniqueNames = useMemo(() => {
+        return [...new Set(patients.map(p => p.name).filter(Boolean))].sort();
     }, [patients]);
 
-    // 🔥 Get unique values for dropdown
-    const uniqueNames = useMemo(() => {
-        return [...new Set(patientsWithReports.map(p => p.name).filter(Boolean))].sort();
-    }, [patientsWithReports]);
-
     const uniqueCamps = useMemo(() => {
-        return [...new Set(patientsWithReports.map(p => p.campId?.name).filter(Boolean))].sort();
-    }, [patientsWithReports]);
+        return [...new Set(patients.map(p => p.campId?.name).filter(Boolean))].sort();
+    }, [patients]);
 
     const uniquePhones = useMemo(() => {
-        return [...new Set(patientsWithReports.map(p => p.contact).filter(Boolean))].sort();
-    }, [patientsWithReports]);
+        return [...new Set(patients.map(p => p.contact).filter(Boolean))].sort();
+    }, [patients]);
 
-    const uniqueAddresses = useMemo(() => {
-        return [...new Set(patientsWithReports.map(p => p.address).filter(Boolean))].sort();
-    }, [patientsWithReports]);
-
-    // 🔥 Filter Options
     const filterOptions = [
         { value: "name", label: "Name" },
         { value: "camp", label: "Camp Name" },
-        { value: "phone", label: "Phone Number" },
-        { value: "address", label: "Address" }
+        { value: "phone", label: "Phone Number" }
     ];
 
-    // 🔥 Get dropdown options based on selected filter
     const getDropdownOptions = () => {
         switch(filterType) {
             case "name": return uniqueNames;
             case "camp": return uniqueCamps;
             case "phone": return uniquePhones;
-            case "address": return uniqueAddresses;
             default: return [];
         }
     };
 
-    // 🔥 Filter dropdown options based on search
     const filteredDropdownOptions = getDropdownOptions().filter(option =>
         option.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    // 🔥 Filter Patients
     const filteredPatients = useMemo(() => {
-        if (!searchQuery.trim()) return patientsWithReports;
-        const searchLower = searchQuery.toLowerCase();
-        return patientsWithReports.filter((p) => {
-            switch(filterType) {
-                case "name":
-                    return p.name?.toLowerCase().includes(searchLower);
-                case "camp":
-                    return p.campId?.name?.toLowerCase().includes(searchLower);
-                case "phone":
-                    return p.contact?.toLowerCase().includes(searchLower);
-                case "address":
-                    return p.address?.toLowerCase().includes(searchLower);
-                default:
-                    return p.name?.toLowerCase().includes(searchLower);
-            }
-        });
-    }, [patientsWithReports, searchQuery, filterType]);
+        let result = patients;
+        
+        if (selectedCampId !== "all") {
+            result = result.filter(p => String(p.campId?._id || p.campId) === String(selectedCampId));
+        }
+        
+        if (searchQuery.trim()) {
+            const searchLower = searchQuery.toLowerCase();
+            result = result.filter((p) => {
+                switch(filterType) {
+                    case "name":
+                        return p.name?.toLowerCase().includes(searchLower);
+                    case "camp":
+                        return p.campId?.name?.toLowerCase().includes(searchLower);
+                    case "phone":
+                        return p.contact?.toLowerCase().includes(searchLower);
+                    default:
+                        return p.name?.toLowerCase().includes(searchLower);
+                }
+            });
+        }
+        
+        return result;
+    }, [patients, searchQuery, filterType, selectedCampId]);
 
-    // 🔥 Close dropdown on outside click
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (!e.target.closest('.report-search-container')) {
@@ -255,17 +300,6 @@ const WithReports = () => {
         });
     };
 
-    // 🔥 SELECT ALL - Filter se
-    const handleSelectAllFiltered = () => {
-        const allIds = filteredPatients.map(p => p._id);
-        if (selectedIds.length === allIds.length && allIds.length > 0) {
-            setSelectedIds([]);
-        } else {
-            setSelectedIds(allIds);
-        }
-    };
-
-    // 🔥 TOGGLE SELECTION - Individual
     const toggleSelection = (id) => {
         setSelectedIds(prev => {
             if (prev.includes(id)) {
@@ -276,12 +310,18 @@ const WithReports = () => {
         });
     };
 
-    // 🔥 BULK DOWNLOAD
+    const handleSelectAllFiltered = () => {
+        const allIds = filteredPatients.map(p => p._id);
+        if (selectedIds.length === allIds.length && allIds.length > 0) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(allIds);
+        }
+    };
+
     const handleBulkDownload = async () => {
-        console.log("🔥 Bulk download clicked! Selected:", selectedIds);
-        
         if (selectedIds.length === 0) {
-            alert("⚠️ Please select at least one patient.");
+            alert("Please select at least one patient to download.");
             return;
         }
 
@@ -315,7 +355,7 @@ const WithReports = () => {
             }
 
             if (successCount === 0) {
-                alert("❌ Failed to generate any reports. Please try again.");
+                alert("Failed to generate any reports. Please try again.");
                 setBulkDownloading(false);
                 return;
             }
@@ -342,13 +382,12 @@ const WithReports = () => {
 
         } catch (err) {
             console.error("Bulk download error:", err);
-            alert("❌ Failed to generate ZIP file. Please try again.");
+            alert("Failed to generate ZIP file. Please try again.");
         } finally {
             setBulkDownloading(false);
         }
     };
 
-    // 🔥 View Report
     const handleViewReport = async (patient) => {
         lockScroll();
         setSelectedPatient(patient);
@@ -366,7 +405,6 @@ const WithReports = () => {
         }
     };
 
-    // 🔥 Download Report - Single
     const handleDownloadReport = async (patient) => {
         try {
             setGenerating(true);
@@ -392,7 +430,6 @@ const WithReports = () => {
         }
     };
 
-    // 🔥 Close Report Modal
     const closeReportModal = () => {
         unlockScroll();
         setShowReportModal(false);
@@ -400,7 +437,14 @@ const WithReports = () => {
         setReportData(null);
     };
 
-    // Report Modal Component
+    const goToAllReports = () => {
+        navigate('/partner-all-reports');
+    };
+
+    const goToPendingReports = () => {
+        navigate('/partner-pending-reports');
+    };
+
     const ReportModal = () => {
         if (!showReportModal || !selectedPatient) return null;
 
@@ -436,7 +480,6 @@ const WithReports = () => {
                     className="bg-white rounded-3xl w-full max-w-4xl max-h-[95vh] overflow-y-auto shadow-2xl"
                     onClick={(e) => e.stopPropagation()}
                 >
-                    {/* Header */}
                     <div className="p-6 bg-gradient-to-br from-emerald-600 to-teal-600 text-white sticky top-0 z-10">
                         <div className="flex items-start justify-between">
                             <div className="flex items-center gap-4">
@@ -466,7 +509,6 @@ const WithReports = () => {
                         </div>
                     ) : (
                         <>
-                            {/* Patient Info */}
                             <div className="p-6 border-b border-gray-100">
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                     <div className="p-3 bg-gray-50 rounded-xl">
@@ -494,7 +536,6 @@ const WithReports = () => {
                                 )}
                             </div>
 
-                            {/* Clinical Vitals */}
                             <div className="p-6 border-b border-gray-100">
                                 <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                                     <FiActivity className="text-emerald-600" />
@@ -521,7 +562,6 @@ const WithReports = () => {
                                 </div>
                             </div>
 
-                            {/* BMI Analysis */}
                             <div className="p-6 border-b border-gray-100">
                                 <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                                     <FiUserCheck className="text-emerald-600" />
@@ -549,7 +589,6 @@ const WithReports = () => {
                                 </div>
                             </div>
 
-                            {/* Test History */}
                             {tests.length > 0 && (
                                 <div className="p-6">
                                     <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -583,7 +622,6 @@ const WithReports = () => {
                                 </div>
                             )}
 
-                            {/* Footer */}
                             <div className="p-6 border-t border-gray-100 bg-gray-50 flex flex-wrap gap-3 justify-end">
                                 <button
                                     onClick={() => handleDownloadReport(patient)}
@@ -616,25 +654,51 @@ const WithReports = () => {
         );
     };
 
-    // Stats
-    const totalWithReports = patientsWithReports.length;
-    const totalTests = patientsWithReports.reduce((acc, p) => acc + (p.tests?.length || 0), 0);
+    const totalWithReports = patients.length;
+    const totalTests = patients.reduce((acc, p) => acc + (p.tests?.length || 0), 0);
     const avgTestsPerPatient = totalWithReports > 0 ? (totalTests / totalWithReports).toFixed(1) : 0;
     const selectedCount = selectedIds.length;
-    const allFilteredIds = filteredPatients.map(p => p._id);
-    const isAllSelected = selectedCount === allFilteredIds.length && allFilteredIds.length > 0;
+    const isAllSelected = selectedIds.length === filteredPatients.length && filteredPatients.length > 0;
+
+    const campOptions = useMemo(() => {
+        const options = [{ value: "all", label: "All Camps" }];
+        camps.forEach(camp => {
+            options.push({ value: camp._id, label: camp.name });
+        });
+        return options;
+    }, [camps]);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
+                    <p className="text-gray-500 text-sm">Loading your patient reports...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="admin-dash">
-            {/* Header */}
             <div className="admin-dash__header">
                 <div>
                     <h1 className="admin-dash__greeting">
-                        With <span>Reports</span>
+                        My <span>Reports</span>
                     </h1>
                     <p className="admin-dash__subtitle">
-                        View patients who have complete health reports.
+                        View patients who have complete health reports from your assigned camps.
                     </p>
+                    {partnerName && (
+                        <div className="mt-2 flex items-center gap-2 text-sm text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+                            <FiUserCheck size={14} />
+                            <span>Welcome, {partnerName}</span>
+                            <span className="text-xs text-indigo-400">|</span>
+                            <span className="text-xs text-indigo-400">{camps.length} camps</span>
+                            <span className="text-xs text-indigo-400">|</span>
+                            <span className="text-xs text-indigo-400">{totalWithReports} patients</span>
+                        </div>
+                    )}
                 </div>
                 <div className="admin-dash__date-pill">
                     <FiCalendar />
@@ -649,292 +713,300 @@ const WithReports = () => {
                 </div>
             </div>
 
-            <div className="space-y-10">
-                {/* Stats Cards */}
-                <div className="admin-dash__stats" style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: 'repeat(3, 1fr)', 
-                    gap: '1.5rem',
-                    marginBottom: '0'
-                }}>
-                    <div className="admin-dash__stat" style={{
-                        padding: '1.5rem 1.5rem 1.25rem',
-                        background: 'white',
-                        borderRadius: '1rem',
-                        border: '1px solid #e5e7eb',
-                        transition: 'all 0.2s ease',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.25rem'
-                    }}>
-                        <div className="admin-dash__stat-top" style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: '0.5rem'
-                        }}>
-                            <span className="admin-dash__stat-label" style={{
-                                fontSize: '0.7rem',
-                                fontWeight: '700',
-                                color: '#6b7280',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05em'
-                            }}>With Reports</span>
-                            <div className="admin-dash__stat-icon admin-dash__stat-icon--emerald" style={{
-                                width: '2rem',
-                                height: '2rem',
-                                borderRadius: '0.5rem',
-                                background: '#d1fae5',
-                                color: '#059669',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '0.875rem'
-                            }}>
-                                <FiCheckCircle size={16} />
-                            </div>
-                        </div>
-                        <div className="admin-dash__stat-value" style={{
-                            fontSize: '2rem',
-                            fontWeight: '800',
-                            color: '#111827',
-                            lineHeight: '1.2'
-                        }}>{totalWithReports}</div>
-                        <div className="admin-dash__stat-meta" style={{
-                            fontSize: '0.75rem',
-                            color: '#9ca3af',
-                            fontWeight: '500'
-                        }}>patients have reports</div>
-                    </div>
-
-                    <div className="admin-dash__stat" style={{
-                        padding: '1.5rem 1.5rem 1.25rem',
-                        background: 'white',
-                        borderRadius: '1rem',
-                        border: '1px solid #e5e7eb',
-                        transition: 'all 0.2s ease',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.25rem'
-                    }}>
-                        <div className="admin-dash__stat-top" style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: '0.5rem'
-                        }}>
-                            <span className="admin-dash__stat-label" style={{
-                                fontSize: '0.7rem',
-                                fontWeight: '700',
-                                color: '#6b7280',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05em'
-                            }}>Total Tests</span>
-                            <div className="admin-dash__stat-icon admin-dash__stat-icon--indigo" style={{
-                                width: '2rem',
-                                height: '2rem',
-                                borderRadius: '0.5rem',
-                                background: '#eef2ff',
-                                color: '#4f46e5',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '0.875rem'
-                            }}>
-                                <FiBarChart2 size={16} />
-                            </div>
-                        </div>
-                        <div className="admin-dash__stat-value" style={{
-                            fontSize: '2rem',
-                            fontWeight: '800',
-                            color: '#111827',
-                            lineHeight: '1.2'
-                        }}>{totalTests}</div>
-                        <div className="admin-dash__stat-meta" style={{
-                            fontSize: '0.75rem',
-                            color: '#9ca3af',
-                            fontWeight: '500'
-                        }}>tests conducted</div>
-                    </div>
-
-                    <div className="admin-dash__stat" style={{
-                        padding: '1.5rem 1.5rem 1.25rem',
-                        background: 'white',
-                        borderRadius: '1rem',
-                        border: '1px solid #e5e7eb',
-                        transition: 'all 0.2s ease',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.25rem'
-                    }}>
-                        <div className="admin-dash__stat-top" style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: '0.5rem'
-                        }}>
-                            <span className="admin-dash__stat-label" style={{
-                                fontSize: '0.7rem',
-                                fontWeight: '700',
-                                color: '#6b7280',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05em'
-                            }}>Avg Tests/Patient</span>
-                            <div className="admin-dash__stat-icon admin-dash__stat-icon--amber" style={{
-                                width: '2rem',
-                                height: '2rem',
-                                borderRadius: '0.5rem',
-                                background: '#fef3c7',
-                                color: '#d97706',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '0.875rem'
-                            }}>
-                                <FiTrendingUp size={16} />
-                            </div>
-                        </div>
-                        <div className="admin-dash__stat-value" style={{
-                            fontSize: '2rem',
-                            fontWeight: '800',
-                            color: '#111827',
-                            lineHeight: '1.2'
-                        }}>{avgTestsPerPatient}</div>
-                        <div className="admin-dash__stat-meta" style={{
-                            fontSize: '0.75rem',
-                            color: '#9ca3af',
-                            fontWeight: '500'
-                        }}>average per patient</div>
-                    </div>
+            {totalWithReports === 0 && !loading && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
+                    <FiCheckCircle size={48} className="mx-auto text-amber-400 mb-3" />
+                    <h3 className="text-lg font-bold text-amber-800">No Reports Found</h3>
+                    <p className="text-sm text-amber-600 mt-1">
+                        No patients with completed health reports in your camps yet.
+                    </p>
+                    <p className="text-xs text-amber-500 mt-2">
+                        Once patients complete their health tests, their reports will appear here.
+                    </p>
                 </div>
+            )}
 
-                {/* Reports Table */}
-                <div className="admin-dash__card">
-                    <div className="admin-dash__card-header">
-                        <h3 className="admin-dash__card-title">Patients with Reports</h3>
-                        <div className="flex flex-wrap items-center gap-3">
-                            {/* 🔥 FILTER SECTION - WITH SELECT ALL & BULK DOWNLOAD */}
-                            <div className="flex items-center gap-2 flex-wrap">
-                                {/* Select All Checkbox */}
-                                <button
-                                    onClick={handleSelectAllFiltered}
-                                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
-                                    title={isAllSelected ? "Deselect all" : "Select all"}
-                                >
-                                    {isAllSelected ? (
-                                        <FiCheckSquare size={16} className="text-indigo-600" />
-                                    ) : (
-                                        <FiSquare size={16} className="text-gray-400" />
-                                    )}
-                                    <span className="text-xs font-medium text-gray-600">
-                                        {isAllSelected ? "All Selected" : "Select All"}
-                                    </span>
-                                </button>
-
-                                {/* Separator */}
-                                <span className="text-gray-300">|</span>
-
-                                {/* Bulk Download Button */}
-                                <button
-                                    onClick={handleBulkDownload}
-                                    disabled={selectedCount === 0 || bulkDownloading}
-                                    className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg transition ${
-                                        selectedCount > 0 && !bulkDownloading
-                                            ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-100 cursor-pointer'
-                                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                    }`}
-                                >
-                                    {bulkDownloading ? (
-                                        <>
-                                            <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                                            <span className="text-xs">ZIP...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <FiDownload size={14} />
-                                            <span className="text-xs font-medium">
-                                                Download {selectedCount > 0 ? `(${selectedCount})` : ''}
-                                            </span>
-                                        </>
-                                    )}
-                                </button>
-
-                                {/* Selected count badge */}
-                                {selectedCount > 0 && (
-                                    <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded-full">
-                                        {selectedCount} selected
-                                    </span>
-                                )}
+            {totalWithReports > 0 && (
+                <div className="space-y-10">
+                    <div className="admin-dash__stats" style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: 'repeat(3, 1fr)', 
+                        gap: '1.5rem',
+                        marginBottom: '0'
+                    }}>
+                        <div className="admin-dash__stat" style={{
+                            padding: '1.5rem 1.5rem 1.25rem',
+                            background: 'white',
+                            borderRadius: '1rem',
+                            border: '1px solid #e5e7eb',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.25rem'
+                        }}>
+                            <div className="admin-dash__stat-top" style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                marginBottom: '0.5rem'
+                            }}>
+                                <span className="admin-dash__stat-label" style={{
+                                    fontSize: '0.7rem',
+                                    fontWeight: '700',
+                                    color: '#6b7280',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em'
+                                }}>With Reports</span>
+                                <div className="admin-dash__stat-icon admin-dash__stat-icon--emerald" style={{
+                                    width: '2rem',
+                                    height: '2rem',
+                                    borderRadius: '0.5rem',
+                                    background: '#d1fae5',
+                                    color: '#059669',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '0.875rem'
+                                }}>
+                                    <FiCheckCircle size={16} />
+                                </div>
                             </div>
+                            <div className="admin-dash__stat-value" style={{
+                                fontSize: '2rem',
+                                fontWeight: '800',
+                                color: '#111827',
+                                lineHeight: '1.2'
+                            }}>{totalWithReports}</div>
+                            <div className="admin-dash__stat-meta" style={{
+                                fontSize: '0.75rem',
+                                color: '#9ca3af',
+                                fontWeight: '500'
+                            }}>have test data</div>
+                        </div>
 
-                            {/* Search & Filter */}
-                            <div className="flex items-center gap-2 ml-auto">
-                                <div className="flex items-center gap-2">
+                        <div className="admin-dash__stat" style={{
+                            padding: '1.5rem 1.5rem 1.25rem',
+                            background: 'white',
+                            borderRadius: '1rem',
+                            border: '1px solid #e5e7eb',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.25rem'
+                        }}>
+                            <div className="admin-dash__stat-top" style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                marginBottom: '0.5rem'
+                            }}>
+                                <span className="admin-dash__stat-label" style={{
+                                    fontSize: '0.7rem',
+                                    fontWeight: '700',
+                                    color: '#6b7280',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em'
+                                }}>Total Tests</span>
+                                <div className="admin-dash__stat-icon admin-dash__stat-icon--indigo" style={{
+                                    width: '2rem',
+                                    height: '2rem',
+                                    borderRadius: '0.5rem',
+                                    background: '#eef2ff',
+                                    color: '#4f46e5',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '0.875rem'
+                                }}>
+                                    <FiActivity size={16} />
+                                </div>
+                            </div>
+                            <div className="admin-dash__stat-value" style={{
+                                fontSize: '2rem',
+                                fontWeight: '800',
+                                color: '#111827',
+                                lineHeight: '1.2'
+                            }}>{totalTests}</div>
+                            <div className="admin-dash__stat-meta" style={{
+                                fontSize: '0.75rem',
+                                color: '#9ca3af',
+                                fontWeight: '500'
+                            }}>tests conducted</div>
+                        </div>
+
+                        <div className="admin-dash__stat" style={{
+                            padding: '1.5rem 1.5rem 1.25rem',
+                            background: 'white',
+                            borderRadius: '1rem',
+                            border: '1px solid #e5e7eb',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.25rem'
+                        }}>
+                            <div className="admin-dash__stat-top" style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                marginBottom: '0.5rem'
+                            }}>
+                                <span className="admin-dash__stat-label" style={{
+                                    fontSize: '0.7rem',
+                                    fontWeight: '700',
+                                    color: '#6b7280',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em'
+                                }}>Avg Tests/Patient</span>
+                                <div className="admin-dash__stat-icon admin-dash__stat-icon--amber" style={{
+                                    width: '2rem',
+                                    height: '2rem',
+                                    borderRadius: '0.5rem',
+                                    background: '#fef3c7',
+                                    color: '#d97706',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '0.875rem'
+                                }}>
+                                    <FiTrendingUp size={16} />
+                                </div>
+                            </div>
+                            <div className="admin-dash__stat-value" style={{
+                                fontSize: '2rem',
+                                fontWeight: '800',
+                                color: '#111827',
+                                lineHeight: '1.2'
+                            }}>{avgTestsPerPatient}</div>
+                            <div className="admin-dash__stat-meta" style={{
+                                fontSize: '0.75rem',
+                                color: '#9ca3af',
+                                fontWeight: '500'
+                            }}>average per patient</div>
+                        </div>
+                    </div>
+
+                    <div className="admin-dash__card">
+                        <div className="admin-dash__card-header">
+                            <h3 className="admin-dash__card-title">Patients with Reports</h3>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <button
+                                        onClick={handleSelectAllFiltered}
+                                        className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
+                                        title={isAllSelected ? "Deselect all" : "Select all"}
+                                    >
+                                        {isAllSelected ? (
+                                            <FiCheckSquare size={16} className="text-indigo-600" />
+                                        ) : (
+                                            <FiSquare size={16} className="text-gray-400" />
+                                        )}
+                                        <span className="text-xs font-medium text-gray-600">
+                                            {isAllSelected ? "All Selected" : "Select All"}
+                                        </span>
+                                    </button>
+
+                                    <span className="text-gray-300">|</span>
+
+                                    <button
+                                        onClick={handleBulkDownload}
+                                        disabled={selectedCount === 0 || bulkDownloading}
+                                        className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg transition ${
+                                            selectedCount > 0 && !bulkDownloading
+                                                ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-100 cursor-pointer'
+                                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                        }`}
+                                    >
+                                        {bulkDownloading ? (
+                                            <>
+                                                <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                                <span className="text-xs">ZIP...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <FiDownload size={14} />
+                                                <span className="text-xs font-medium">
+                                                    Download {selectedCount > 0 ? `(${selectedCount})` : ''}
+                                                </span>
+                                            </>
+                                        )}
+                                    </button>
+
+                                    {selectedCount > 0 && (
+                                        <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded-full">
+                                            {selectedCount} selected
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-2 ml-auto flex-wrap">
                                     <select
-                                        value={filterType}
-                                        onChange={(e) => {
-                                            setFilterType(e.target.value);
-                                            setSearchQuery("");
-                                            setShowDropdown(false);
-                                        }}
+                                        value={selectedCampId}
+                                        onChange={(e) => setSelectedCampId(e.target.value)}
                                         className="px-3 py-1.5 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white"
                                     >
-                                        {filterOptions.map(opt => (
+                                        {campOptions.map(opt => (
                                             <option key={opt.value} value={opt.value}>{opt.label}</option>
                                         ))}
                                     </select>
-                                </div>
-                                <div className="relative report-search-container w-full sm:w-56">
-                                    <FiSearch
-                                        size={16}
-                                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10"
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder={`Search by ${filterOptions.find(o => o.value === filterType)?.label || 'Name'}...`}
-                                        value={searchQuery}
-                                        onChange={(e) => {
-                                            setSearchQuery(e.target.value);
-                                            setShowDropdown(true);
-                                        }}
-                                        onFocus={() => setShowDropdown(true)}
-                                        className="w-full pl-9 pr-3 py-1.5 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                    />
-                                    {showDropdown && filteredDropdownOptions.length > 0 && searchQuery.length > 0 && (
-                                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto z-50">
-                                            {filteredDropdownOptions.map((option, index) => (
-                                                <div
-                                                    key={index}
-                                                    className="px-4 py-2 text-sm hover:bg-indigo-50 cursor-pointer transition-colors"
-                                                    onClick={() => {
-                                                        setSearchQuery(option);
-                                                        setShowDropdown(false);
-                                                    }}
-                                                >
-                                                    {option}
-                                                </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            value={filterType}
+                                            onChange={(e) => {
+                                                setFilterType(e.target.value);
+                                                setSearchQuery("");
+                                                setShowDropdown(false);
+                                            }}
+                                            className="px-3 py-1.5 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white"
+                                        >
+                                            {filterOptions.map(opt => (
+                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
                                             ))}
-                                        </div>
-                                    )}
+                                        </select>
+                                    </div>
+                                    <div className="relative report-search-container w-full sm:w-48">
+                                        <FiSearch
+                                            size={16}
+                                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10"
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder={`Search by ${filterOptions.find(o => o.value === filterType)?.label || 'Name'}...`}
+                                            value={searchQuery}
+                                            onChange={(e) => {
+                                                setSearchQuery(e.target.value);
+                                                setShowDropdown(true);
+                                            }}
+                                            onFocus={() => setShowDropdown(true)}
+                                            className="w-full pl-9 pr-3 py-1.5 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                        />
+                                        {showDropdown && filteredDropdownOptions.length > 0 && searchQuery.length > 0 && (
+                                            <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto z-50">
+                                                {filteredDropdownOptions.map((option, index) => (
+                                                    <div
+                                                        key={index}
+                                                        className="px-4 py-2 text-sm hover:bg-indigo-50 cursor-pointer transition-colors"
+                                                        onClick={() => {
+                                                            setSearchQuery(option);
+                                                            setShowDropdown(false);
+                                                        }}
+                                                    >
+                                                        {option}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div className="admin-dash__card-body p-0">
-                        {loading ? (
-                            <div className="flex flex-col items-center justify-center gap-3 py-20">
-                                <div className="w-12 h-12 border-4 border-indigo-500 rounded-full border-t-transparent animate-spin"></div>
-                                <p className="text-gray-500">Loading patients...</p>
-                            </div>
-                        ) : (
+                        <div className="admin-dash__card-body p-0">
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left">
                                     <thead>
                                         <tr className="border-b border-gray-100 bg-gray-50/50">
-                                            <th className="p-3 text-center" style={{ width: '40px', minWidth: '40px' }}>
-                                                {/* Empty header - selection handled above */}
-                                            </th>
+                                            <th className="p-3 text-center" style={{ width: '40px', minWidth: '40px' }}></th>
                                             <th className="p-3 text-xs font-bold tracking-wider text-gray-500 uppercase">Patient</th>
                                             <th className="p-3 text-xs font-bold tracking-wider text-gray-500 uppercase">Camp</th>
                                             <th className="p-3 text-xs font-bold tracking-wider text-gray-500 uppercase">Phone</th>
@@ -1022,9 +1094,9 @@ const WithReports = () => {
                                             <tr>
                                                 <td colSpan={7} className="p-12 text-center">
                                                     <div className="flex flex-col items-center justify-center gap-3 text-gray-400">
-                                                        <FiCheckCircle size={48} className="opacity-20" />
-                                                        <p className="text-lg font-medium">No patients with reports found</p>
-                                                        <p className="text-sm">Try adjusting your search.</p>
+                                                        <FiFileText size={48} className="opacity-20" />
+                                                        <p className="text-lg font-medium">No patients found</p>
+                                                        <p className="text-sm">Try adjusting your search or camp filter.</p>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -1032,15 +1104,14 @@ const WithReports = () => {
                                     </tbody>
                                 </table>
                             </div>
-                        )}
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
-            {/* Report Modal */}
             <ReportModal />
         </div>
     );
 };
 
-export default WithReports;
+export default PartnerWithReports;

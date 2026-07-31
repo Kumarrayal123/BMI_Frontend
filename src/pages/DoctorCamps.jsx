@@ -2426,7 +2426,8 @@ import {
     FiX,
     FiTrash2,
     FiUserCheck,
-    FiPlusCircle
+    FiPlusCircle,
+    FiAlertTriangle
 } from "react-icons/fi";
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -2517,6 +2518,11 @@ const DoctorCamps = () => {
     const [downloadLink, setDownloadLink] = useState("");
     const [copied, setCopied] = useState(false);
     const [downloadingBulk, setDownloadingBulk] = useState(false);
+
+    // 🔥 Delete Modal State
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [patientToDelete, setPatientToDelete] = useState(null);
+    const [deleting, setDeleting] = useState(false);
 
     const partnerId = useMemo(() => {
         const userData = localStorage.getItem("userData");
@@ -2728,6 +2734,34 @@ const DoctorCamps = () => {
         }
     };
 
+    // 🔥 Delete Patient Handler
+    const handleDeletePatient = async () => {
+        if (!patientToDelete) return;
+        
+        try {
+            setDeleting(true);
+            await axios.delete(`${API_BASE}/patients/${patientToDelete._id}`);
+            
+            // Remove from local state
+            setPatients(prev => prev.filter(p => p._id !== patientToDelete._id));
+            
+            // Close modal
+            setShowDeleteModal(false);
+            setPatientToDelete(null);
+            
+            // Show success message
+            alert(`Patient ${patientToDelete.name} deleted successfully.`);
+            
+            // Refresh data
+            await fetchData();
+        } catch (err) {
+            console.error("Delete error:", err);
+            alert("Failed to delete patient. Please try again.");
+        } finally {
+            setDeleting(false);
+        }
+    };
+
     const allCamps = useMemo(() => {
         const map = new Map();
         [...camps, ...createdCamps].forEach(camp => {
@@ -2780,7 +2814,7 @@ const DoctorCamps = () => {
                 }}
             >
                 <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-                    <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600">
+                    <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600 flex-shrink-0">
                         <div>
                             <h3 className="text-xl font-bold text-white">{statsModal.title}</h3>
                             <p className="text-sm text-purple-100">
@@ -2897,7 +2931,7 @@ const DoctorCamps = () => {
                         )}
                     </div>
 
-                    <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                    <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end flex-shrink-0">
                         <button
                             onClick={closeStatsModal}
                             className="px-6 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition shadow-sm"
@@ -3400,7 +3434,6 @@ const DoctorCamps = () => {
                                                     <span>{camp.time || "No time"}</span>
                                                 </div>
                                                 
-                                                {/* ✅ FIXED: VolunteerDisplay with partnerVolunteers */}
                                                 {camp.volunteers && camp.volunteers.length > 0 && (
                                                     <div className="mt-1">
                                                         <VolunteerDisplay
@@ -3567,7 +3600,7 @@ const DoctorCamps = () => {
                                                     </span>
                                                 </td>
                                                 <td className="p-4">
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-2 flex-wrap">
                                                         <button onClick={() => viewReport(patient)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors">
                                                             <FiEye size={14} /> View
                                                         </button>
@@ -3579,6 +3612,16 @@ const DoctorCamps = () => {
                                                         </button>
                                                         <button onClick={() => shareReport(patient)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 transition-colors">
                                                             <FiMessageCircle size={14} /> WhatsApp
+                                                        </button>
+                                                        {/* 🔥 NEW: Delete button */}
+                                                        <button
+                                                            onClick={() => {
+                                                                setPatientToDelete(patient);
+                                                                setShowDeleteModal(true);
+                                                            }}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                                                        >
+                                                            <FiTrash2 size={14} /> Delete
                                                         </button>
                                                     </div>
                                                 </td>
@@ -3601,6 +3644,80 @@ const DoctorCamps = () => {
                     </div>
                 </div>
             </div>
+
+            {/* DELETE CONFIRMATION MODAL */}
+            {showDeleteModal && patientToDelete && createPortal(
+                <div 
+                    className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                            setShowDeleteModal(false);
+                            setPatientToDelete(null);
+                        }
+                    }}
+                >
+                    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-gray-100 flex items-start gap-4">
+                            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                                <FiAlertTriangle size={24} className="text-red-600" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900">Delete Patient</h3>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    Are you sure you want to delete <span className="font-bold text-gray-700">{patientToDelete.name}</span>? 
+                                    This action cannot be undone and will remove all associated test data.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded-lg mx-6 mb-4 border border-gray-200">
+                            <div className="flex items-center gap-3 text-sm">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-gray-500">Contact:</span>
+                                    <span className="font-medium text-gray-700">{patientToDelete.contact || 'N/A'}</span>
+                                </div>
+                                <span className="text-gray-300">|</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-gray-500">Camp:</span>
+                                    <span className="font-medium text-gray-700">{patientToDelete.campId?.name || 'N/A'}</span>
+                                </div>
+                            </div>
+                            <div className="text-xs text-gray-400 mt-1">
+                                {patientToDelete.tests?.length || 0} test records will be deleted
+                            </div>
+                        </div>
+                        <div className="p-6 flex items-center gap-3 justify-end">
+                            <button
+                                onClick={() => {
+                                    setShowDeleteModal(false);
+                                    setPatientToDelete(null);
+                                }}
+                                className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 transition shadow-sm"
+                                disabled={deleting}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDeletePatient}
+                                className="px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 transition shadow-lg shadow-red-100 flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
+                                disabled={deleting}
+                            >
+                                {deleting ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        Deleting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <FiTrash2 size={16} />
+                                        Delete Patient
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
 
             {/* Create Camp Modal */}
             {showCampModal && createPortal(
@@ -3850,117 +3967,127 @@ const DoctorCamps = () => {
                 document.body
             )}
 
-            {/* View Camp Modal - UPDATED with VolunteerDisplay and PartnerDisplay */}
+            {/* View Camp Modal - UPDATED with proper layout */}
             {viewCamp && createPortal(
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-                        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                            <div>
-                                <h3 className="text-xl font-bold text-gray-900">{viewCamp.name}</h3>
-                                <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                                    <div className="flex items-center gap-1.5">
-                                        <FiMapPin size={14} className="text-indigo-500" />
-                                        <span>{viewCamp.location}</span>
+                <div 
+                    className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                            setViewCamp(null);
+                        }
+                    }}
+                >
+                    <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+                        <div className="p-5 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-white flex-shrink-0">
+                            <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <h3 className="text-xl font-bold text-gray-900">{viewCamp.name}</h3>
+                                        <CampStatusBadge date={viewCamp.date} time={viewCamp.time} />
                                     </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <FiCalendar size={14} className="text-indigo-500" />
-                                        <span>{viewCamp.date}</span>
+                                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                                        <div className="flex items-center gap-1.5">
+                                            <FiMapPin size={15} className="text-indigo-500" />
+                                            <span className="font-medium">{viewCamp.location}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <FiCalendar size={15} className="text-indigo-500" />
+                                            <span className="font-medium">{viewCamp.date}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <FiClock size={15} className="text-indigo-500" />
+                                            <span className="font-medium">{viewCamp.time}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <FiUsers size={15} className="text-indigo-500" />
+                                            <span className="font-medium">{viewCampPatients.length} Participants</span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <FiClock size={14} className="text-indigo-500" />
-                                        <span>{viewCamp.time}</span>
-                                    </div>
-                                </div>
-                                
-                                {/* ✅ FIXED: VolunteerDisplay with partnerVolunteers */}
-                                {viewCamp.volunteers && viewCamp.volunteers.length > 0 && (
-                                    <div className="flex items-center gap-2 mt-2">
-                                        <span className="text-xs font-semibold text-gray-600">Volunteers:</span>
-                                        <VolunteerDisplay
-                                            volunteers={viewCamp.volunteers}
+                                    
+                                    {viewCamp.volunteers && viewCamp.volunteers.length > 0 && (
+                                        <div className="mt-2">
+                                            <VolunteerDisplay
+                                                volunteers={viewCamp.volunteers}
+                                                isSelected={false}
+                                                employeeMap={volunteerMap}
+                                                partnerVolunteers={partnerVolunteers}
+                                            />
+                                        </div>
+                                    )}
+                                    
+                                    <div className="mt-1">
+                                        <PartnerDisplay
+                                            partners={viewCamp.partners}
                                             isSelected={false}
-                                            employeeMap={volunteerMap}
-                                            partnerVolunteers={partnerVolunteers}
+                                            partnersList={partnerList}
                                         />
                                     </div>
-                                )}
-                                
-                                <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-xs font-semibold text-gray-600">Partners:</span>
-                                    <PartnerDisplay
-                                        partners={viewCamp.partners}
-                                        isSelected={false}
-                                        partnersList={partnerList}
-                                    />
                                 </div>
+                                <button 
+                                    onClick={() => setViewCamp(null)} 
+                                    className="w-9 h-9 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition shadow-sm flex-shrink-0"
+                                >
+                                    <FiX size={18} />
+                                </button>
                             </div>
-                            <button onClick={() => setViewCamp(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition shadow-sm">
-                                <FiX size={16} />
-                            </button>
                         </div>
-                        <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-4 bg-white">
-                            <div className="flex items-center gap-3">
-                                <span className="px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
-                                    {viewCampPatients.length} Participants
-                                </span>
-                                <CampStatusBadge date={viewCamp.date} time={viewCamp.time} />
-                            </div>
-                            <button onClick={handleDownloadCampCSV} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 active:scale-95">
-                                <FiFileText size={16} />
-                                Download Report
-                            </button>
-                        </div>
-                        <div className="overflow-auto flex-1 p-0 custom-scrollbar">
+
+                        {/* Table Area - Scrollable */}
+                        <div className="flex-1 overflow-auto p-0">
                             <table className="w-full text-left border-collapse">
                                 <thead className="bg-gray-50 sticky top-0 z-10">
                                     <tr>
-                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">Patient Name</th>
-                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">Contact</th>
-                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">Age / Gender</th>
-                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">Health Check</th>
-                                        <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 text-right">Actions</th>
+                                        <th className="px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">Patient Name</th>
+                                        <th className="px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">Contact</th>
+                                        <th className="px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">Age / Gender</th>
+                                        <th className="px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">Health Check</th>
+                                        <th className="px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {viewCampPatients.length > 0 ? (
                                         viewCampPatients.map(patient => (
-                                            <tr key={patient._id} className="hover:bg-gray-50/80 transition-colors group">
-                                                <td className="p-4">
+                                            <tr key={patient._id} className="hover:bg-gray-50/80 transition-colors">
+                                                <td className="px-4 py-3">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs border border-indigo-100">
-                                                            {patient.name?.charAt(0).toUpperCase()}
+                                                        <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs border border-indigo-100 flex-shrink-0">
+                                                            {patient.name?.charAt(0)?.toUpperCase() || 'P'}
                                                         </div>
-                                                        <span className="font-semibold text-gray-900">{patient.name}</span>
+                                                        <span className="font-semibold text-sm text-gray-900">{patient.name}</span>
                                                     </div>
                                                 </td>
-                                                <td className="p-4 text-sm text-gray-600 font-medium font-mono">{patient.contact}</td>
-                                                <td className="p-4 text-sm text-gray-500">
-                                                    {patient.age} Y <span className="mx-1">•</span> {patient.gender}
+                                                <td className="px-4 py-3 text-sm text-gray-600 font-medium font-mono">{patient.contact}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-500">
+                                                    {patient.age || 'N/A'} Y <span className="mx-1">•</span> {patient.gender || 'N/A'}
                                                 </td>
-                                                <td className="p-4">
+                                                <td className="px-4 py-3">
                                                     {patient.tests && patient.tests.length > 0 ? (
-                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-green-50 text-green-700 text-xs font-bold border border-green-100">
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 text-green-700 text-xs font-semibold border border-green-200">
                                                             <FiCheckCircle size={12} /> Screened
                                                         </span>
                                                     ) : (
-                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-50 text-gray-400 text-xs font-bold border border-gray-200">
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-50 text-gray-400 text-xs font-semibold border border-gray-200">
                                                             Pending
                                                         </span>
                                                     )}
                                                 </td>
-                                                <td className="p-4 text-right">
-                                                    <button onClick={() => navigate(`/patient/${patient._id}`)} className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline">
-                                                        Details <FiChevronRight size={12} />
+                                                <td className="px-4 py-3 text-right">
+                                                    <button 
+                                                        onClick={() => navigate(`/patient/${patient._id}`)} 
+                                                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors"
+                                                    >
+                                                        Details <FiChevronRight size={14} />
                                                     </button>
                                                 </td>
                                             </tr>
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan={5} className="p-12 text-center text-gray-400">
+                                            <td colSpan={5} className="px-4 py-12 text-center text-gray-400">
                                                 <div className="flex flex-col items-center gap-3">
-                                                    <FiUsers size={32} className="opacity-20" />
+                                                    <FiUsers size={40} className="opacity-20" />
                                                     <span className="text-sm font-medium">No patients found in this camp yet.</span>
+                                                    <span className="text-xs text-gray-400">Patients will appear here once they are added to the camp.</span>
                                                 </div>
                                             </td>
                                         </tr>
@@ -3968,20 +4095,55 @@ const DoctorCamps = () => {
                                 </tbody>
                             </table>
                         </div>
-                        <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
-                            <button onClick={() => setViewCamp(null)} className="px-6 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition shadow-sm">Close</button>
+
+                        {/* Footer - Action Buttons (Fixed at Bottom) */}
+                        <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0 flex flex-col sm:flex-row items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs text-gray-500">
+                                    <span className="font-bold text-gray-700">{viewCampPatients.length}</span> participants found
+                                </span>
+                                {viewCampPatients.length > 0 && (
+                                    <span className="text-xs text-emerald-600 font-medium">
+                                        {viewCampPatients.filter(p => p.tests && p.tests.length > 0).length} screened
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                                {viewCampPatients.length > 0 && (
+                                    <button 
+                                        onClick={handleDownloadCampCSV} 
+                                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 active:scale-95"
+                                    >
+                                        <FiFileText size={16} />
+                                        Download Report
+                                    </button>
+                                )}
+                                <button 
+                                    onClick={() => setViewCamp(null)} 
+                                    className="flex-1 sm:flex-none px-6 py-2.5 bg-white border-2 border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition shadow-sm active:scale-95"
+                                >
+                                    Close
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>,
                 document.body
             )}
 
-            {/* Share Modal */}
+            {/* Share Modal - FIXED POSITION */}
             {showShareModal && currentPatient && createPortal(
-                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                <div 
+                    className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                            setShowShareModal(false);
+                        }
+                    }}
+                >
                     <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-300">
-                        <div className="bg-green-600 p-6 text-white text-center">
-                            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+                        <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6 text-white text-center">
+                            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <FiMessageCircle size={32} />
                             </div>
                             <h3 className="text-xl font-bold">Share Report Link</h3>
@@ -3999,12 +4161,12 @@ const DoctorCamps = () => {
                             </div>
                             <div className="p-4 bg-green-50/50 border-2 border-green-200 border-dashed rounded-2xl">
                                 <p className="text-[10px] font-bold text-green-800 uppercase tracking-widest mb-2">Message Preview</p>
-                                <div className="bg-white p-3 rounded-lg border border-green-100 max-h-32 overflow-y-auto text-xs text-gray-600 leading-relaxed italic">
+                                <div className="bg-white p-3 rounded-lg border border-green-100 max-h-32 overflow-y-auto text-xs text-gray-600 leading-relaxed break-words">
                                     {downloadLink}
                                 </div>
                             </div>
                             <div className="space-y-3">
-                                <button onClick={handleWhatsAppShare} className="w-full py-3.5 bg-green-600 text-white rounded-2xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-100 flex items-center justify-center gap-2">
+                                <button onClick={handleWhatsAppShare} className="w-full py-3.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-2xl font-bold hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg shadow-green-100 flex items-center justify-center gap-2">
                                     <FiMessageCircle size={18} /> Open WhatsApp
                                 </button>
                                 <button onClick={handleCopyMessage} className="w-full py-3 bg-blue-50 text-blue-700 rounded-2xl font-bold hover:bg-blue-100 flex items-center justify-center gap-2 transition-all">
