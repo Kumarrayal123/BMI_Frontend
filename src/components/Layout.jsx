@@ -216,23 +216,184 @@ import {
   Users2,
   LogOut,
   UserCircle,
-  ChevronDown
+  ChevronDown,
+  Phone,
+  MapPin,
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import TimelyHealthLogo from "../assets/Timelyhealth logo.png";
 import AIChat from "./AIChat";
+import ProfileModal from "./ProfileModal";
+import config from "../config";
 
 const Layout = ({ children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const profileRef = useRef(null);
 
   const role = localStorage.getItem("role");
-  const userName = localStorage.getItem("employeeName") || localStorage.getItem("name") || "User";
-  const userEmail = localStorage.getItem("employeeEmail") || localStorage.getItem("email") || "user@timelyhealth.com";
+
+  const getUserData = () => {
+    let name = "User";
+    let email = "user@timelyhealth.com";
+    try {
+      if (role === "admin") {
+        const localVal = localStorage.getItem("adminData");
+        const data = localVal ? JSON.parse(localVal) : {};
+        name = data.name || "Admin";
+        email = data.email || "admin@timelyhealth.com";
+      } else if (role === "partner") {
+        const localVal = localStorage.getItem("userData");
+        const data = localVal ? JSON.parse(localVal) : {};
+        name = data.name || "Partner";
+        email = data.email || "partner@timelyhealth.com";
+      } else if (role === "employee") {
+        const localVal = localStorage.getItem("employeeData");
+        const data = localVal ? JSON.parse(localVal) : {};
+        name = data.name || localStorage.getItem("employeeName") || "Employee";
+        email = data.email || localStorage.getItem("employeeEmail") || "employee@company.com";
+      } else if (role === "volunteer") {
+        const localVal = localStorage.getItem("volunteerData");
+        const data = localVal ? JSON.parse(localVal) : {};
+        name = data.name || localStorage.getItem("employeeName") || "Volunteer";
+        email = data.email || localStorage.getItem("employeeEmail") || "volunteer@company.com";
+      } else {
+        name = localStorage.getItem("employeeName") || localStorage.getItem("name") || "User";
+        email = localStorage.getItem("employeeEmail") || localStorage.getItem("email") || "user@timelyhealth.com";
+      }
+    } catch (e) {
+      console.error("Error parsing user data in layout:", e);
+      name = localStorage.getItem("employeeName") || localStorage.getItem("name") || "User";
+      email = localStorage.getItem("employeeEmail") || localStorage.getItem("email") || "user@timelyhealth.com";
+    }
+    return { name, email };
+  };
+
+  const { name: userName, email: userEmail } = getUserData();
+
+  const [userPhone, setUserPhone] = useState("");
+  const [userAddress, setUserAddress] = useState("");
+  const [userClinicName, setUserClinicName] = useState("");
+  const [userGender, setUserGender] = useState("");
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [syncError, setSyncError] = useState("");
+
+  const getUserId = () => {
+    try {
+      if (role === "admin") {
+        const data = JSON.parse(localStorage.getItem("adminData") || "{}");
+        return data._id || data.id;
+      } else if (role === "employee") {
+        return localStorage.getItem("employeeId");
+      } else if (role === "partner") {
+        return localStorage.getItem("userId");
+      } else if (role === "volunteer") {
+        return localStorage.getItem("userId");
+      } else {
+        return localStorage.getItem("userId");
+      }
+    } catch (e) {
+      return localStorage.getItem("userId");
+    }
+  };
+
+  const userId = getUserId();
+
+  const loadOfflineDetails = () => {
+    try {
+      let localData = {};
+      if (role === "admin") {
+        localData = JSON.parse(localStorage.getItem("adminData") || "{}");
+      } else if (role === "employee") {
+        localData = JSON.parse(localStorage.getItem("employeeData") || "{}");
+      } else if (role === "partner") {
+        localData = JSON.parse(localStorage.getItem("userData") || "{}");
+      } else if (role === "volunteer") {
+        localData = JSON.parse(localStorage.getItem("volunteerData") || "{}");
+      }
+
+      setUserPhone(localData.phone || localData.mobile || "");
+      setUserAddress(localData.address || "");
+      setUserClinicName(localData.clinicName || "");
+      setUserGender(localData.gender || "");
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    loadOfflineDetails();
+  }, [role, isProfileModalOpen]);
+
+  const fetchLiveDetails = async () => {
+    if (!userId || !role) return;
+    setLoadingDetails(true);
+    setSyncError("");
+    try {
+      const response = await fetch(`${config.API_BASE_URL}/auth/profile/${userId}?role=${role}`, {
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("token")}`
+        }
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        const data = result.data;
+        setUserPhone(data.phone || data.mobile || "");
+        setUserAddress(data.address || "");
+        setUserClinicName(data.clinicName || "");
+        setUserGender(data.gender || "");
+        
+        // Also update local storage to keep it in sync!
+        if (role === "admin") {
+          const adminData = JSON.parse(localStorage.getItem("adminData") || "{}");
+          localStorage.setItem("adminData", JSON.stringify({ ...adminData, ...data }));
+        } else if (role === "employee") {
+          const employeeData = JSON.parse(localStorage.getItem("employeeData") || "{}");
+          localStorage.setItem("employeeData", JSON.stringify({ ...employeeData, ...data }));
+        } else if (role === "partner") {
+          const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+          localStorage.setItem("userData", JSON.stringify({ ...userData, ...data }));
+        } else if (role === "volunteer") {
+          const volunteerData = JSON.parse(localStorage.getItem("volunteerData") || "{}");
+          localStorage.setItem("volunteerData", JSON.stringify({ ...volunteerData, ...data }));
+        }
+      } else {
+        setSyncError("Failed to sync live details.");
+      }
+    } catch (err) {
+      console.error(err);
+      setSyncError("Offline mode active.");
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isProfileDropdownOpen) {
+      fetchLiveDetails();
+    }
+  }, [isProfileDropdownOpen]);
+
+  const getRoleBadgeClass = () => {
+    switch (role) {
+      case "admin":
+        return "bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-sm";
+      case "partner":
+        return "bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-sm";
+      case "volunteer":
+        return "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-sm";
+      case "employee":
+        return "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-sm";
+      default:
+        return "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-sm";
+    }
+  };
 
   const dashboardPath = role === "user"
     ? "/user-camps"
@@ -281,22 +442,22 @@ const Layout = ({ children }) => {
         { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard" },
         { path: "/camp", icon: Calendar, label: "Camps" },
         { path: "/partners", icon: Building2, label: "Partners" },
-        { path: "/admin/teams", icon: Users, label: "Teams" },
+        { path: "/camp-members", icon: Users, label: "Camp Members" },
         { path: "/all-reports", icon: FileSpreadsheet, label: "Reports" },
       );
     } else if (role === "partner") {
       items.push(
         { path: "/doctor", icon: LayoutDashboard, label: "Dashboard" },
         { path: "/doctor-camps", icon: Calendar, label: "Camps" },
+        { path: "/camp-members", icon: Users, label: "Camp Members" },
         { path: "/partner-volunteers", icon: Users2, label: "Volunteers" },
         { path: "/partner-all-reports", icon: FileSpreadsheet, label: "Reports" },
-        // { path: "/add-patient", icon: UserPlus, label: "Add Patient" },
       );
     } else if (role === "employee" || role === "volunteer") {
       items.push(
         { path: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
         { path: "/my-camps", icon: Calendar, label: "Camps" },
-        // { path: "/add-patient", icon: UserPlus, label: "Add Patient" },
+        { path: "/camp-members", icon: Users, label: "Camp Members" },
       );
     } else if (role === "user") {
       items.push(
@@ -351,15 +512,115 @@ const Layout = ({ children }) => {
               })}
             </nav>
 
-            {/* Right: Logout */}
+            {/* Right: Profile Dropdown Menu & Mobile Menu Button */}
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-all duration-200"
-              >
-                <LogOut size={18} />
-                <span className="hidden sm:inline">Logout</span>
-              </button>
+              {/* Profile Dropdown */}
+              <div className="relative" ref={profileRef}>
+                <button
+                  onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-all duration-200 outline-none"
+                >
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-sm select-none">
+                    {userName.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="hidden sm:inline font-semibold">{userName}</span>
+                  <ChevronDown size={14} className={`text-gray-400 transition-transform duration-200 ${isProfileDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isProfileDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 p-5 z-50">
+                    {/* User Summary */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                        {userName.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="overflow-hidden flex-1 text-left">
+                        <h4 className="font-bold text-gray-900 truncate">{userName}</h4>
+                        <p className="text-xs text-gray-500 truncate">{userEmail}</p>
+                        <span className={`inline-block mt-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getRoleBadgeClass()}`}>
+                          {role}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Sync Error */}
+                    {syncError && (
+                      <div className="mb-3 bg-red-50 border-l-4 border-red-500 p-2 rounded-lg flex items-start">
+                        <AlertCircle className="h-4 w-4 text-red-500 mr-1.5 flex-shrink-0 mt-0.5" />
+                        <span className="text-[10px] text-red-700 font-medium">{syncError}</span>
+                      </div>
+                    )}
+
+                    {/* Details List */}
+                    <div className="border-t border-gray-100 py-3 space-y-2.5 text-sm text-gray-600 text-left">
+                      {loadingDetails ? (
+                        <div className="flex items-center justify-center py-2">
+                          <Loader2 className="animate-spin text-indigo-600 h-5 w-5" />
+                        </div>
+                      ) : (
+                        <>
+                          {/* Phone */}
+                          {userPhone ? (
+                            <div className="flex items-center gap-2.5">
+                              <Phone size={14} className="text-gray-400 flex-shrink-0" />
+                              <span className="truncate text-gray-700">{userPhone}</span>
+                            </div>
+                          ) : null}
+                          
+                          {/* Address */}
+                          {userAddress ? (
+                            <div className="flex items-start gap-2.5">
+                              <MapPin size={14} className="text-gray-400 mt-0.5 flex-shrink-0" />
+                              <span className="text-gray-700 text-xs leading-snug line-clamp-2">{userAddress}</span>
+                            </div>
+                          ) : null}
+
+                          {/* Clinic Name (Partner only) */}
+                          {role === "partner" && userClinicName ? (
+                            <div className="flex items-center gap-2.5">
+                              <Building2 size={14} className="text-gray-400 flex-shrink-0" />
+                              <span className="truncate text-gray-700">{userClinicName}</span>
+                            </div>
+                          ) : null}
+
+                          {/* Gender (Volunteer only) */}
+                          {role === "volunteer" && userGender ? (
+                            <div className="flex items-center gap-2.5">
+                              <Users2 size={14} className="text-gray-400 flex-shrink-0" />
+                              <span className="truncate text-gray-700">{userGender}</span>
+                            </div>
+                          ) : null}
+
+                          {/* Fallback if no details */}
+                          {!userPhone && !userAddress && (!userClinicName || role !== 'partner') && (!userGender || role !== 'volunteer') && (
+                            <p className="text-xs text-gray-400 italic text-center py-1">No profile details set.</p>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="border-t border-gray-100 pt-3 flex flex-col gap-2">
+                      <button
+                        onClick={() => {
+                          setIsProfileDropdownOpen(false);
+                          setIsProfileModalOpen(true);
+                        }}
+                        className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl font-semibold text-xs text-center transition duration-200"
+                      >
+                        Edit Profile
+                      </button>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-semibold text-xs flex items-center justify-center gap-1 transition duration-200"
+                      >
+                        <LogOut size={14} />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Mobile Menu Button */}
               <button
@@ -397,6 +658,20 @@ const Layout = ({ children }) => {
                   </NavLink>
                 );
               })}
+              {/* Mobile Profile Link */}
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setIsProfileModalOpen(true);
+                }}
+                className="flex w-full items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg transition-all text-sm font-medium"
+              >
+                <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-sm">
+                  {userName.charAt(0).toUpperCase()}
+                </div>
+                <span>My Profile</span>
+              </button>
+
               <button
                 onClick={handleLogout}
                 className="flex w-full items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-all"
@@ -421,6 +696,9 @@ const Layout = ({ children }) => {
 
       {/* ✅ FLOATING AI CHAT */}
       <AIChat />
+
+      {/* Profile Modal */}
+      <ProfileModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} />
     </div>
   );
 };

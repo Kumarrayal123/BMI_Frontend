@@ -132,7 +132,8 @@ const Partners = () => {
             clinicName: partner.clinicName || '',
             specialization: partner.specialization || '',
             address: partner.address || '',
-            bio: partner.bio || ''
+            bio: partner.bio || '',
+            canManageVolunteers: partner.canManageVolunteers !== false
         });
         setShowEditModal(true);
         setUpdateMessage('');
@@ -225,7 +226,8 @@ const Partners = () => {
                 clinicName: editFormData.clinicName,
                 specialization: editFormData.specialization || '',
                 address: editFormData.address || '',
-                bio: editFormData.bio || ''
+                bio: editFormData.bio || '',
+                canManageVolunteers: editFormData.canManageVolunteers
             };
 
             const response = await axios.put(
@@ -264,7 +266,8 @@ const Partners = () => {
             clinicName: '',
             specialization: '',
             address: '',
-            bio: ''
+            bio: '',
+            canManageVolunteers: true
         });
         setUpdateMessage('');
         setUpdateSuccess(false);
@@ -505,6 +508,20 @@ const Partners = () => {
                                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition"
                                 placeholder="Enter center name"
                             />
+                        </div>
+
+                        <div className="flex items-center gap-3 p-3 bg-purple-50/50 rounded-xl border border-purple-100">
+                            <input
+                                type="checkbox"
+                                name="canManageVolunteers"
+                                id="canManageVolunteers"
+                                checked={editFormData.canManageVolunteers}
+                                onChange={(e) => setEditFormData(prev => ({ ...prev, canManageVolunteers: e.target.checked }))}
+                                className="h-4.5 w-4.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                            />
+                            <label htmlFor="canManageVolunteers" className="text-sm font-semibold text-gray-700 cursor-pointer select-none">
+                                Enable Volunteer Management (Allow Partner to assign/remove volunteers)
+                            </label>
                         </div>
 
                         <div>

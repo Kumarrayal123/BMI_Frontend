@@ -1,4 +1,4 @@
-﻿// import axios from "axios";
+// import axios from "axios";
 // import {
 //     FiActivity,
 //     FiMapPin,
@@ -1919,11 +1919,11 @@ const AdminDashboard = () => {
                     </button>
 
                     {/* <button
-                        onClick={() => navigate("/admin/teams")}
+                        onClick={() => navigate("/camp-members")}
                         className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition shadow-lg shadow-indigo-100"
                     >
                         <FiUsers size={18} />
-                        Teams
+                        Camp Members
                     </button> */}
                     
                     <button

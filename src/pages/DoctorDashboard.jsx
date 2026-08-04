@@ -2826,14 +2826,14 @@ const DoctorDashboard = () => {
                 document.body
             )}
 
-            {/* View Camp Modal */}
+            {/* View Camp Modal - UPDATED with close icon at top-right */}
             {viewCamp && createPortal(
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                        <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                            <div>
+                        <div className="p-4 border-b border-gray-100 flex items-start justify-between bg-gray-50/50">
+                            <div className="flex-1 pr-8">
                                 <h3 className="text-lg font-bold text-gray-900">{viewCamp.name}</h3>
-                                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
                                     <div className="flex items-center gap-1">
                                         <FiMapPin size={12} className="text-indigo-500" />
                                         <span>{viewCamp.location}</span>
@@ -2848,7 +2848,7 @@ const DoctorDashboard = () => {
                                     </div>
                                 </div>
                                 {viewCamp.volunteers && viewCamp.volunteers.length > 0 && (
-                                    <div className="flex items-center gap-1.5 mt-1.5">
+                                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                                         <span className="text-[10px] font-semibold text-gray-600">Volunteers:</span>
                                         <VolunteerDisplay
                                             volunteers={viewCamp.volunteers}
@@ -2858,7 +2858,7 @@ const DoctorDashboard = () => {
                                     </div>
                                 )}
                                 {viewCamp.partners && viewCamp.partners.length > 0 && (
-                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                         <span className="text-[10px] font-semibold text-gray-600">Partners:</span>
                                         <PartnerDisplay
                                             partners={viewCamp.partners}
@@ -2868,8 +2868,11 @@ const DoctorDashboard = () => {
                                     </div>
                                 )}
                             </div>
-                            <button onClick={() => setViewCamp(null)} className="w-7 h-7 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition shadow-sm">
-                                <FiX size={14} />
+                            <button 
+                                onClick={() => setViewCamp(null)} 
+                                className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition shadow-sm"
+                            >
+                                <FiX size={18} />
                             </button>
                         </div>
                         <div className="p-3 border-b border-gray-100 flex items-center justify-between gap-3 bg-white">

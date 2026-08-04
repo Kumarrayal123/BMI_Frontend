@@ -52,7 +52,7 @@ import PartnerVolunteers from './pages/PartnerVolunteers';
 import PartnerAllReports from './pages/PartnerAllReports';
 import PartnerWithReports from './pages/PartnerWithReports';
 import PartnerPendingReports from './pages/PartnerPendingReports';
-import AdminTeams from './pages/AdminTeams';
+import CampMembers from './pages/CampMembers';
 
 function App() {
   return (
@@ -76,7 +76,7 @@ function App() {
           {/* <Route path="/join-us" element={<JoinUs />} /> */}
           <Route path="/admin/applications" element={<AdminApplications />} /> {/* ✅ Admin Applications */}
           <Route path="/partners" element={<Partners />} /> {/* ✅ Partners Page */}
-          <Route path="/admin/teams" element={<AdminTeams />} /> {/* ✅ Teams Page */}
+          <Route path="/camp-members" element={<CampMembers />} /> {/* ✅ Camp Members Page */}
           <Route path="/partner-volunteers" element={<PartnerVolunteers />} /> {/* ✅ Partner Volunteers Page */}
           <Route path="/employeedashboard" element={<EmployeeDashboard />} />
           <Route path="/adashboard" element={<ADashboard />} />
