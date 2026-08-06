@@ -566,15 +566,8 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import bmiChartImg from "../assets/bmi chart.jpg";
-import signatureImg from "../assets/signature.png";
-
-/* ================= CONSTANTS ================= */
-
-const PRIMARY_BLUE = [66, 135, 194]; // Header, table head
-const SECTION_BLUE = [58, 122, 179]; // Section titles
-const TEXT_DARK = [0, 0, 0];
-const TEXT_GRAY = [107, 114, 128];
-
+import timelyLogo from "../assets/Timelyhealth logo.png";
+import companyStamp from "../assets/company-stamp-1780465131172.png";
 
 /* ================= HELPERS ================= */
 
@@ -608,90 +601,108 @@ const getBmiColor = (category) => {
   return [22, 163, 74];
 };
 
+const getStatusColor = (status) => {
+    if (status === "Normal" || status === "Healthy") return [22, 163, 74];
+    if (status === "-") return [107, 114, 128];
+    return [220, 38, 38];
+};
+
 /* ================= MAIN PDF CREATOR ================= */
 
 const createReportDoc = (patient, tests, bmiData) => {
   const doc = new jsPDF("p", "mm", "a4");
   const pageWidth = doc.internal.pageSize.getWidth();
-  let y = 0;
+  let y = 15;
 
   /* ===== HEADER ===== */
-  doc.setFillColor(...PRIMARY_BLUE);
-  doc.rect(0, 0, pageWidth, 40, "F");
+  
+  try {
+    doc.addImage(timelyLogo, "PNG", 15, y, 35, 10);
+  } catch (e) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(0, 150, 136);
+    doc.text("TIMELY HEALTH", 15, y + 7);
+    doc.setFontSize(7);
+    doc.setTextColor(0, 150, 136);
+    doc.text("Connecting Communities", 15, y + 11);
+  }
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(24);
-  doc.setTextColor(255);
-  doc.text("Timely Health", 15, 18);
+  doc.setFontSize(14);
+  doc.setTextColor(37, 99, 235);
+  doc.text("HEALTH REPORT", pageWidth - 15, y + 7, { align: "right" });
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.text("Connecting Communities", 15, 25);
+  doc.setFontSize(9);
+  doc.setTextColor(75, 85, 99);
+  doc.text(`Date: ${patient.date}`, pageWidth - 15, y + 12, { align: "right" });
 
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "bold");
-  doc.text("OFFICE ADDRESS: 3rd Floor, Sri Sai Balaji Avenue, VIP Hills, Madhapur, Hyderabad – 500081", 15, 31);
-  doc.setFont("helvetica", "normal");
-  // doc.text(
-  //   "3rd Floor, Sri Sai Balaji Avenue, VIP Hills, Madhapur, Hyderabad – 500081",
-  //   15,
-  //   35
-  // );
-
-  y = 52;
-
-  /* ===== PATIENT INFORMATION ===== */
-  // Line separator
+  y += 22;
   doc.setDrawColor(37, 99, 235);
   doc.setLineWidth(0.5);
   doc.line(15, y, pageWidth - 15, y);
+  y += 10;
+
+  /* ===== PATIENT INFO ===== */
+  
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(107, 114, 128); 
+  doc.text("Name", 15, y);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(31, 41, 55); 
+  doc.text(`: ${patient.name}`, 38, y);
+
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(107, 114, 128);
+  doc.text("Age", 110, y);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(31, 41, 55);
+  doc.text(`: ${patient.age}`, 130, y);
   y += 8;
 
-  doc.setFontSize(9);
-  const fields = [
-    ["Name", `: ${patient.name}`],
-    ["Age", `: ${patient.age}`],
-    ["Sample ID", `: ${patient.id}`],
-    ["Date", `: ${patient.date}`],
-    ["Gender", `: ${patient.gender}`],
-    ["Location", `: ${patient.address}`],
-  ];
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(107, 114, 128);
+  doc.text("Sample ID", 15, y);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(31, 41, 55);
+  doc.text(`: ${patient.id}`, 38, y);
 
-  const colX = [15, 110];
-  fields.forEach((f, i) => {
-    const col = i % 2;
-    const row = Math.floor(i / 2);
-    const x = colX[col];
-    const currY = y + row * 8;
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(107, 114, 128);
+  doc.text("Date", 110, y);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(31, 41, 55);
+  doc.text(`: ${patient.date}`, 130, y);
+  y += 8;
 
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(...TEXT_GRAY);
-    doc.text(f[0], x, currY);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(107, 114, 128);
+  doc.text("Gender", 15, y);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(31, 41, 55);
+  doc.text(`: ${patient.gender}`, 38, y);
 
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...TEXT_DARK);
-    doc.text((f[1] || "-").toUpperCase(), x + 22, currY);
-  });
-
-  y += 28;
-
-  /* ===== CLINICAL VITALS ===== */
-  doc.setDrawColor(37, 99, 235);
-  doc.line(15, y, pageWidth - 15, y);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(107, 114, 128);
+  doc.text("Location", 110, y);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(31, 41, 55);
+  doc.text(`: ${patient.address}`, 130, y);
+  y += 12;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
-  doc.setTextColor(...SECTION_BLUE);
-  doc.text("CLINICAL VITALS", pageWidth / 2, y - 2, { align: "center" });
-
+  doc.setTextColor(58, 122, 179);
+  doc.text("CLINICAL VITALS", pageWidth / 2, y, { align: "center" });
+  y += 4;
+  doc.setDrawColor(37, 99, 235);
+  doc.setLineWidth(0.5);
+  doc.line(15, y, pageWidth - 15, y);
   y += 6;
 
-  const getStatusColor = (status) => {
-    if (status === "Normal" || status === "Healthy") return [22, 163, 74];
-    if (status === "-") return [107, 114, 128];
-    return [220, 38, 38];
-  };
-
+  /* ===== TABLE ===== */
   autoTable(doc, {
     startY: y,
     head: [
@@ -717,14 +728,14 @@ const createReportDoc = (patient, tests, bmiData) => {
     ],
     theme: "grid",
     headStyles: {
-      fillColor: PRIMARY_BLUE,
-      textColor: 255,
+      fillColor: [58, 122, 179],
+      textColor: [255, 255, 255],
       fontStyle: "bold",
       halign: "center",
       fontSize: 9,
     },
     bodyStyles: {
-      textColor: [31, 41, 55], // Using a dark gray for body text to maintain legibility
+      textColor: [31, 41, 55],
       halign: "center",
       fontSize: 9,
       cellPadding: 3,
@@ -742,35 +753,32 @@ const createReportDoc = (patient, tests, bmiData) => {
 
   y = doc.lastAutoTable.finalY + 12;
 
-  /* ===== BMI ANALYSIS STRIP ===== */
+  /* ===== BMI ===== */
   if (bmiData && bmiData.bmi) {
-    const bmiColor = getBmiColor(bmiData.category);
-    doc.setFillColor(...bmiColor);
-    doc.roundedRect(15, y, pageWidth - 30, 12, 1, 1, "F");
+    doc.setFillColor(249, 115, 22); 
+    doc.roundedRect(15, y, pageWidth - 30, 10, 1, 1, "F");
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(255);
-    doc.text("BMI ANALYSIS", 20, y + 7.5);
-    doc.text(`VALUE : ${bmiData.bmi}`, pageWidth / 2, y + 7.5, { align: "center" });
-    doc.text(`STATUS : ${bmiData.category.toUpperCase()}`, pageWidth - 20, y + 7.5, { align: "right" });
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    doc.text("BMI ANALYSIS", 20, y + 7);
+    doc.text(`VALUE : ${bmiData.bmi}`, pageWidth / 2, y + 7, { align: "center" });
+    doc.text(`STATUS : ${bmiData.category.toUpperCase()}`, pageWidth - 20, y + 7, { align: "right" });
 
-    y += 24;
-
-    /* ===== BMI SCALE MARKER ===== */
+    y += 20;
+    y += 4;
     const barWidth = (pageWidth - 30) / 4;
     const bmiVal = parseFloat(bmiData.bmi);
+    
     let markerX = 15;
     if (bmiVal < 18.5) markerX = 15 + (bmiVal / 18.5) * barWidth;
     else if (bmiVal < 25) markerX = 15 + barWidth + ((bmiVal - 18.5) / 6.5) * barWidth;
     else if (bmiVal < 30) markerX = 15 + 2 * barWidth + ((bmiVal - 25) / 5) * barWidth;
     else markerX = 15 + 3 * barWidth + Math.min((bmiVal - 30) / 10, 1) * barWidth;
 
-    // Draw triangle marker
-    doc.setFillColor(31, 41, 55); // Gray-800
+    doc.setFillColor(31, 41, 55);
     doc.triangle(markerX, y - 1, markerX - 2.5, y - 5, markerX + 2.5, y - 5, "F");
 
-    /* ===== BMI SCALE COLORS ===== */
     const bars = [
       ["Underweight\n< 18.5", [37, 99, 235]],
       ["Healthy\n18.5 – 24.9", [22, 163, 74]],
@@ -781,70 +789,85 @@ const createReportDoc = (patient, tests, bmiData) => {
     bars.forEach((b, i) => {
       const x = 15 + i * barWidth;
       doc.setFillColor(...b[1]);
-      doc.rect(x, y, barWidth, 14, "F");
+      doc.rect(x, y, barWidth, 12, "F");
       doc.setTextColor(255);
-      doc.setFontSize(8);
-
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "bold");
       const lines = doc.splitTextToSize(b[0], barWidth - 4);
-      doc.text(lines, x + barWidth / 2, y + 5, { align: "center" });
+      doc.text(lines, x + barWidth / 2, y + 5.5, { align: "center" });
     });
 
-    y += 32;
+    y += 22;
 
-    /* ===== BMI REFERENCE CHART ===== */
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.setTextColor(...SECTION_BLUE);
+    doc.setTextColor(58, 122, 179);
     doc.text("BMI REFERENCE CHART", pageWidth / 2, y, { align: "center" });
 
     y += 4;
-    // Use the imported image directly
     try {
-      doc.addImage(bmiChartImg, "JPEG", pageWidth / 2 - 45, y, 90, 50);
+      doc.addImage(bmiChartImg, "JPEG", pageWidth / 2 - 40, y, 80, 45);
     } catch (e) {
       console.error("Failed to add BMI chart image:", e);
     }
 
-    y += 54;
+    y += 50;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    doc.setTextColor(...TEXT_GRAY);
+    doc.setTextColor(107, 114, 128); 
     doc.text("Standard BMI classification", pageWidth / 2, y, { align: "center" });
   }
 
-  /* ===== FOOTER ===== */
-  y = 265;
-  doc.setDrawColor(229, 231, 235);
+  /* ===== SIGNATURES ===== */
+  y = Math.max(y + 10, 245);
+
+  doc.setDrawColor(209, 213, 219); 
   doc.setLineWidth(0.2);
   doc.line(15, y, pageWidth - 15, y);
+  y += 10; 
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.setTextColor(...TEXT_GRAY);
-  doc.text("Consultant Physician", 15, y + 10);
+  doc.setTextColor(75, 85, 99);
+  doc.text("Doctor's Signature", 15, y + 10);
 
-  // Signature and label
-  const sigWidth = 30;
-  const sigHeight = 12;
-  const sigX = pageWidth - 15 - sigWidth;
+  const stampWidth = 18; 
+  const stampHeight = 18; 
+  const stampX = pageWidth - 15 - stampWidth;
 
-  // Use the loaded base64 image
   try {
-    doc.addImage(signatureImg, "PNG", sigX, y + 2, sigWidth, sigHeight);
+    doc.addImage(companyStamp, "PNG", stampX, y - 9, stampWidth, stampHeight);
   } catch (e) {
-    console.error("Failed to add signature image:", e);
+    console.error("Failed to add company stamp image:", e);
   }
 
-  doc.setFontSize(9);
-  doc.setTextColor(75, 85, 99); // Gray-600
-  doc.text("Camp Incharge", sigX + sigWidth / 2, y + 17, { align: "center" });
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(75, 85, 99);
+  doc.text("", stampX + stampWidth / 2, y + 12, { align: "center" });
+  doc.setFontSize(8);
+  doc.text("Timely Healthtech Private Limited", stampX + stampWidth / 2, y + 15, { align: "center" });
 
-  doc.setFontSize(9);
-  doc.setTextColor(75, 85, 99); // Gray-400
+  /* ===== FOOTER ===== */
+  const footerY = 275; 
+  doc.setFillColor(0, 150, 136);
+  doc.rect(0, footerY, pageWidth, 22, "F");
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("Timely Healthtech Private Limited", pageWidth / 2, footerY + 6, { align: "center" });
+  
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.text("Flat No:301, H.No:1-68/22, Plot No. 54 & 55, Sri Sai Balaji Avenue, Arunodaya Colony, Madhapur, Hyderabad, Telangana-500081", pageWidth / 2, footerY + 10.5, { align: "center" });
+  
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
   doc.text(
-    "For consultation or further clarification, please contact us at +91 9010481048.",
-    pageWidth / 2,
-    288,
+    "Mail: timelyglobal.in@gmail.com       Mobile: 90 1048 1048       www.timelyhealth.in", 
+    pageWidth / 2, 
+    footerY + 15, 
     { align: "center" }
   );
 
@@ -853,28 +876,197 @@ const createReportDoc = (patient, tests, bmiData) => {
 
 /* ================= EXPORTS ================= */
 
-/* Download PDF */
 export const generateMedicalReport = (patient, tests, bmiData) => {
   const doc = createReportDoc(patient, tests, bmiData);
   doc.save(`${patient.name || "Patient"}_Health_Report.pdf`);
 };
 
-/* Return PDF File (WhatsApp / Upload / Share) */
 export const generateMedicalReportFile = (patient, tests, bmiData) => {
   const doc = createReportDoc(patient, tests, bmiData);
   const blob = doc.output("blob");
-
-  const fileName = `${(patient.name || "Patient")
-    .replace(/\s+/g, "_")}_Health_Report.pdf`;
-
+  const fileName = `${(patient.name || "Patient").replace(/\s+/g, "_")}_Health_Report.pdf`;
   return new File([blob], fileName, {
     type: "application/pdf",
   });
 };
 
+/* ================= VIEW COMPONENT ================= */
 
+// ✅ EXACTLY PDF JAISA - BILKUL IMAGE 1 JAISA
+export const MedicalReportView = ({ patient, tests, bmiData }) => {
+  // Helper functions - same as your original
+  const getBPStatus = (sys, dia) => {
+    if (!sys || !dia) return "-";
+    if (sys < 90 || dia < 60) return "Low";
+    if (sys <= 120 && dia <= 80) return "Normal";
+    return "High";
+  };
 
+  const getSugarRange = (type) =>
+    (type || "Random").toLowerCase().includes("fasting") ? "70-100" : "70-140";
 
+  const getSugarStatus = (val, type) => {
+    if (!val) return "-";
+    const v = Number(val);
+    if (v < 70) return "Low";
+    if ((type || "Random").toLowerCase().includes("fasting")) return v <= 100 ? "Normal" : "High";
+    return v <= 140 ? "Normal" : "High";
+  };
 
+  const statusClass = (s) =>
+    s === "Normal" || s === "Healthy"
+      ? "text-green-600 font-bold"
+      : s === "-" ? "text-gray-500" : "text-red-600 font-bold";
 
+  const getBmiColor = (category) => {
+    const c = category?.toLowerCase();
+    if (c.includes("underweight")) return "bg-blue-600";
+    if (c.includes("healthy")) return "bg-green-600";
+    if (c.includes("overweight")) return "bg-orange-500";
+    if (c.includes("obese")) return "bg-red-600";
+    return "bg-green-600";
+  };
 
+  const getBmiMarkerPosition = (bmi) => {
+    const v = parseFloat(bmi);
+    if (v < 18.5) return `${(v / 18.5) * 25}%`;
+    if (v < 25) return `${25 + ((v - 18.5) / (25 - 18.5)) * 25}%`;
+    if (v < 30) return `${50 + ((v - 25) / (30 - 25)) * 25}%`;
+    return "92%";
+  };
+
+  // Import images
+  const bmiChart = require("../assets/bmi chart.jpg");
+  const signature = require("../assets/signature.png");
+
+  return (
+    <div className="bg-white shadow-lg rounded-lg px-12 py-10 font-serif text-gray-800">
+      {/* 1. Header - EXACTLY PDF JAISA */}
+      <div className="flex justify-between items-start mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-blue-700">Timely Health</h1>
+          <p className="text-sm text-blue-500 font-medium">Connecting Communities</p>
+        </div>
+        <div className="text-right text-sm text-gray-600">
+          <p><span className="font-bold">Date:</span> {patient.date}</p>
+          <p><span className="font-bold">Report ID:</span> {patient.id}</p>
+        </div>
+      </div>
+      <div className="border-b-2 border-blue-700 mb-8"></div>
+
+      {/* 2. To - EXACTLY PDF JAISA */}
+      <div className="mb-8">
+        <p className="font-bold text-lg">To,</p>
+        <p className="font-bold text-lg mt-1">{patient.name}</p>
+        <div className="mt-2 space-y-1 text-sm text-gray-700 pl-1">
+          <p><span className="font-semibold w-20 inline-block">Age:</span> {patient.age}</p>
+          <p><span className="font-semibold w-20 inline-block">Gender:</span> {patient.gender}</p>
+          <p><span className="font-semibold w-20 inline-block">Location:</span> {patient.address}</p>
+        </div>
+      </div>
+      <div className="border-b border-gray-300 mb-6"></div>
+
+      {/* 3. Subject - EXACTLY PDF JAISA */}
+      <div className="mb-6">
+        <p className="font-bold text-blue-700">Subject: Clinical Health Vitals Report</p>
+      </div>
+
+      {/* 4. Table - EXACTLY PDF JAISA */}
+      <div className="mb-8 overflow-x-auto">
+        <table className="w-full text-sm border-collapse border border-gray-400">
+          <thead className="bg-blue-50">
+            <tr>
+              <th className="border-b border-gray-400 border-r border-gray-300 p-3 text-left font-bold text-gray-800">TEST DESCRIPTION</th>
+              <th className="border-b border-gray-400 border-r border-gray-300 p-3 text-center font-bold text-gray-800">OBSERVED VALUE</th>
+              <th className="border-b border-gray-400 border-r border-gray-300 p-3 text-center font-bold text-gray-800">UNIT</th>
+              <th className="border-b border-gray-400 border-r border-gray-300 p-3 text-center font-bold text-gray-800">REFERENCE RANGE</th>
+              <th className="border-b border-gray-400 p-3 text-center font-bold text-gray-800">STATUS</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-gray-300">
+              <td className="p-3 font-semibold border-r border-gray-300">BLOOD SUGAR ({tests.sugarType || "RANDOM"})</td>
+              <td className="p-3 text-center font-bold border-r border-gray-300">{tests.sugar}</td>
+              <td className="p-3 text-center border-r border-gray-300">mg/dL</td>
+              <td className="p-3 text-center border-r border-gray-300">{getSugarRange(tests.sugarType)}</td>
+              <td className={`p-3 text-center font-bold ${statusClass(getSugarStatus(tests.sugar, tests.sugarType))}`}>{getSugarStatus(tests.sugar, tests.sugarType)}</td>
+            </tr>
+            <tr className="border-b border-gray-300 bg-gray-50/50">
+              <td className="p-3 font-semibold border-r border-gray-300">BLOOD PRESSURE</td>
+              <td className="p-3 text-center font-bold border-r border-gray-300">{tests.systolic || "-"}/{tests.diastolic || "-"}</td>
+              <td className="p-3 text-center border-r border-gray-300">mmHg</td>
+              <td className="p-3 text-center border-r border-gray-300">120/80</td>
+              <td className={`p-3 text-center font-bold ${statusClass(getBPStatus(tests.systolic, tests.diastolic))}`}>{getBPStatus(tests.systolic, tests.diastolic)}</td>
+            </tr>
+            <tr className="border-b border-gray-300">
+              <td className="p-3 font-semibold border-r border-gray-300">HEIGHT</td>
+              <td className="p-3 text-center font-bold border-r border-gray-300">{tests.height}</td>
+              <td className="p-3 text-center border-r border-gray-300">cm</td>
+              <td className="p-3 text-center border-r border-gray-300">-</td>
+              <td className="p-3 text-center">-</td>
+            </tr>
+            <tr className="bg-gray-50/50">
+              <td className="p-3 font-semibold border-r border-gray-300">WEIGHT</td>
+              <td className="p-3 text-center font-bold border-r border-gray-300">{tests.weight}</td>
+              <td className="p-3 text-center border-r border-gray-300">kg</td>
+              <td className="p-3 text-center border-r border-gray-300">-</td>
+              <td className="p-3 text-center">-</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="border-b border-gray-300 mb-8"></div>
+
+      {/* 5. BMI - EXACTLY PDF JAISA */}
+      {bmiData && (
+        <div className="mb-8">
+          <p className="font-bold text-blue-700 mb-3">BMI Assessment:</p>
+          <div className="flex items-center gap-6 mb-4">
+            <span className="text-sm">Value: <span className="font-bold text-lg">{bmiData.bmi}</span></span>
+            <span className="text-sm">Status: <span className={`font-bold px-3 py-0.5 rounded text-white ${getBmiColor(bmiData.category)}`}>{bmiData.category.toUpperCase()}</span></span>
+          </div>
+          <div className="relative mt-4 mb-6 max-w-xl">
+            <div className="absolute -top-4 transition-all duration-500 z-10" style={{ left: getBmiMarkerPosition(bmiData.bmi) }}>
+              <div className="w-0 h-0 border-l-[8px] border-r-[8px] border-b-[12px] border-l-transparent border-r-transparent border-b-gray-800" />
+            </div>
+            <div className="grid grid-cols-4 text-[10px] font-bold text-center h-8 overflow-hidden rounded border border-gray-300">
+              <div className="flex items-center justify-center text-white bg-blue-600">Underweight</div>
+              <div className="flex items-center justify-center text-white bg-green-600">Healthy</div>
+              <div className="flex items-center justify-center text-white bg-orange-500">Overweight</div>
+              <div className="flex items-center justify-center text-white bg-red-600">Obese</div>
+            </div>
+          </div>
+          <div className="text-center mt-6">
+            <p className="text-xs font-bold text-gray-600 mb-1">BMI REFERENCE CHART</p>
+            <img src={bmiChart} alt="BMI Reference Chart" className="mx-auto max-w-full h-40 object-contain border border-gray-200 rounded bg-white p-2" />
+          </div>
+        </div>
+      )}
+      <div className="border-b border-gray-300 mb-10"></div>
+
+      {/* 6. Signatures - EXACTLY PDF JAISA */}
+      <div className="flex justify-between items-end mb-12 px-2">
+        <div>
+          <p className="font-bold text-sm text-gray-700">Consultant Physician</p>
+        </div>
+        <div className="text-center">
+          <img src={signature} alt="Signature" className="w-28 mx-auto mb-1" />
+          <p className="font-bold text-sm text-gray-700">Camp Incharge</p>
+        </div>
+      </div>
+
+      {/* 7. Footer - EXACTLY PDF JAISA */}
+      <div className="-mx-12 -mb-10 mt-8 bg-[#009688] text-white py-4 px-6 text-center rounded-b-lg">
+        <div className="text-xs font-semibold tracking-wide">
+          <p className="mb-1">Timely Healthtech Private Limited</p>
+          <p>Plot No.60, 1st Floor, Sri Sai Balaji Avenue, VIP Hills, Madhapur, Hyderabad – 500081</p>
+          <div className="flex justify-center gap-6 mt-2">
+            <span>Mail: timelyhealth@gmail.com</span>
+            <span>Mobile: 96 1348 1048</span>
+            <span>www.timelyhealth.in</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
