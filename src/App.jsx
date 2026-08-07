@@ -53,6 +53,7 @@ import PartnerAllReports from './pages/PartnerAllReports';
 import PartnerWithReports from './pages/PartnerWithReports';
 import PartnerPendingReports from './pages/PartnerPendingReports';
 import CampMembers from './pages/CampMembers';
+import CommonVolunteer from './pages/CommonVolunteer';
 
 function App() {
   return (
@@ -87,6 +88,7 @@ function App() {
           <Route path="/partner-all-reports" element={<PartnerAllReports />} />
           <Route path="/partner-with-reports" element={<PartnerWithReports />} />
           <Route path="/partner-pending-reports" element={<PartnerPendingReports />} />
+          <Route path="/common-volunteer" element={<CommonVolunteer />} />
         </Routes>
       </Layout>
     </Router>

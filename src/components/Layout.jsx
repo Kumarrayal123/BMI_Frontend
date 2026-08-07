@@ -444,6 +444,7 @@ const Layout = ({ children }) => {
         { path: "/partners", icon: Building2, label: "Partners" },
         { path: "/camp-members", icon: Users, label: "Camp Members" },
         { path: "/all-reports", icon: FileSpreadsheet, label: "Reports" },
+        {path:'/common-volunteer', icon: Users2, label: 'Volunteers'}
       );
     } else if (role === "partner") {
       items.push(
