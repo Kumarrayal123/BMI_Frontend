@@ -1192,7 +1192,6 @@ const DoctorDashboard = () => {
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
 
-    // 🔥 Stats Modal State
     const [statsModal, setStatsModal] = useState({
         show: false,
         title: "",
@@ -1200,7 +1199,6 @@ const DoctorDashboard = () => {
         type: ""
     });
 
-    // 🔥 Delete Confirmation Modal State
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [deleteType, setDeleteType] = useState("");
@@ -1226,7 +1224,6 @@ const DoctorDashboard = () => {
     const [copied, setCopied] = useState(false);
     const [downloadingBulk, setDownloadingBulk] = useState(false);
 
-    // Refs for scrolling
     const campsSectionRef = useRef(null);
     const patientsSectionRef = useRef(null);
 
@@ -1242,7 +1239,6 @@ const DoctorDashboard = () => {
         }
     };
 
-    // Helper functions
     const getVolunteerName = (id) => {
         if (!id) return 'Unknown';
         if (typeof id === 'object') {
@@ -1272,7 +1268,6 @@ const DoctorDashboard = () => {
         return partnerMap[idStr] || idStr;
     };
 
-    // 🔥 Stats Modal Handlers
     const openStatsModal = (type, title, data) => {
         setStatsModal({
             show: true,
@@ -1291,7 +1286,6 @@ const DoctorDashboard = () => {
         });
     };
 
-    // 🔥 DELETE MODAL HANDLERS
     const openDeleteModal = (target, type) => {
         setDeleteTarget(target);
         setDeleteType(type);
@@ -1305,7 +1299,6 @@ const DoctorDashboard = () => {
         setIsDeleting(false);
     };
 
-    // 🔥 Confirm Delete Patient
     const confirmDeletePatient = async () => {
         if (!deleteTarget) return;
         
@@ -1314,7 +1307,6 @@ const DoctorDashboard = () => {
             await axios.delete(`${API_BASE}/patients/${deleteTarget._id}`);
             alert("✅ Patient deleted successfully!");
             
-            // Refresh patients
             const patientsRes = await axios.get(`${API_BASE}/patients`);
             let patientData = [];
             if (patientsRes.data) {
@@ -1336,13 +1328,12 @@ const DoctorDashboard = () => {
         }
     };
 
-    // 🔥 Confirm Delete Camp
     const confirmDeleteCamp = async () => {
         if (!deleteTarget) return;
         
         setIsDeleting(true);
         try {
-            await axios.delete(`${API_BASE}/camps/delete-partner-camp/${deleteTarget._id}`);
+            await axios.delete(`${API_BASE}/camps/delete-partner-camp/${partnerId}/${deleteTarget._id}`);
             alert("✅ Camp deleted successfully!");
             fetchData();
             closeDeleteModal();
@@ -1353,7 +1344,6 @@ const DoctorDashboard = () => {
         }
     };
 
-    // 🔥 Handle delete based on type
     const handleConfirmDelete = () => {
         if (deleteType === "patient") {
             confirmDeletePatient();
@@ -1374,7 +1364,6 @@ const DoctorDashboard = () => {
         try {
             setLoading(true);
             
-            // Fetch employees
             const employeesRes = await axios.get(`${API_BASE}/proxy/employees/get-employees`).catch(() => ({ data: [] }));
             const empData = employeesRes.data || [];
             const allEmployees = Array.isArray(empData) ? empData : empData.employees || empData.data || empData.value || [];
@@ -1389,7 +1378,6 @@ const DoctorDashboard = () => {
             });
             setVolunteers(filteredVolunteers);
 
-            // Fetch partner volunteers
             try {
                 const partnerVolRes = await axios.get(`${API_BASE}/volunteers/partner-volunteers/${partnerId}`);
                 let pvData = [];
@@ -1409,7 +1397,6 @@ const DoctorDashboard = () => {
                 setPartnerVolunteers([]);
             }
 
-            // Fetch partners
             const partnersRes = await axios.get(`${API_BASE}/auth/partners`).catch(() => ({ data: [] }));
             let partnerData = partnersRes.data || [];
             if (!Array.isArray(partnerData)) {
@@ -1418,10 +1405,10 @@ const DoctorDashboard = () => {
             }
             setPartnerList(partnerData);
             const pMap = {};
-            partnerData.forEach(p => { pMap[p._id] = p.name; });
+            partnerData.forEach(p => { pMap[p._id] = p.name || p.clinicName; });
             setPartnerMap(pMap);
 
-            // Fetch assigned camps
+            // 🔥 FIXED: Fetch assigned camps
             let assignedData = [];
             try {
                 const assignedRes = await axios.get(`${API_BASE}/camps/assigned-camps/${partnerId}`);
@@ -1430,8 +1417,10 @@ const DoctorDashboard = () => {
                     else if (assignedRes.data.data && Array.isArray(assignedRes.data.data)) assignedData = assignedRes.data.data;
                     else if (assignedRes.data.camps && Array.isArray(assignedRes.data.camps)) assignedData = assignedRes.data.camps;
                 }
+                console.log(`✅ Assigned camps loaded: ${assignedData.length}`);
             } catch (err) {
                 console.log("⚠️ Assigned camps API failed:", err.message);
+                assignedData = [];
             }
             setAssignedCamps(assignedData);
 
@@ -1444,8 +1433,10 @@ const DoctorDashboard = () => {
                     else if (createdRes.data.data && Array.isArray(createdRes.data.data)) createdData = createdRes.data.data;
                     else if (createdRes.data.camps && Array.isArray(createdRes.data.camps)) createdData = createdRes.data.camps;
                 }
+                console.log(`✅ Created camps loaded: ${createdData.length}`);
             } catch (err) {
                 console.log("⚠️ Created camps API failed:", err.message);
+                createdData = [];
             }
             setCreatedCamps(createdData);
 
@@ -1492,7 +1483,6 @@ const DoctorDashboard = () => {
         return activeTab === "assigned" ? assignedCamps : createdCamps;
     }, [assignedCamps, createdCamps, activeTab]);
 
-    // Filter camps by date range for charts
     const filteredCamps = useMemo(() => {
         if (!Array.isArray(allCamps)) return [];
         return allCamps.filter(camp => {
@@ -1555,7 +1545,6 @@ const DoctorDashboard = () => {
         });
     }, [displayCamps, patients]);
 
-    // Handlers
     const handleAddPartner = (e) => {
         const pid = e.target.value;
         if (pid && !campForm.partners.includes(pid)) {
@@ -1601,8 +1590,9 @@ const DoctorDashboard = () => {
                 time: campForm.time,
                 createdBy: partnerId,
                 creatorRole: "partner",
-                volunteers: campForm.volunteers || [],
-                partners: campForm.partners || []
+                assignedPartner: campForm.partners && campForm.partners.length > 0 ? campForm.partners[0] : null,
+                partners: campForm.partners || [],
+                volunteers: campForm.volunteers || []
             };
             
             const response = await axios.post(`${API_BASE}/camps/create-by-partner`, formData);
@@ -1628,10 +1618,13 @@ const DoctorDashboard = () => {
                 address: campForm.address || "",
                 date: campForm.date,
                 time: campForm.time,
-                volunteers: campForm.volunteers || [],
-                partners: campForm.partners || []
+                assignedPartner: campForm.partners && campForm.partners.length > 0 ? campForm.partners[0] : null,
+                partners: campForm.partners || [],
+                volunteers: campForm.volunteers || []
             };
-            await axios.put(`${API_BASE}/camps/update-partner-camp/${editingCamp._id}`, formData);
+            
+            await axios.put(`${API_BASE}/camps/update-partner-camp/${partnerId}/${editingCamp._id}`, formData);
+            
             alert("✅ Camp updated successfully");
             setShowEditModal(false);
             setEditingCamp(null);
@@ -1639,7 +1632,7 @@ const DoctorDashboard = () => {
             fetchData();
         } catch (err) {
             console.error("Update camp error:", err);
-            alert("❌ Failed to update camp");
+            alert("❌ Failed to update camp: " + (err.response?.data?.message || err.message));
         }
     };
 
@@ -1657,14 +1650,10 @@ const DoctorDashboard = () => {
         setShowEditModal(true);
     };
 
-    // prepareReportData
     const prepareReportData = async (patientId) => {
         try {
             const res = await axios.get(`${API_BASE}/patients/${patientId}`);
             const fullPatient = res.data;
-
-            console.log("📊 Patient Data:", fullPatient);
-            console.log("📊 Tests:", fullPatient.tests);
 
             if (!fullPatient?.tests?.length) {
                 alert("No test data available for this patient.");
@@ -1672,8 +1661,6 @@ const DoctorDashboard = () => {
             }
 
             const test = extractLatestVitals(fullPatient.tests);
-            console.log("📊 Extracted Vitals:", test);
-
             const bmiValue = calculateBMI(test.weight, test.height);
 
             const patientData = {
@@ -1700,8 +1687,6 @@ const DoctorDashboard = () => {
                 bmi: bmiValue || "-",
                 category: bmiValue ? getBMICategory(bmiValue) : "-",
             };
-
-            console.log("📊 Report Data:", { patientData, testsData, bmiData });
 
             return { patientData, testsData, bmiData };
         } catch (err) {
@@ -1795,7 +1780,6 @@ const DoctorDashboard = () => {
         document.body.removeChild(link);
     };
 
-    // 🔥 Delete Confirmation Modal Component
     const DeleteConfirmationModal = () => {
         if (!showDeleteModal) return null;
 
@@ -1875,7 +1859,6 @@ const DoctorDashboard = () => {
         );
     };
 
-    // 🔥 Stats Modal Component
     const StatsModal = () => {
         if (!statsModal.show) return null;
 
@@ -2055,7 +2038,7 @@ const DoctorDashboard = () => {
             </div>
 
             <div className="space-y-6">
-                {/* Stats - Clickable */}
+                {/* Stats */}
                 <div className="admin-dash__stats">
                     <div 
                         className="admin-dash__stat cursor-pointer" 
@@ -2173,7 +2156,7 @@ const DoctorDashboard = () => {
                     </div>
                 </div>
 
-                {/* Charts Section */}
+                {/* Charts */}
                 <div className="admin-dash__charts-grid">
                     <div className="admin-dash__card admin-dash__chart-wrap">
                         <div className="admin-dash__card-header py-3 px-4">
@@ -2226,7 +2209,7 @@ const DoctorDashboard = () => {
                     </div>
                 </div>
 
-                {/* My Camps Section */}
+                {/* My Camps */}
                 <div ref={campsSectionRef} className="admin-dash__card">
                     <div className="admin-dash__card-header py-3 px-4">
                         <h3 className="admin-dash__card-title text-sm">My Camps</h3>
@@ -2349,7 +2332,6 @@ const DoctorDashboard = () => {
                                                             >
                                                                 <FiEdit size={12} />
                                                             </button>
-                                                            {/* 🔥 DELETE CAMP BUTTON */}
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
@@ -2389,7 +2371,7 @@ const DoctorDashboard = () => {
                     </div>
                 </div>
 
-                {/* Patients Section */}
+                {/* Patients */}
                 <div ref={patientsSectionRef} className="admin-dash__card">
                     <div className="admin-dash__card-header py-3 px-4">
                         <h3 className="admin-dash__card-title text-sm">My Patients</h3>
@@ -2494,7 +2476,6 @@ const DoctorDashboard = () => {
                                                         >
                                                             <FiMessageCircle size={12} /> WhatsApp
                                                         </button>
-                                                        {/* 🔥 DELETE PATIENT BUTTON */}
                                                         <button 
                                                             onClick={() => openDeleteModal(patient, "patient")}
                                                             className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
@@ -2523,6 +2504,7 @@ const DoctorDashboard = () => {
                 </div>
             </div>
 
+            {/* Modals - Create, Edit, View, Share */}
             {/* Create Camp Modal */}
             {showCampModal && createPortal(
                 <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -2590,12 +2572,12 @@ const DoctorDashboard = () => {
                                 <div className="flex flex-wrap gap-1.5 mb-1.5">
                                     {campForm.volunteers.map((vol, index) => (
                                         <span key={index} className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 shadow-sm ${
-                                            partnerVolunteers.some(pv => pv._id === vol) 
+                                            partnerVolunteers.some(pv => String(pv._id) === String(vol)) 
                                                 ? 'bg-green-50 text-green-700 border-green-200' 
                                                 : 'bg-indigo-50 text-indigo-700 border-indigo-100'
                                         }`}>
                                             {getVolunteerName(vol)}
-                                            {partnerVolunteers.some(pv => pv._id === vol) && ' ⭐'}
+                                            {partnerVolunteers.some(pv => String(pv._id) === String(vol)) && ' ⭐'}
                                             <FiX 
                                                 size={12} 
                                                 className="cursor-pointer opacity-60 hover:opacity-100" 
@@ -2622,7 +2604,7 @@ const DoctorDashboard = () => {
                                     {volunteers && volunteers.length > 0 && (
                                         <optgroup label="👥 All Volunteers">
                                             {volunteers
-                                                .filter(v => !partnerVolunteers?.some(pv => pv._id === v._id))
+                                                .filter(v => !partnerVolunteers?.some(pv => String(pv._id) === String(v._id)))
                                                 .map(v => (
                                                     <option key={v._id} value={v._id}>
                                                         {v.name} ({v.designation || "Staff"})
@@ -2632,11 +2614,6 @@ const DoctorDashboard = () => {
                                         </optgroup>
                                     )}
                                 </select>
-                                {partnerVolunteers && partnerVolunteers.length > 0 && (
-                                    <p className="text-[10px] text-green-600 mt-1">
-                                        ✅ {partnerVolunteers.length} volunteers from your organization available
-                                    </p>
-                                )}
                             </div>
                             
                             <div className="space-y-1.5">
@@ -2752,12 +2729,12 @@ const DoctorDashboard = () => {
                                 <div className="flex flex-wrap gap-1.5 mb-1.5">
                                     {campForm.volunteers.map((vol, index) => (
                                         <span key={index} className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 shadow-sm ${
-                                            partnerVolunteers.some(pv => pv._id === vol) 
+                                            partnerVolunteers.some(pv => String(pv._id) === String(vol)) 
                                                 ? 'bg-green-50 text-green-700 border-green-200' 
                                                 : 'bg-indigo-50 text-indigo-700 border-indigo-100'
                                         }`}>
                                             {getVolunteerName(vol)}
-                                            {partnerVolunteers.some(pv => pv._id === vol) && ' ⭐'}
+                                            {partnerVolunteers.some(pv => String(pv._id) === String(vol)) && ' ⭐'}
                                             <FiX 
                                                 size={12} 
                                                 className="cursor-pointer opacity-60 hover:opacity-100" 
@@ -2772,11 +2749,27 @@ const DoctorDashboard = () => {
                                     onChange={handleAddVolunteer}
                                 >
                                     <option value="">+ Add Staff/Volunteer</option>
-                                    {volunteers.map(v => (
-                                        <option key={v._id} value={v._id}>
-                                            {v.name} ({v.designation || "Staff"})
-                                        </option>
-                                    ))}
+                                    {partnerVolunteers && partnerVolunteers.length > 0 && (
+                                        <optgroup label="⭐ My Volunteers (Partner)">
+                                            {partnerVolunteers.map(v => (
+                                                <option key={v._id} value={v._id} className="text-green-600 font-medium">
+                                                    {v.name} ({v.designation || "Volunteer"})
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    )}
+                                    {volunteers && volunteers.length > 0 && (
+                                        <optgroup label="👥 All Volunteers">
+                                            {volunteers
+                                                .filter(v => !partnerVolunteers?.some(pv => String(pv._id) === String(v._id)))
+                                                .map(v => (
+                                                    <option key={v._id} value={v._id}>
+                                                        {v.name} ({v.designation || "Staff"})
+                                                    </option>
+                                                ))
+                                            }
+                                        </optgroup>
+                                    )}
                                 </select>
                             </div>
                             <div className="space-y-1.5">
@@ -2826,7 +2819,7 @@ const DoctorDashboard = () => {
                 document.body
             )}
 
-            {/* View Camp Modal - UPDATED with close icon at top-right */}
+            {/* View Camp Modal */}
             {viewCamp && createPortal(
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -2999,7 +2992,7 @@ const DoctorDashboard = () => {
             {/* Stats Modal */}
             <StatsModal />
 
-            {/* 🔥 DELETE CONFIRMATION MODAL */}
+            {/* Delete Confirmation Modal */}
             <DeleteConfirmationModal />
         </div>
     );
