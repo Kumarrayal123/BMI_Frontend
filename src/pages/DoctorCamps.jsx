@@ -2427,7 +2427,8 @@ import {
     FiTrash2,
     FiUserCheck,
     FiPlusCircle,
-    FiAlertTriangle
+    FiAlertTriangle,
+    FiUserPlus
 } from "react-icons/fi";
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -2553,6 +2554,11 @@ const DoctorCamps = () => {
             data: [],
             type: ""
         });
+    };
+
+    // ✅ NEW: Handle camp card click - Navigate to Add Patient with camp pre-selected
+    const handleCampCardClick = (campId, campName) => {
+        navigate("/add-patient", { state: { campId: campId, campName: campName } });
     };
 
     const getVolunteerName = (id) => {
@@ -3400,15 +3406,16 @@ const DoctorCamps = () => {
                                 {campsWithCount.map(camp => {
                                     const isSelected = selectedCampId === camp._id;
                                     const isCreated = activeTab === "created";
+                                    const patientCount = patients.filter(p => String(p.campId?._id) === String(camp._id)).length;
 
                                     return (
                                         <div
                                             key={camp._id}
-                                            onClick={() => setSelectedCampId(camp._id)}
-                                            className={`cursor-pointer p-5 rounded-2xl border transition-all group relative
+                                            onClick={() => handleCampCardClick(camp._id, camp.name)}
+                                            className={`cursor-pointer p-5 rounded-2xl border transition-all group relative hover:shadow-lg hover:scale-[1.02] hover:border-indigo-400
                                                 ${isSelected
                                                     ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
-                                                    : "bg-white hover:border-indigo-300 hover:shadow-md text-gray-700"
+                                                    : "bg-white hover:border-indigo-300 text-gray-700"
                                                 }`}
                                         >
                                             {isCreated && (
@@ -3454,9 +3461,14 @@ const DoctorCamps = () => {
                                                 </div>
                                             </div>
                                             <div className={`mt-5 pt-4 border-t flex items-center justify-between ${isSelected ? "border-white/20" : "border-gray-50"}`}>
-                                                <div className={`flex items-center gap-2 text-xs font-bold ${isSelected ? "text-indigo-200" : "text-gray-400"}`}>
-                                                    <FiUsers size={14} />
-                                                    <span>{camp.count} Patients</span>
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`flex items-center gap-2 text-xs font-bold ${isSelected ? "text-indigo-200" : "text-gray-400"}`}>
+                                                        <FiUsers size={14} />
+                                                        <span>{patientCount} Patients</span>
+                                                    </div>
+                                                    {/* <span className="text-[8px] text-green-600 font-medium flex items-center gap-0.5">
+                                                        <FiUserPlus size={10} /> Click to add
+                                                    </span> */}
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     {isCreated && (
@@ -3613,7 +3625,6 @@ const DoctorCamps = () => {
                                                         <button onClick={() => shareReport(patient)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 transition-colors">
                                                             <FiMessageCircle size={14} /> WhatsApp
                                                         </button>
-                                                        {/* 🔥 NEW: Delete button */}
                                                         <button
                                                             onClick={() => {
                                                                 setPatientToDelete(patient);
@@ -3967,7 +3978,7 @@ const DoctorCamps = () => {
                 document.body
             )}
 
-            {/* View Camp Modal - UPDATED with proper layout */}
+            {/* View Camp Modal */}
             {viewCamp && createPortal(
                 <div 
                     className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
@@ -4131,7 +4142,7 @@ const DoctorCamps = () => {
                 document.body
             )}
 
-            {/* Share Modal - FIXED POSITION */}
+            {/* Share Modal */}
             {showShareModal && currentPatient && createPortal(
                 <div 
                     className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"

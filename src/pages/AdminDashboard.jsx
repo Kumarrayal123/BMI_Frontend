@@ -1,4 +1,4 @@
-// import axios from "axios";
+﻿// import axios from "axios";
 // import {
 //     FiActivity,
 //     FiMapPin,
@@ -881,13 +881,14 @@ import {
     FiPlusCircle,
     FiArchive,
     FiEyeOff,
-    FiEye as FiEyeShow
+    FiEye as FiEyeShow,
+    FiUserPlus
 } from "react-icons/fi";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import React from "react";
 import config from "../config";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import "./Dashboard.css";
 import { CampStatusBadge, getCampStatus } from "../utils/campStatus";
 import {
@@ -900,6 +901,7 @@ import VolunteerDisplay from "../components/VolunteerDisplay";
 import PartnerDisplay from "../components/PartnerDisplay";
 
 const AdminDashboard = () => {
+    const navigate = useNavigate();
     const [patients, setPatients] = useState([]);
     const [camps, setCamps] = useState([]);
     const [search, setSearch] = useState("");
@@ -1508,62 +1510,100 @@ const AdminDashboard = () => {
         return partner ? partner.name || partner.clinicName || "Unknown Partner" : "Unknown Partner";
     };
 
+    // ✅ FIXED: getCreatorInfo - Shows proper creator name
     const getCreatorInfo = (camp) => {
+        // For admin created camps
         if (camp.creatorRole === "admin") {
-            let creatorName = adminName;
-            if (camp.createdBy && typeof camp.createdBy === "object") {
-                creatorName = camp.createdBy.name || camp.createdBy.clinicName || adminName;
-            } else if (camp.createdBy && typeof camp.createdBy === "string") {
-                creatorName = camp.createdBy;
+            let creatorName = "Admin";
+            
+            // Check if createdBy has name
+            if (camp.createdBy) {
+                if (typeof camp.createdBy === 'object' && camp.createdBy.name) {
+                    creatorName = camp.createdBy.name;
+                } else if (typeof camp.createdBy === 'string') {
+                    // If it's an ObjectID, use adminName from localStorage
+                    if (camp.createdBy.match(/^[0-9a-fA-F]{24}$/)) {
+                        creatorName = adminName || "Admin";
+                    } else {
+                        creatorName = camp.createdBy;
+                    }
+                }
             }
+            
             return { 
                 label: `Created by Admin: ${creatorName}`, 
                 color: "bg-blue-100 text-blue-700" 
             };
-        } else if (camp.creatorRole === "partner") {
+        } 
+        // For partner created camps
+        else if (camp.creatorRole === "partner") {
             let partnerName = "Unknown Partner";
-            if (camp.createdBy && typeof camp.createdBy === "object") {
-                partnerName = camp.createdBy.name || camp.createdBy.clinicName || "Unknown Partner";
-            } else if (camp.createdBy && typeof camp.createdBy === "string") {
-                if (String(camp.createdBy).match(/^[0-9a-fA-F]{24}$/)) {
-                    const partner = partners.find(p => String(p._id) === String(camp.createdBy));
-                    if (partner) {
-                        partnerName = partner.name || partner.clinicName || "Unknown Partner";
+            
+            if (camp.createdBy) {
+                if (typeof camp.createdBy === 'object') {
+                    partnerName = camp.createdBy.name || camp.createdBy.clinicName || "Unknown Partner";
+                } else if (typeof camp.createdBy === 'string') {
+                    // Check if it's an ObjectID
+                    if (camp.createdBy.match(/^[0-9a-fA-F]{24}$/)) {
+                        const partner = partners.find(p => String(p._id) === String(camp.createdBy));
+                        if (partner) {
+                            partnerName = partner.name || partner.clinicName || "Unknown Partner";
+                        }
+                    } else {
+                        partnerName = camp.createdBy;
                     }
-                } else {
-                    partnerName = camp.createdBy;
                 }
             }
+            
             return { 
                 label: `Created by Partner: ${partnerName}`,
                 color: "bg-emerald-100 text-emerald-700"
             };
         }
-        return { label: "Unknown", color: "bg-gray-100 text-gray-700" };
+        
+        // Fallback for unknown - show admin name
+        return { 
+            label: `Created by: ${adminName || "Admin"}`, 
+            color: "bg-gray-100 text-gray-700" 
+        };
     };
 
+    // ✅ FIXED: getCreatorDisplayName - Shows proper creator name in view modal
     const getCreatorDisplayName = (camp) => {
+        // For admin created camps
         if (camp.creatorRole === "admin") {
-            if (camp.createdBy && typeof camp.createdBy === "object") {
-                return camp.createdBy.name || camp.createdBy.clinicName || adminName;
-            }
-            return camp.createdBy || adminName;
-        } else if (camp.creatorRole === "partner") {
-            if (camp.createdBy && typeof camp.createdBy === "object") {
-                return camp.createdBy.name || camp.createdBy.clinicName || "Unknown Partner";
-            }
-            if (camp.createdBy && typeof camp.createdBy === "string") {
-                if (String(camp.createdBy).match(/^[0-9a-fA-F]{24}$/)) {
-                    const partner = partners.find(p => String(p._id) === String(camp.createdBy));
-                    if (partner) {
-                        return partner.name || partner.clinicName || "Unknown Partner";
+            if (camp.createdBy) {
+                if (typeof camp.createdBy === 'object' && camp.createdBy.name) {
+                    return camp.createdBy.name;
+                } else if (typeof camp.createdBy === 'string') {
+                    if (camp.createdBy.match(/^[0-9a-fA-F]{24}$/)) {
+                        return adminName || "Admin";
                     }
+                    return camp.createdBy;
                 }
-                return camp.createdBy;
+            }
+            return adminName || "Admin";
+        } 
+        // For partner created camps
+        else if (camp.creatorRole === "partner") {
+            if (camp.createdBy) {
+                if (typeof camp.createdBy === 'object') {
+                    return camp.createdBy.name || camp.createdBy.clinicName || "Unknown Partner";
+                } else if (typeof camp.createdBy === 'string') {
+                    if (camp.createdBy.match(/^[0-9a-fA-F]{24}$/)) {
+                        const partner = partners.find(p => String(p._id) === String(camp.createdBy));
+                        if (partner) {
+                            return partner.name || partner.clinicName || "Unknown Partner";
+                        }
+                    }
+                    return camp.createdBy;
+                }
             }
             return "Unknown Partner";
         }
-        return "Unknown";
+        
+        // Fallback for unknown
+        return adminName || "Admin";
     };
 
     const patientFilterOptions = [
@@ -1622,6 +1662,18 @@ const AdminDashboard = () => {
         document.addEventListener('click', handleClickOutside);
         return () => document.removeEventListener('click', handleClickOutside);
     }, []);
+
+    // ✅ NEW: Handle camp card click - Navigate to Add Patient with camp pre-selected
+    const handleCampCardClick = (campId, campName) => {
+        // If the camp is archived, don't navigate
+        const camp = camps.find(c => c._id === campId);
+        if (camp && camp.isHidden) {
+            alert("This camp is archived. Cannot add patients.");
+            return;
+        }
+        // Navigate to Add Patient page with camp pre-selected
+        navigate("/add-patient", { state: { campId: campId, campName: campName } });
+    };
 
     const StatsModal = () => {
         if (!statsModal.show) return null;
@@ -1918,14 +1970,6 @@ const AdminDashboard = () => {
                         )}
                     </button>
 
-                    {/* <button
-                        onClick={() => navigate("/camp-members")}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition shadow-lg shadow-indigo-100"
-                    >
-                        <FiUsers size={18} />
-                        Camp Members
-                    </button> */}
-                    
                     <button
                         onClick={() => setShowCampModal(true)}
                         className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition shadow-lg shadow-green-100"
@@ -2085,16 +2129,14 @@ const AdminDashboard = () => {
                                 {camps.map((camp) => {
                                     const creatorInfo = getCreatorInfo(camp);
                                     const isArchived = camp.isHidden === true;
+                                    const patientCount = patients.filter((p) => String(p.campId?._id) === String(camp._id)).length;
+                                    
                                     return (
                                         <div
                                             key={camp._id}
-                                            onClick={() => setSelectedCampId(camp._id)}
-                                            className={`cursor-pointer p-4 rounded-2xl border transition-all relative
-                                                ${selectedCampId === camp._id
-                                                    ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
-                                                    : "bg-white hover:border-indigo-300 hover:shadow-md"
-                                                }
-                                                ${isArchived ? "border-purple-300 bg-purple-50/30" : ""}
+                                            onClick={() => handleCampCardClick(camp._id, camp.name)}
+                                            className={`cursor-pointer p-4 rounded-2xl border transition-all relative hover:shadow-lg hover:scale-[1.02] hover:border-indigo-400
+                                                ${isArchived ? "border-purple-300 bg-purple-50/30 opacity-70" : "bg-white hover:border-indigo-300"}
                                             `}
                                         >
                                             <div className={`absolute top-2 left-2 text-[8px] font-bold px-2 py-0.5 rounded-full ${creatorInfo.color}`}>
@@ -2116,15 +2158,15 @@ const AdminDashboard = () => {
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className={`mt-2 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                                            <div className={`mt-2 flex items-center gap-2 text-sm ${!isArchived ? "text-gray-600" : "text-gray-400"}`}>
                                                 <FiMapPin size={14} />
                                                 <span className="truncate">{camp.location}</span>
                                             </div>
-                                            <div className={`mt-1 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                                            <div className={`mt-1 flex items-center gap-2 text-sm ${!isArchived ? "text-gray-600" : "text-gray-400"}`}>
                                                 <FiCalendar size={14} />
                                                 <span>{camp.date || "No date"}</span>
                                             </div>
-                                            <div className={`mt-1 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                                            <div className={`mt-1 flex items-center gap-2 text-sm ${!isArchived ? "text-gray-600" : "text-gray-400"}`}>
                                                 <FiClock size={14} />
                                                 <span>{camp.time || "No time"}</span>
                                             </div>
@@ -2133,7 +2175,7 @@ const AdminDashboard = () => {
                                                 <div className="mt-2">
                                                     <VolunteerDisplay
                                                         volunteers={camp.volunteers}
-                                                        isSelected={selectedCampId === camp._id}
+                                                        isSelected={false}
                                                         employeeMap={employeeMap}
                                                     />
                                                 </div>
@@ -2143,16 +2185,24 @@ const AdminDashboard = () => {
                                                 <div className="mt-1">
                                                     <PartnerDisplay
                                                         partners={camp.partners}
-                                                        isSelected={selectedCampId === camp._id}
+                                                        isSelected={false}
                                                         partnersList={partners}
                                                     />
                                                 </div>
                                             )}
                                             
-                                            <span className={`inline-block mt-3 text-xs font-bold px-2 py-1 rounded-lg ${selectedCampId === camp._id ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"}`}>
-                                                {patients.filter((p) => String(p.campId?._id) === String(camp._id)).length} Patients
-                                            </span>
-                                            <div className="float-right mt-3 flex items-center gap-1">
+                                            <div className="mt-3 flex items-center justify-between">
+                                                <span className={`inline-block text-xs font-bold px-2 py-1 rounded-lg ${!isArchived ? "bg-indigo-100 text-indigo-600" : "bg-gray-100 text-gray-400"}`}>
+                                                    {patientCount} Patients
+                                                </span>
+                                                {/* {!isArchived && (
+                                                    <span className="text-[10px] text-green-600 font-medium flex items-center gap-1">
+                                                        <FiUserPlus size={12} /> Click to add
+                                                    </span>
+                                                )} */}
+                                            
+                                            
+                                            {/* <div className="float-right mt-3 flex items-center gap-1"> */}
                                                 {!isArchived && (
                                                     <>
                                                         <button
@@ -2498,7 +2548,7 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
-                {/* Create Camp Modal - WITH PARTNER VOLUNTEERS */}
+                {/* Create Camp Modal */}
                 {showCampModal && createPortal(
                     <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4">
                         <div className="w-full max-w-lg bg-white shadow-2xl rounded-2xl overflow-hidden animate-in zoom-in-95 duration-300">
@@ -2560,7 +2610,7 @@ const AdminDashboard = () => {
                                     </div>
                                 </div>
 
-                                {/* 🔥 VOLUNTEERS SECTION - Show Partner Volunteers */}
+                                {/* Volunteers Section */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-700">Select Volunteers</label>
                                     <div className="flex flex-wrap gap-2 mb-2">
@@ -2578,7 +2628,6 @@ const AdminDashboard = () => {
                                     >
                                         <option value="">+ Add Volunteer</option>
                                         
-                                        {/* Partner Volunteers Group */}
                                         {volunteers.filter(v => v.source === 'partner').length > 0 && (
                                             <optgroup label="⭐ Partner Volunteers">
                                                 {volunteers.filter(v => v.source === 'partner').map(vol => (
@@ -2589,7 +2638,6 @@ const AdminDashboard = () => {
                                             </optgroup>
                                         )}
                                         
-                                        {/* Employee Volunteers Group */}
                                         {volunteers.filter(v => v.source !== 'partner').length > 0 && (
                                             <optgroup label="👥 Employee Volunteers">
                                                 {volunteers.filter(v => v.source !== 'partner').map(vol => (
@@ -2647,7 +2695,7 @@ const AdminDashboard = () => {
                     </div>, document.body
                 )}
 
-                {/* Edit Camp Modal - WITH PARTNER VOLUNTEERS */}
+                {/* Edit Camp Modal */}
                 {showEditCampModal && editingCamp && createPortal(
                     <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4">
                         <div className="w-full max-w-lg bg-white shadow-2xl rounded-2xl overflow-hidden animate-in zoom-in-95 duration-300">
@@ -2709,7 +2757,6 @@ const AdminDashboard = () => {
                                     </div>
                                 </div>
 
-                                {/* 🔥 VOLUNTEERS SECTION - Show Partner Volunteers in Edit */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-700">Select Volunteers</label>
                                     <div className="flex flex-wrap gap-2 mb-2">
@@ -2727,7 +2774,6 @@ const AdminDashboard = () => {
                                     >
                                         <option value="">+ Add Volunteer</option>
                                         
-                                        {/* Partner Volunteers Group */}
                                         {volunteers.filter(v => v.source === 'partner').length > 0 && (
                                             <optgroup label="⭐ Partner Volunteers">
                                                 {volunteers.filter(v => v.source === 'partner').map(vol => (
@@ -2738,7 +2784,6 @@ const AdminDashboard = () => {
                                             </optgroup>
                                         )}
                                         
-                                        {/* Employee Volunteers Group */}
                                         {volunteers.filter(v => v.source !== 'partner').length > 0 && (
                                             <optgroup label="👥 Employee Volunteers">
                                                 {volunteers.filter(v => v.source !== 'partner').map(vol => (

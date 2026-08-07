@@ -212,6 +212,7 @@ import { FiArrowLeft, FiSave, FiCalendar, FiUser } from "react-icons/fi";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import config from "../config";
+import { getCampStatus } from "../utils/campStatus";
 import "./Dashboard.css";
 
 const AddPatient = () => {
@@ -305,7 +306,29 @@ const AddPatient = () => {
       }
       
       console.log("Processed camps data:", campsData);
-      setCamps(campsData);
+      
+      // ✅ Sort camps in sequence: LIVE → TODAY → UPCOMING → COMPLETED
+      const sortedCamps = campsData.sort((a, b) => {
+        const statusA = getCampStatus(a.date, a.time);
+        const statusB = getCampStatus(b.date, b.time);
+        
+        // Priority order: live(0) → today(1) → upcoming(2) → completed(3)
+        const priority = { 
+          'live': 0, 
+          'today': 1, 
+          'upcoming': 2, 
+          'completed': 3 
+        };
+        
+        const priorityA = priority[statusA.status] !== undefined ? priority[statusA.status] : 4;
+        const priorityB = priority[statusB.status] !== undefined ? priority[statusB.status] : 4;
+        
+        return priorityA - priorityB;
+      });
+      
+      console.log("Sorted camps (LIVE → TODAY → UPCOMING → COMPLETED):", sortedCamps);
+      setCamps(sortedCamps);
+      
     } catch (err) {
       console.error("Error fetching camps", err);
       setCamps([]);
@@ -334,6 +357,16 @@ const AddPatient = () => {
     if (!formData.campId) {
       alert("Please select a camp");
       return;
+    }
+
+    // ✅ Check if selected camp is completed
+    const selectedCamp = camps.find(c => c._id === formData.campId || c.id === formData.campId);
+    if (selectedCamp) {
+      const { status } = getCampStatus(selectedCamp.date, selectedCamp.time);
+      if (status === 'completed') {
+        alert("❌ Cannot add patient to a completed camp. Please select an active camp.");
+        return;
+      }
     }
 
     // Validate required fields
@@ -365,6 +398,59 @@ const AddPatient = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ✅ Helper to get camp status label, color and icon
+  const getCampStatusInfo = (camp) => {
+    if (!camp) return { label: "", color: "", status: "unknown", icon: "" };
+    const { status } = getCampStatus(camp.date, camp.time);
+    const statusMap = {
+      'live': { 
+        label: '🟢 LIVE', 
+        color: 'bg-green-100 text-green-700', 
+        status: 'live',
+        icon: '🟢'
+      },
+      'today': { 
+        label: '🔵 TODAY', 
+        color: 'bg-blue-100 text-blue-700', 
+        status: 'today',
+        icon: '🔵'
+      },
+      'upcoming': { 
+        label: '🟡 UPCOMING', 
+        color: 'bg-yellow-100 text-yellow-700', 
+        status: 'upcoming',
+        icon: '🟡'
+      },
+      'completed': { 
+        label: '🔒 COMPLETED', 
+        color: 'bg-gray-100 text-gray-400', 
+        status: 'completed',
+        icon: '🔒'
+      }
+    };
+    return statusMap[status] || { label: status || 'Unknown', color: 'bg-gray-100 text-gray-500', status: 'unknown', icon: '' };
+  };
+
+  // ✅ Check if camp is expired/completed
+  const isCampCompleted = (camp) => {
+    if (!camp) return true;
+    const { status } = getCampStatus(camp.date, camp.time);
+    return status === 'completed';
+  };
+
+  // ✅ Get status label for showing in select
+  const getStatusLabel = (camp) => {
+    if (!camp) return '';
+    const { status } = getCampStatus(camp.date, camp.time);
+    const labels = {
+      'live': '🟢 LIVE',
+      'today': '🔵 TODAY',
+      'upcoming': '🟡 UPCOMING',
+      'completed': '🔒 COMPLETED'
+    };
+    return labels[status] || status;
   };
 
   return (
@@ -406,7 +492,7 @@ const AddPatient = () => {
           <div className="admin-dash__card-body">
             <form onSubmit={handleSubmit} className="space-y-6">
 
-              {/* CAMP DROPDOWN - FIRST */}
+              {/* CAMP DROPDOWN - SEQUENCE: LIVE → TODAY → UPCOMING → COMPLETED */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
                   Select Camp <span className="text-red-500">*</span>
@@ -424,17 +510,59 @@ const AddPatient = () => {
                   </option>
 
                   {!isLoadingCamps && camps && camps.length > 0 && 
-                    camps.map((camp) => (
-                      <option key={camp._id || camp.id} value={camp._id || camp.id}>
-                        {camp.name || camp.campName || "Unnamed Camp"}
-                      </option>
-                    ))
+                    camps.map((camp) => {
+                      const statusInfo = getCampStatusInfo(camp);
+                      const isCompleted = statusInfo.status === 'completed';
+                      const statusLabel = getStatusLabel(camp);
+                      
+                      return (
+                        <option 
+                          key={camp._id || camp.id} 
+                          value={camp._id || camp.id}
+                          disabled={isCompleted}
+                          style={{ 
+                            color: isCompleted ? '#9ca3af' : 'inherit',
+                            backgroundColor: isCompleted ? '#f3f4f6' : 'transparent'
+                          }}
+                        >
+                          {camp.name || camp.campName || "Unnamed Camp"} 
+                          {camp.date ? ` (${camp.date})` : ''}
+                          {statusLabel ? ` ${statusLabel}` : ''}
+                          {isCompleted ? ' 🔒' : ''}
+                        </option>
+                      );
+                    })
                   }
 
                   {!isLoadingCamps && (!camps || camps.length === 0) && (
                     <option value="" disabled>No camps available</option>
                   )}
                 </select>
+
+                {/* Show warning if completed camp is selected */}
+                {campId && (
+                  (() => {
+                    const selectedCamp = camps.find(c => c._id === campId || c.id === campId);
+                    if (selectedCamp && isCampCompleted(selectedCamp)) {
+                      return (
+                        <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
+                          ⚠️ This camp is completed. Please select an active camp to add patients.
+                        </p>
+                      );
+                    }
+                    return null;
+                  })()
+                )}
+
+                {/* {!isLoadingCamps && camps && camps.length > 0 && (
+                  <div className="mt-2 text-xs text-gray-400 space-y-1">
+                    <p className="font-medium text-gray-600 mb-1">📌 Camp Status Sequence:</p>
+                    <p><span className="text-green-600 font-medium">🟢 LIVE</span> - Currently ongoing (can add patients)</p>
+                    <p><span className="text-blue-600 font-medium">🔵 TODAY</span> - Happening today (can add patients)</p>
+                    <p><span className="text-yellow-600 font-medium">🟡 UPCOMING</span> - Scheduled for future (can add patients)</p>
+                    <p className="text-gray-400">🔒 COMPLETED - Camp is over (cannot add patients)</p>
+                  </div>
+                )} */}
 
                 {!isLoadingCamps && (!camps || camps.length === 0) && (
                   <p className="text-amber-600 text-sm mt-1">
@@ -443,7 +571,7 @@ const AddPatient = () => {
                 )}
               </div>
 
-              {/* CONTACT / WHATSAPP NUMBER - SECOND */}
+              {/* CONTACT / WHATSAPP NUMBER */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
                   WhatsApp Number <span className="text-red-500">*</span>
@@ -458,7 +586,7 @@ const AddPatient = () => {
                 />
               </div>
 
-              {/* SALUTATION - THIRD */}
+              {/* SALUTATION */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
                   Salutation
@@ -480,7 +608,7 @@ const AddPatient = () => {
                 </div>
               </div>
 
-              {/* PATIENT NAME - FOURTH */}
+              {/* PATIENT NAME */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
                   Patient Name <span className="text-red-500">*</span>
@@ -495,7 +623,7 @@ const AddPatient = () => {
                 />
               </div>
 
-              {/* AGE & GENDER - FIFTH */}
+              {/* AGE & GENDER */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
@@ -532,7 +660,7 @@ const AddPatient = () => {
                 </div>
               </div>
 
-              {/* ADDRESS - SIXTH */}
+              {/* ADDRESS */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 uppercase tracking-widest mb-2">
                   Address <span className="text-red-500">*</span>
@@ -564,6 +692,3 @@ const AddPatient = () => {
 };
 
 export default AddPatient;
-
-
-
