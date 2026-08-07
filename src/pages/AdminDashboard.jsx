@@ -2037,27 +2037,17 @@ const AdminDashboard = () => {
                 </div>
 
                 <div className="admin-dash__charts-grid">
-                    <div className="admin-dash__card admin-dash__chart-wrap">
-                        <div className="admin-dash__card-header">
-                            <h3 className="admin-dash__card-title">BMI Distribution</h3>
-                        </div>
-                        <div className="admin-dash__card-body flex-1">
-                            <CampBMIChart camps={filteredCamps} patients={chartFilteredPatients} />
-                        </div>
+                    <div className="admin-dash__chart-wrap w-full h-full">
+                        <CampBMIChart camps={filteredCamps} patients={chartFilteredPatients} />
                     </div>
-                    <div className="admin-dash__card admin-dash__chart-wrap">
-                        <div className="admin-dash__card-header">
-                            <h3 className="admin-dash__card-title">Health Metrics</h3>
-                        </div>
-                        <div className="admin-dash__card-body flex-1">
-                            <HealthMetricChart
-                                type={healthMetric}
-                                patients={chartFilteredPatients}
-                                selectedCampName={null}
-                                onToggle={(v) => setHealthMetric(v)}
-                                currentMetric={healthMetric}
-                            />
-                        </div>
+                    <div className="admin-dash__chart-wrap w-full h-full">
+                        <HealthMetricChart
+                            type={healthMetric}
+                            patients={chartFilteredPatients}
+                            selectedCampName={null}
+                            onToggle={(v) => setHealthMetric(v)}
+                            currentMetric={healthMetric}
+                        />
                     </div>
                 </div>
 

@@ -2750,7 +2750,7 @@ function LandingPage() {
               )}
 
               {/* View All Link Footer */}
-              <div className="text-center mt-12">
+              {/* <div className="text-center mt-12">
                 <Link 
                   to="/user-camps" 
                   className="inline-flex items-center gap-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 bg-white border border-indigo-100 hover:border-indigo-300 px-8 py-3.5 rounded-full shadow-sm hover:shadow-md transition"
@@ -2758,7 +2758,7 @@ function LandingPage() {
                   <span>Explore Full Camp Schedule & Map</span>
                   <ArrowRight className="h-4 w-4" />
                 </Link>
-              </div>
+              </div> */}
             </>
           )}
 
