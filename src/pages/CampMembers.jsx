@@ -1128,30 +1128,214 @@ const CampMembers = () => {
       const res = await axios.get(`${config.API_BASE_URL}/camp-members/${campId}/members`);
       if (res.data && res.data.data) {
         setCampDetails(res.data.data);
+      } else {
+        setCampDetails({ camp: null, assignedPartner: null, volunteers: [] });
       }
     } catch (err) {
       console.error("Error fetching camp members:", err);
       setError("Failed to load camp members details.");
+      setCampDetails({ camp: null, assignedPartner: null, volunteers: [] });
     } finally {
       setLoadingMembers(false);
       setLoadingCamps(false);
     }
   };
 
+  // 🔥 FIXED: fetchAvailableMembers - Shows all volunteers for admin, partner-specific for partner
   const fetchAvailableMembers = async () => {
     if (!selectedCampId) return;
     try {
       setLoadingAvailable(true);
-      const res = await axios.get(`${config.API_BASE_URL}/camp-members/${selectedCampId}/available-members`);
-      if (res.data && res.data.data) {
-        setAvailableMembers(res.data.data);
-        if (res.data.data.partners.length > 0) {
-          setSelectedAssignPartnerId(res.data.data.partners[0].id);
+      
+      // Get current user role and ID
+      const role = localStorage.getItem("role");
+      const userId = localStorage.getItem("userId");
+      
+      let allPartners = [];
+      let allVolunteers = [];
+      
+      // 🔥 1. FETCH PARTNERS - Same for both admin and partner
+      try {
+        const partnersRes = await axios.get(`${config.API_BASE_URL}/auth/partners`).catch(() => ({ data: [] }));
+        let partnersData = partnersRes.data || [];
+        if (!Array.isArray(partnersData)) {
+          partnersData = partnersData.data || partnersData.partners || [];
+          if (!Array.isArray(partnersData)) partnersData = [];
+        }
+        allPartners = partnersData;
+        console.log("✅ Partners loaded:", allPartners.length);
+      } catch (err) {
+        console.error("Error fetching partners:", err);
+      }
+      
+      // 🔥 2. FETCH VOLUNTEERS - Different based on role
+      if (role === "admin") {
+        // 🔥 ADMIN: Fetch ALL volunteers (Employees + Partner Volunteers)
+        
+        // 2a. Fetch employees from proxy
+        try {
+          const employeesRes = await axios.get(`${config.API_BASE_URL}/proxy/employees/get-employees`).catch(() => ({ data: [] }));
+          const empData = employeesRes.data || [];
+          const allEmployees = Array.isArray(empData) ? empData : empData.employees || empData.data || empData.value || [];
+          
+          // Filter employees by department
+          const allowedDepts = ["Laboratory Medicine", "Nursing", "Medical"];
+          const filteredEmployees = allEmployees.filter(emp => {
+            const dept = (emp.department || "").trim();
+            return allowedDepts.some(d => d.toLowerCase() === dept.toLowerCase());
+          });
+          
+          allVolunteers = filteredEmployees.map(emp => ({
+            _id: emp._id,
+            id: emp._id,
+            name: emp.name,
+            email: emp.email || emp.workEmail || '',
+            phone: emp.phone || emp.mobile || '',
+            designation: emp.designation || emp.role || 'Staff',
+            source: 'employee',
+            department: emp.department
+          }));
+          console.log("✅ Employees loaded:", filteredEmployees.length);
+        } catch (err) {
+          console.error("Error fetching employees:", err);
+        }
+        
+        // 2b. Fetch all partner volunteers
+        try {
+          const partnersRes = await axios.get(`${config.API_BASE_URL}/auth/partners`).catch(() => ({ data: [] }));
+          let partnersData = partnersRes.data || [];
+          if (!Array.isArray(partnersData)) {
+            partnersData = partnersData.data || partnersData.partners || [];
+            if (!Array.isArray(partnersData)) partnersData = [];
+          }
+          
+          for (const partner of partnersData) {
+            try {
+              const partnerVolRes = await axios.get(`${config.API_BASE_URL}/volunteers/partner-volunteers/${partner._id}`).catch(() => ({ data: [] }));
+              let pvData = partnerVolRes.data || [];
+              if (!Array.isArray(pvData)) {
+                pvData = pvData.volunteers || pvData.data || [];
+                if (!Array.isArray(pvData)) pvData = [];
+              }
+              
+              pvData.forEach(pv => {
+                // Check if already exists
+                const exists = allVolunteers.some(v => String(v._id) === String(pv._id));
+                if (!exists && pv._id) {
+                  allVolunteers.push({
+                    _id: pv._id,
+                    id: pv._id,
+                    name: pv.name || 'Unknown Volunteer',
+                    email: pv.email || '',
+                    phone: pv.phone || '',
+                    designation: pv.designation || 'Volunteer',
+                    source: 'partner',
+                    partnerId: partner._id,
+                    partnerName: partner.name || partner.clinicName
+                  });
+                }
+              });
+              console.log(`✅ Partner volunteers for ${partner.name || partner.clinicName}: ${pvData.length}`);
+            } catch (err) {
+              console.log(`⚠️ No volunteers for partner ${partner._id}`);
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching partner volunteers:", err);
+        }
+        
+      } else if (role === "partner") {
+        // 🔥 PARTNER: Fetch ONLY their own partner volunteers
+        try {
+          const partnerVolRes = await axios.get(`${config.API_BASE_URL}/volunteers/partner-volunteers/${userId}`).catch(() => ({ data: [] }));
+          let pvData = partnerVolRes.data || [];
+          if (!Array.isArray(pvData)) {
+            pvData = pvData.volunteers || pvData.data || [];
+            if (!Array.isArray(pvData)) pvData = [];
+          }
+          
+          allVolunteers = pvData.map(pv => ({
+            _id: pv._id,
+            id: pv._id,
+            name: pv.name || 'Unknown Volunteer',
+            email: pv.email || '',
+            phone: pv.phone || '',
+            designation: pv.designation || 'Volunteer',
+            source: 'partner',
+            partnerId: userId
+          }));
+          console.log("✅ Partner volunteers loaded:", allVolunteers.length);
+        } catch (err) {
+          console.error("Error fetching partner volunteers:", err);
+        }
+      } else {
+        // 🔥 OTHER ROLES: Fetch employees only
+        try {
+          const employeesRes = await axios.get(`${config.API_BASE_URL}/proxy/employees/get-employees`).catch(() => ({ data: [] }));
+          const empData = employeesRes.data || [];
+          const allEmployees = Array.isArray(empData) ? empData : empData.employees || empData.data || empData.value || [];
+          
+          const allowedDepts = ["Laboratory Medicine", "Nursing", "Medical"];
+          const filteredEmployees = allEmployees.filter(emp => {
+            const dept = (emp.department || "").trim();
+            return allowedDepts.some(d => d.toLowerCase() === dept.toLowerCase());
+          });
+          
+          allVolunteers = filteredEmployees.map(emp => ({
+            _id: emp._id,
+            id: emp._id,
+            name: emp.name,
+            email: emp.email || emp.workEmail || '',
+            phone: emp.phone || emp.mobile || '',
+            designation: emp.designation || emp.role || 'Staff',
+            source: 'employee'
+          }));
+          console.log("✅ Employees loaded:", filteredEmployees.length);
+        } catch (err) {
+          console.error("Error fetching employees:", err);
         }
       }
+      
+      // Filter out already assigned members
+      const assignedPartnerId = campDetails?.assignedPartner?.id;
+      const assignedVolunteerIds = (campDetails?.volunteers || []).map(v => String(v.id));
+      
+      const availablePartners = allPartners.filter(p => 
+        String(p._id || p.id) !== String(assignedPartnerId)
+      );
+      
+      const availableVolunteers = allVolunteers.filter(v => 
+        !assignedVolunteerIds.includes(String(v._id || v.id))
+      );
+      
+      console.log("📊 Available Partners:", availablePartners.length);
+      console.log("📊 Available Volunteers:", availableVolunteers.length);
+      
+      setAvailableMembers({ 
+        partners: availablePartners.map(p => ({ 
+          id: p._id || p.id, 
+          name: p.name, 
+          clinicName: p.clinicName || p.organization,
+          email: p.email 
+        })),
+        volunteers: availableVolunteers.map(v => ({ 
+          id: v._id || v.id, 
+          name: v.name, 
+          designation: v.designation || 'Volunteer', 
+          email: v.email,
+          source: v.source || 'employee'
+        }))
+      });
+      
+      if (availablePartners.length > 0) {
+        setSelectedAssignPartnerId(availablePartners[0]._id || availablePartners[0].id);
+      }
+      setSelectedAssignVolunteerIds([]);
+      
     } catch (err) {
       console.error("Error fetching candidates:", err);
-      alert("Failed to load available members for assignment.");
+      alert("Failed to load available members. Please try again.");
+      setAvailableMembers({ partners: [], volunteers: [] });
     } finally {
       setLoadingAvailable(false);
     }
@@ -1333,6 +1517,14 @@ const CampMembers = () => {
       .map((word) => word.charAt(0).toUpperCase())
       .slice(0, 2)
       .join("");
+  };
+
+  // 🔥 Helper to get volunteer source badge
+  const getVolunteerSourceBadge = (source) => {
+    if (source === 'partner') {
+      return <span className="ml-1.5 text-[8px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-200">⭐ Partner</span>;
+    }
+    return <span className="ml-1.5 text-[8px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-200">🏢 Employee</span>;
   };
 
   return (
@@ -1552,8 +1744,8 @@ const CampMembers = () => {
               ) : filteredMembers.length === 0 ? (
                 <div className="py-16 text-center text-gray-400 px-4">
                   <FiUsers size={40} className="mx-auto mb-3 text-gray-300" />
-                  <p className="font-semibold text-gray-600 text-sm">No members matched the filter criteria</p>
-                  <p className="text-xs text-gray-400 mt-1">Try resetting the filter or assign new members to the camp.</p>
+                  <p className="font-semibold text-gray-600 text-sm">No members assigned to this camp yet</p>
+                  <p className="text-xs text-gray-400 mt-1">Use the buttons above to assign a partner or volunteers.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -1585,6 +1777,11 @@ const CampMembers = () => {
                                 <p className="font-bold text-gray-800 text-sm">{member.name}</p>
                                 {member.role === "partner" && member.clinicName && (
                                   <p className="text-xs text-gray-400">{member.clinicName}</p>
+                                )}
+                                {member.role === "volunteer" && member.source && (
+                                  <span className="text-[8px] text-gray-400">
+                                    {member.source === 'partner' ? '⭐ Partner Volunteer' : '🏢 Employee'}
+                                  </span>
                                 )}
                               </div>
                             </div>
@@ -1796,7 +1993,7 @@ const CampMembers = () => {
                     >
                       {availableMembers.partners.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name} ({p.clinicName}) - {p.email}
+                          {p.name} ({p.clinicName || "No Clinic"}) - {p.email}
                         </option>
                       ))}
                     </select>
@@ -1824,13 +2021,15 @@ const CampMembers = () => {
         </div>
       )}
 
-      {/* Assign Volunteers Modal */}
+      {/* Assign Volunteers Modal - SHOWS ALL VOLUNTEERS FOR ADMIN, PARTNER-SPECIFIC FOR PARTNER */}
       {showAssignVolunteersModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-indigo-600 to-indigo-800">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-white">Assign Volunteers</h3>
+                <h3 className="text-lg font-bold text-white">
+                  {role === "admin" ? "Assign Volunteers (All)" : "Assign Volunteers (Your Partner Volunteers)"}
+                </h3>
                 <button
                   onClick={() => setShowAssignVolunteersModal(false)}
                   className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white"
@@ -1838,6 +2037,12 @@ const CampMembers = () => {
                   <FiX size={18} />
                 </button>
               </div>
+              {role === "admin" && (
+                <p className="text-xs text-indigo-200 mt-1">Showing all employees + partner volunteers</p>
+              )}
+              {role === "partner" && (
+                <p className="text-xs text-indigo-200 mt-1">Showing volunteers created by you</p>
+              )}
             </div>
             {loadingAvailable ? (
               <div className="py-20 text-center text-gray-400">
@@ -1847,7 +2052,11 @@ const CampMembers = () => {
             ) : availableMembers.volunteers.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 <p className="font-semibold text-gray-600">No Volunteers Available</p>
-                <p className="text-xs text-gray-400 mt-1">All volunteers in the database are already assigned to this camp.</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {role === "admin" 
+                    ? "No employees or partner volunteers available to assign." 
+                    : "You have not created any volunteers yet. Add volunteers from your dashboard."}
+                </p>
                 <button
                   type="button"
                   onClick={() => setShowAssignVolunteersModal(false)}
@@ -1861,6 +2070,11 @@ const CampMembers = () => {
                 <div className="p-5 space-y-3">
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Select Volunteers <span className="text-red-500">*</span>
+                    {role === "admin" && (
+                      <span className="text-xs font-normal text-gray-400 ml-2">
+                        (Employees + Partner Volunteers)
+                      </span>
+                    )}
                   </label>
                   <div className="border border-gray-200 rounded-xl p-3 max-h-56 overflow-y-auto space-y-2.5 bg-gray-50/50">
                     {availableMembers.volunteers.map((v) => (
@@ -1874,18 +2088,33 @@ const CampMembers = () => {
                           onChange={() => handleToggleAssignVolunteer(v.id)}
                           className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
                         />
-                        <div className="flex flex-col">
-                          <span className="font-bold text-gray-800">{v.name}</span>
+                        <div className="flex flex-col flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-gray-800">{v.name}</span>
+                            {v.source === 'partner' && (
+                              <span className="text-[8px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-200">⭐ Partner</span>
+                            )}
+                            {v.source === 'employee' && (
+                              <span className="text-[8px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-200">🏢 Employee</span>
+                            )}
+                          </div>
                           <span className="text-xs text-gray-400 font-semibold mt-0.5">
-                            {v.designation} | {v.email}
+                            {v.designation || "Volunteer"} | {v.email}
                           </span>
                         </div>
                       </label>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-400 italic">
-                    {selectedAssignVolunteerIds.length} volunteer(s) selected
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gray-400 italic">
+                      {selectedAssignVolunteerIds.length} volunteer(s) selected
+                    </p>
+                    {role === "admin" && (
+                      <p className="text-[8px] text-gray-400">
+                        Showing {availableMembers.volunteers.filter(v => v.source === 'employee').length} employees + {availableMembers.volunteers.filter(v => v.source === 'partner').length} partner volunteers
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="p-4 border-t border-gray-100 flex items-center justify-end gap-3 bg-gray-50/50">
                   <button
