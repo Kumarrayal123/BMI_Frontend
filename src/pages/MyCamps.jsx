@@ -21,7 +21,8 @@ import {
     Download,
     AlertCircle,
     Trash2,
-    AlertTriangle
+    AlertTriangle,
+    UserPlus
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -128,6 +129,11 @@ export default function MyCamps() {
         if (ref.current) {
             ref.current.scrollIntoView({ behavior: "smooth", block: "start" });
         }
+    };
+
+    // ✅ NEW: Handle camp card click - Navigate to Add Patient with camp pre-selected
+    const handleCampCardClick = (campId, campName) => {
+        navigate("/add-patient", { state: { campId: campId, campName: campName } });
     };
 
     // 🔥 Stats Modal Handlers
@@ -913,101 +919,114 @@ export default function MyCamps() {
                             </div>
                         ) : (
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                            {campsWithCount.map(camp => (
-                                <div
-                                    key={camp._id}
-                                    onClick={() => {
-                                        setSelectedCampId(camp._id);
-                                        scrollToSection(patientsSectionRef);
-                                    }}
-                                    className={`cursor-pointer p-4 rounded-2xl border transition-all ${selectedCampId === camp._id
-                                        ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
-                                        : "bg-white hover:border-indigo-300 hover:shadow-md"
-                                        }`}
-                                >
-                                    <div className="flex items-center justify-between gap-2 mb-1">
-                                        <h4 className="font-bold truncate">{camp.name}</h4>
-                                        <CampStatusBadge date={camp.date} time={camp.time} />
-                                    </div>
+                            {campsWithCount.map(camp => {
+                                const patientCount = patients.filter(p => String(p.campId?._id) === String(camp._id)).length;
+                                
+                                return (
+                                    <div
+                                        key={camp._id}
+                                        onClick={() => handleCampCardClick(camp._id, camp.name)}
+                                        className={`cursor-pointer p-4 rounded-2xl border transition-all hover:shadow-lg hover:scale-[1.02] hover:border-indigo-400
+                                            ${selectedCampId === camp._id
+                                                ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
+                                                : "bg-white hover:border-indigo-300"
+                                            }`}
+                                    >
+                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                            <h4 className="font-bold truncate">{camp.name}</h4>
+                                            <CampStatusBadge date={camp.date} time={camp.time} />
+                                        </div>
 
-                                    <div className={`mt-2 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
-                                        <MapPin size={14} />
-                                        <span className="truncate">{camp.location}</span>
-                                    </div>
+                                        <div className={`mt-2 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                                            <MapPin size={14} />
+                                            <span className="truncate">{camp.location}</span>
+                                        </div>
 
-                                    <div className={`mt-1 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
-                                        <Calendar size={14} />
-                                        <span>{camp.date || "Date TBD"}</span>
-                                    </div>
+                                        <div className={`mt-1 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                                            <Calendar size={14} />
+                                            <span>{camp.date || "Date TBD"}</span>
+                                        </div>
 
-                                    <div className={`mt-1 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
-                                        <Clock size={14} />
-                                        <span>{camp.time || "Time TBD"}</span>
-                                    </div>
+                                        <div className={`mt-1 flex items-center gap-2 text-sm ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                                            <Clock size={14} />
+                                            <span>{camp.time || "Time TBD"}</span>
+                                        </div>
 
-                                    {/* Creator Info */}
-                                    <div className={`text-[8px] font-semibold mt-1.5 ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
-                                        <span className="opacity-75">Created by: </span>
-                                        <span className="font-bold">
-                                            {camp.creatorRole === "admin"
-                                                ? (typeof camp.createdBy === 'object' && camp.createdBy ? (camp.createdBy.name || camp.createdBy.email) : (getPartnerName(camp.createdBy) !== camp.createdBy ? getPartnerName(camp.createdBy) : "Admin"))
-                                                : (typeof camp.createdBy === 'object' && camp.createdBy ? (camp.createdBy.name || camp.createdBy.clinicName) : (getPartnerName(camp.createdBy) || "Partner"))
-                                            }
-                                        </span>
-                                    </div>
-
-                                    {/* Assigned Partner Info */}
-                                    {camp.assignedPartner && (
-                                        <div className={`text-[8px] font-semibold mt-0.5 ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
-                                            <span className="opacity-75">Assigned Partner: </span>
+                                        {/* Creator Info */}
+                                        <div className={`text-[8px] font-semibold mt-1.5 ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                                            <span className="opacity-75">Created by: </span>
                                             <span className="font-bold">
-                                                {typeof camp.assignedPartner === 'object' && camp.assignedPartner
-                                                    ? (camp.assignedPartner.name || camp.assignedPartner.clinicName)
-                                                    : (getPartnerName(camp.assignedPartner) || "Partner")
+                                                {camp.creatorRole === "admin"
+                                                    ? (typeof camp.createdBy === 'object' && camp.createdBy ? (camp.createdBy.name || camp.createdBy.email) : (getPartnerName(camp.createdBy) !== camp.createdBy ? getPartnerName(camp.createdBy) : "Admin"))
+                                                    : (typeof camp.createdBy === 'object' && camp.createdBy ? (camp.createdBy.name || camp.createdBy.clinicName) : (getPartnerName(camp.createdBy) || "Partner"))
                                                 }
                                             </span>
                                         </div>
-                                    )}
 
-                                    {/* 🔥 Using VolunteerDisplay component */}
-                                    {camp.volunteers && camp.volunteers.length > 0 && (
-                                        <div className="mt-2">
-                                            <VolunteerDisplay
-                                                volunteers={camp.volunteers}
-                                                isSelected={selectedCampId === camp._id}
-                                                employeeMap={employeeMap}
-                                            />
+                                        {/* Assigned Partner Info */}
+                                        {camp.assignedPartner && (
+                                            <div className={`text-[8px] font-semibold mt-0.5 ${selectedCampId === camp._id ? "text-indigo-100" : "text-gray-500"}`}>
+                                                <span className="opacity-75">Assigned Partner: </span>
+                                                <span className="font-bold">
+                                                    {typeof camp.assignedPartner === 'object' && camp.assignedPartner
+                                                        ? (camp.assignedPartner.name || camp.assignedPartner.clinicName)
+                                                        : (getPartnerName(camp.assignedPartner) || "Partner")
+                                                    }
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {/* 🔥 Using VolunteerDisplay component */}
+                                        {camp.volunteers && camp.volunteers.length > 0 && (
+                                            <div className="mt-2">
+                                                <VolunteerDisplay
+                                                    volunteers={camp.volunteers}
+                                                    isSelected={selectedCampId === camp._id}
+                                                    employeeMap={employeeMap}
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* 🔥 Using PartnerDisplay component */}
+                                        {camp.partners && camp.partners.length > 0 && (
+                                            <div className="mt-1">
+                                                <PartnerDisplay
+                                                    partners={camp.partners}
+                                                    isSelected={selectedCampId === camp._id}
+                                                    partnersList={partnerList}
+                                                />
+                                            </div>
+                                        )}
+
+                                        <div className={`mt-3 pt-3 border-t flex items-center justify-between ${selectedCampId === camp._id ? "border-white/20" : "border-gray-50"}`}>
+                                            <div className="flex items-center gap-3">
+                                                <span className={`text-xs font-bold px-2 py-1 rounded-lg ${selectedCampId === camp._id
+                                                    ? "bg-white/20 text-white"
+                                                    : "bg-gray-100 text-gray-600"
+                                                }`}>
+                                                    {patientCount} Patients
+                                                </span>
+                                                {/* <span className="text-[8px] text-green-600 font-medium flex items-center gap-0.5">
+                                                    <UserPlus size={10} /> Click to add
+                                                </span> */}
+                                            </div>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setViewCamp(camp);
+                                                }}
+                                                className={`flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors
+                                                    ${selectedCampId === camp._id
+                                                        ? "bg-white/20 text-white hover:bg-white/30"
+                                                        : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                                                    }`}
+                                            >
+                                                <Eye size={12} /> View
+                                            </button>
                                         </div>
-                                    )}
-
-                                    {/* 🔥 Using PartnerDisplay component */}
-                                    {camp.partners && camp.partners.length > 0 && (
-                                        <div className="mt-1">
-                                            <PartnerDisplay
-                                                partners={camp.partners}
-                                                isSelected={selectedCampId === camp._id}
-                                                partnersList={partnerList}
-                                            />
-                                        </div>
-                                    )}
-
-                                    <span className={`inline-block mt-3 text-xs font-bold px-2 py-1 rounded-lg ${selectedCampId === camp._id
-                                        ? "bg-white/20 text-white"
-                                        : "bg-gray-100 text-gray-600"
-                                        }`}>
-                                        {camp.count} Patients
-                                    </span>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setViewCamp(camp);
-                                        }}
-                                        className="float-right mt-3 flex items-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors"
-                                    >
-                                        <Eye size={12} /> View
-                                    </button>
-                                </div>
-                            ))}
+                                    </div>
+                                );
+                            })}
                         </div>
                         )}
                     </div>

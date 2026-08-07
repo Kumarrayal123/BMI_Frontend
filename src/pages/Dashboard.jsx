@@ -688,7 +688,8 @@ import {
     FiCopy,
     FiDownload,
     FiTrash2,
-    FiAlertTriangle
+    FiAlertTriangle,
+    FiUserPlus
 } from "react-icons/fi";
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -790,6 +791,11 @@ const VolunteerDashboard = () => {
         if (ref.current) {
             ref.current.scrollIntoView({ behavior: "smooth", block: "start" });
         }
+    };
+
+    // ✅ NEW: Handle camp card click - Navigate to Add Patient with camp pre-selected
+    const handleCampCardClick = (campId, campName) => {
+        navigate("/add-patient", { state: { campId: campId, campName: campName } });
     };
 
     // 🔥 Stats Modal Handlers
@@ -1525,14 +1531,16 @@ const VolunteerDashboard = () => {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                     {camps.map(camp => {
                                         const isSelected = selectedCampId === camp._id;
+                                        const patientCount = patients.filter(p => String(p.campId?._id || p.campId) === String(camp._id)).length;
+                                        
                                         return (
                                             <div
                                                 key={camp._id}
-                                                onClick={() => setSelectedCampId(camp._id)}
-                                                className={`cursor-pointer p-3 rounded-xl border transition-all relative
+                                                onClick={() => handleCampCardClick(camp._id, camp.name)}
+                                                className={`cursor-pointer p-3 rounded-xl border transition-all hover:shadow-lg hover:scale-[1.02] hover:border-indigo-400
                                                     ${isSelected
                                                         ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
-                                                        : "bg-white hover:border-indigo-300 hover:shadow-md text-gray-700"
+                                                        : "bg-white hover:border-indigo-300 text-gray-700"
                                                     }`}
                                             >
                                                 <div className="flex items-start justify-between gap-2 mb-1">
@@ -1599,10 +1607,15 @@ const VolunteerDashboard = () => {
                                                 )}
 
                                                 <div className={`mt-2 pt-2 border-t flex items-center justify-between ${isSelected ? "border-white/20" : "border-gray-50"}`}>
-                                                    <span className={`text-[10px] font-bold ${isSelected ? "text-indigo-200" : "text-gray-500"}`}>
-                                                        <FiUsers size={10} className="inline mr-0.5" />
-                                                        {patients.filter(p => String(p.campId?._id || p.campId) === String(camp._id)).length} Patients
-                                                    </span>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className={`text-[10px] font-bold ${isSelected ? "text-indigo-200" : "text-gray-500"}`}>
+                                                            <FiUsers size={10} className="inline mr-0.5" />
+                                                            {patientCount} Patients
+                                                        </span>
+                                                        {/* <span className="text-[8px] text-green-600 font-medium flex items-center gap-0.5">
+                                                            <FiUserPlus size={10} /> Click to add
+                                                        </span> */}
+                                                    </div>
                                                     <div className="flex items-center gap-0.5">
                                                         <button
                                                             onClick={(e) => {

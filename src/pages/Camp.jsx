@@ -1096,7 +1096,8 @@ import {
   FiEye as FiEyeShow,
   FiArchive,
   FiSave,
-  FiArrowLeft
+  FiArrowLeft,
+  FiUserPlus
 } from "react-icons/fi";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -1222,6 +1223,18 @@ export default function CampDashboard() {
 
   const scrollToSection = (ref) => {
     ref.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // ✅ NEW: Handle camp card click - Navigate to Add Patient with camp pre-selected
+  const handleCampCardClick = (campId, campName) => {
+    // If the camp is hidden/archived, don't navigate
+    const camp = camps.find(c => c._id === campId) || createdCamps.find(c => c._id === campId);
+    if (camp && camp.isHidden) {
+      alert("This camp is archived. Cannot add patients.");
+      return;
+    }
+    // Navigate to Add Patient page with camp pre-selected
+    navigate("/add-patient", { state: { campId: campId, campName: campName } });
   };
 
   useEffect(() => {
@@ -2046,7 +2059,6 @@ export default function CampDashboard() {
     setShowEditModal(true);
   };
 
-  // ✅ FIXED: getPartnerName - Better partner name resolution
   const getPartnerName = (partnerId) => {
     if (!partnerId) return "Unknown Partner";
     
@@ -2078,9 +2090,7 @@ export default function CampDashboard() {
     return employeeMap[String(id)] || String(id);
   };
 
-  // ✅ FIXED: getCreatorInfo - Shows proper creator name
   const getCreatorInfo = (camp) => {
-    // For admin created camps
     if (camp.creatorRole === "admin") {
       let creatorName = "Admin";
       if (camp.createdBy) {
@@ -2098,9 +2108,7 @@ export default function CampDashboard() {
         label: `Created by Admin: ${creatorName}`, 
         color: "bg-blue-100 text-blue-700" 
       };
-    } 
-    // For partner created camps
-    else if (camp.creatorRole === "partner") {
+    } else if (camp.creatorRole === "partner") {
       let partnerName = "Unknown Partner";
       const partnerId = camp.createdBy?._id || camp.createdBy;
       
@@ -2127,7 +2135,6 @@ export default function CampDashboard() {
       };
     }
     
-    // Fallback for unknown - show as Admin
     return { 
       label: `Created by Admin`, 
       color: "bg-blue-100 text-blue-700" 
@@ -2686,20 +2693,18 @@ export default function CampDashboard() {
                 const isCreated = currentUserRole === "partner" && activeTab === "created";
                 const creatorInfo = getCreatorInfo(camp);
                 const isHidden = camp.isHidden === true;
+                const patientCount = patients.filter((p) => String(p.campId?._id) === String(camp._id)).length;
 
                 return (
                   <div
                     key={camp._id}
-                    onClick={() => {
-                      setSelectedCampId(camp._id);
-                      scrollToSection(patientsSectionRef);
-                    }}
-                    className={`cursor-pointer p-4 rounded-2xl border transition-all relative
+                    onClick={() => handleCampCardClick(camp._id, camp.name)}
+                    className={`cursor-pointer p-4 rounded-2xl border transition-all relative hover:shadow-lg hover:scale-[1.02] hover:border-indigo-400
                       ${isSelected
                         ? "bg-indigo-600 text-white shadow-lg scale-[1.02]"
-                        : "bg-white hover:border-indigo-300 hover:shadow-md"
+                        : "bg-white hover:border-indigo-300"
                       }
-                      ${isHidden ? "border-purple-300 bg-purple-50/30" : ""}
+                      ${isHidden ? "border-purple-300 bg-purple-50/30 opacity-70" : ""}
                     `}
                   >
                     <div className={`absolute top-2 left-2 text-[8px] font-bold px-2 py-0.5 rounded-full ${creatorInfo.color}`}>
@@ -2729,17 +2734,17 @@ export default function CampDashboard() {
                       )}
                     </div>
 
-                    <div className={`mt-2 flex items-center gap-2 text-sm ${isSelected ? "text-indigo-100" : "text-gray-500"}`}>
+                    <div className={`mt-2 flex items-center gap-2 text-sm ${isSelected ? "text-indigo-100" : isHidden ? "text-gray-400" : "text-gray-600"}`}>
                       <FiMapPin size={14} />
                       <span className="truncate">{camp.location}</span>
                     </div>
 
-                    <div className={`mt-1 flex items-center gap-2 text-sm ${isSelected ? "text-indigo-100" : "text-gray-500"}`}>
+                    <div className={`mt-1 flex items-center gap-2 text-sm ${isSelected ? "text-indigo-100" : isHidden ? "text-gray-400" : "text-gray-600"}`}>
                       <FiCalendar size={14} />
                       <span>{camp.date || "No date"}</span>
                     </div>
 
-                    <div className={`mt-1 flex items-center gap-2 text-sm ${isSelected ? "text-indigo-100" : "text-gray-500"}`}>
+                    <div className={`mt-1 flex items-center gap-2 text-sm ${isSelected ? "text-indigo-100" : isHidden ? "text-gray-400" : "text-gray-600"}`}>
                       <FiClock size={14} />
                       <span>{camp.time || "No time"}</span>
                     </div>
@@ -2764,11 +2769,18 @@ export default function CampDashboard() {
                       </div>
                     )}
 
-                    <span className={`inline-block mt-3 text-xs font-bold px-2 py-1 rounded-lg ${isSelected ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"}`}>
-                      {patients.filter((p) => String(p.campId?._id) === String(camp._id)).length} Patients
-                    </span>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className={`inline-block text-xs font-bold px-2 py-1 rounded-lg ${isSelected ? "bg-white/20 text-white" : isHidden ? "bg-gray-100 text-gray-400" : "bg-gray-100 text-gray-600"}`}>
+                        {patientCount} Patients
+                      </span>
+                      {/* {!isHidden && (
+                        <span className="text-[10px] text-green-600 font-medium flex items-center gap-1">
+                          <FiUserPlus size={12} /> Click to add
+                        </span>
+                      )} */}
+                    
 
-                    <div className="float-right mt-3 flex items-center gap-1">
+                    {/* <div className="float-right mt-3 flex items-center gap-1"> */}
                       {isCreated && !isHidden && (
                         <>
                           <button
