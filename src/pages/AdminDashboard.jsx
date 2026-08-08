@@ -1,4 +1,4 @@
-﻿// import axios from "axios";
+// import axios from "axios";
 // import {
 //     FiActivity,
 //     FiMapPin,
@@ -899,6 +899,7 @@ import {
 } from "../components/DashboardCharts";
 import VolunteerDisplay from "../components/VolunteerDisplay";
 import PartnerDisplay from "../components/PartnerDisplay";
+import SearchableCheckboxDropdown from "../components/SearchableCheckboxDropdown";
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
@@ -2600,77 +2601,36 @@ const AdminDashboard = () => {
                                     </div>
                                 </div>
 
-                                {/* Volunteers Section */}
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-700">Select Volunteers</label>
-                                    <div className="flex flex-wrap gap-2 mb-2">
-                                        {campForm.volunteers.map((vol, idx) => (
-                                            <span key={idx} className="flex items-center gap-1 px-3 py-1 text-sm text-indigo-700 bg-indigo-100 rounded-full">
-                                                {vol} 
-                                                <button onClick={() => handleRemoveVolunteer(vol)} className="ml-1 text-indigo-500 hover:text-indigo-900">&times;</button>
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <select 
-                                        className="w-full px-4 py-2 border rounded-xl bg-white focus:ring-2 focus:ring-indigo-500" 
-                                        onChange={handleAddVolunteer}
-                                        defaultValue=""
-                                    >
-                                        <option value="">+ Add Volunteer</option>
-                                        
-                                        {volunteers.filter(v => v.source === 'partner').length > 0 && (
-                                            <optgroup label="⭐ Partner Volunteers">
-                                                {volunteers.filter(v => v.source === 'partner').map(vol => (
-                                                    <option key={vol._id} value={vol.name}>
-                                                        {vol.name} ({vol.designation || "Volunteer"}) ⭐
-                                                    </option>
-                                                ))}
-                                            </optgroup>
-                                        )}
-                                        
-                                        {volunteers.filter(v => v.source !== 'partner').length > 0 && (
-                                            <optgroup label="👥 Employee Volunteers">
-                                                {volunteers.filter(v => v.source !== 'partner').map(vol => (
-                                                    <option key={vol._id} value={vol.name}>
-                                                        {vol.name} ({vol.designation || vol.role || "Staff"})
-                                                    </option>
-                                                ))}
-                                            </optgroup>
-                                        )}
-                                    </select>
-                                    {volunteers.filter(v => v.source === 'partner').length > 0 && (
-                                        <p className="text-xs text-green-600 mt-1">
-                                            ✅ {volunteers.filter(v => v.source === 'partner').length} partner volunteers available
-                                        </p>
-                                    )}
-                                </div>
+                                {/* Volunteers Section — Create Camp */}
+                                <SearchableCheckboxDropdown
+                                    label="👥 Select Volunteers"
+                                    placeholder="-- Select Volunteers --"
+                                    searchPlaceholder="🔍 Search volunteers..."
+                                    items={volunteers.map(vol => ({
+                                        id: vol.name,
+                                        title: `${vol.source === 'partner' ? '⭐ ' : ''}${vol.name}`,
+                                        subtitle: vol.designation || vol.role || 'Staff',
+                                        badge: vol.source === 'partner' ? 'Partner Volunteer' : null
+                                    }))}
+                                    selectedIds={campForm.volunteers}
+                                    onChange={newVolunteers => setCampForm(prev => ({ ...prev, volunteers: newVolunteers }))}
+                                    accentColor="indigo"
+                                />
 
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-700">Assign Partners (Doctors)</label>
-                                    <div className="flex flex-wrap gap-2 mb-2">
-                                        {campForm.partners.map(partnerId => {
-                                            const partner = partners.find(p => p._id === partnerId);
-                                            return partner ? (
-                                                <span key={partnerId} className="flex items-center gap-1 px-3 py-1 text-sm text-emerald-700 bg-emerald-100 rounded-full border border-emerald-200">
-                                                    {partner.name || partner.clinicName} 
-                                                    <button onClick={() => handleRemovePartner(partnerId)} className="ml-1 text-emerald-500 hover:text-emerald-900">&times;</button>
-                                                </span>
-                                            ) : null;
-                                        })}
-                                    </div>
-                                    <select 
-                                        className="w-full px-4 py-2 border rounded-xl bg-white focus:ring-2 focus:ring-indigo-500" 
-                                        onChange={handleAddPartner}
-                                        defaultValue=""
-                                    >
-                                        <option value="">+ Assign Partner</option>
-                                        {partners.map(partner => (
-                                            <option key={partner._id} value={partner._id}>
-                                                {partner.name || partner.clinicName} ({partner.email})
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                                {/* Partners Section — Create Camp */}
+                                <SearchableCheckboxDropdown
+                                    label="🏥 Assign Partners (Doctors)"
+                                    placeholder="-- Select Partners (Doctors) --"
+                                    searchPlaceholder="🔍 Search partners..."
+                                    items={partners.map(partner => ({
+                                        id: partner._id,
+                                        title: partner.name || partner.clinicName,
+                                        subtitle: partner.email
+                                    }))}
+                                    selectedIds={campForm.partners}
+                                    onChange={newPartners => setCampForm(prev => ({ ...prev, partners: newPartners }))}
+                                    accentColor="emerald"
+                                />
                             </div>
                             <div className="flex justify-end gap-3 p-6 border-t border-gray-100 bg-gray-50">
                                 <button onClick={() => setShowCampModal(false)} className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors">
@@ -2747,75 +2707,158 @@ const AdminDashboard = () => {
                                     </div>
                                 </div>
 
+                                {/* Volunteers Section — Edit Camp */}
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-700">Select Volunteers</label>
-                                    <div className="flex flex-wrap gap-2 mb-2">
-                                        {editCampForm.volunteers.map((vol, idx) => (
-                                            <span key={idx} className="flex items-center gap-1 px-3 py-1 text-sm text-indigo-700 bg-indigo-100 rounded-full">
-                                                {vol} 
-                                                <button onClick={() => handleEditRemoveVolunteer(vol)} className="ml-1 text-indigo-500 hover:text-indigo-900">&times;</button>
-                                            </span>
-                                        ))}
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-sm font-semibold text-gray-700">👥 Select Volunteers</label>
+                                        <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                                            {editCampForm.volunteers.length} selected
+                                        </span>
                                     </div>
-                                    <select 
-                                        className="w-full px-4 py-2 border rounded-xl bg-white focus:ring-2 focus:ring-indigo-500" 
-                                        onChange={handleEditAddVolunteer}
-                                        defaultValue=""
-                                    >
-                                        <option value="">+ Add Volunteer</option>
-                                        
-                                        {volunteers.filter(v => v.source === 'partner').length > 0 && (
-                                            <optgroup label="⭐ Partner Volunteers">
-                                                {volunteers.filter(v => v.source === 'partner').map(vol => (
-                                                    <option key={vol._id} value={vol.name}>
-                                                        {vol.name} ({vol.designation || "Volunteer"}) ⭐
-                                                    </option>
-                                                ))}
-                                            </optgroup>
-                                        )}
-                                        
-                                        {volunteers.filter(v => v.source !== 'partner').length > 0 && (
-                                            <optgroup label="👥 Employee Volunteers">
-                                                {volunteers.filter(v => v.source !== 'partner').map(vol => (
-                                                    <option key={vol._id} value={vol.name}>
-                                                        {vol.name} ({vol.designation || vol.role || "Staff"})
-                                                    </option>
-                                                ))}
-                                            </optgroup>
-                                        )}
-                                    </select>
+                                    {editCampForm.volunteers.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 pb-1">
+                                            {editCampForm.volunteers.map((vol, idx) => (
+                                                <span key={idx} className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-700 bg-indigo-100 rounded-full border border-indigo-200">
+                                                    {vol}
+                                                    <button type="button" onClick={() => handleEditRemoveVolunteer(vol)} className="ml-0.5 text-indigo-400 hover:text-indigo-800 leading-none">×</button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                        <div className="p-2 border-b border-gray-100 bg-gray-50">
+                                            <input
+                                                type="text"
+                                                placeholder="🔍 Search volunteers..."
+                                                id="admin-edit-vol-search"
+                                                className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-400/30 bg-white"
+                                                onChange={e => {
+                                                    const q = e.target.value.toLowerCase();
+                                                    document.querySelectorAll('.admin-edit-vol-item').forEach(el => {
+                                                        el.style.display = el.dataset.name.includes(q) ? '' : 'none';
+                                                    });
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="max-h-44 overflow-y-auto divide-y divide-gray-50">
+                                            {volunteers.length === 0 ? (
+                                                <div className="px-4 py-3 text-xs text-gray-400 text-center">No volunteers available</div>
+                                            ) : [
+                                                ...volunteers.filter(v => v.source === 'partner'),
+                                                ...volunteers.filter(v => v.source !== 'partner')
+                                            ].map(vol => {
+                                                const checked = editCampForm.volunteers.includes(vol.name);
+                                                const isPartner = vol.source === 'partner';
+                                                return (
+                                                    <label
+                                                        key={vol._id}
+                                                        data-name={(vol.name + ' ' + (vol.designation || '')).toLowerCase()}
+                                                        className={`admin-edit-vol-item flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors select-none ${
+                                                            checked ? 'bg-indigo-50 hover:bg-indigo-100' : 'hover:bg-gray-50'
+                                                        }`}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={checked}
+                                                            onChange={() => {
+                                                                if (checked) {
+                                                                    handleEditRemoveVolunteer(vol.name);
+                                                                } else {
+                                                                    setEditCampForm(prev => ({ ...prev, volunteers: [...prev.volunteers, vol.name] }));
+                                                                }
+                                                            }}
+                                                            className="w-4 h-4 rounded accent-indigo-600 flex-shrink-0 cursor-pointer"
+                                                        />
+                                                        <div className="flex-1 min-w-0">
+                                                            <span className={`text-xs font-semibold truncate block ${checked ? 'text-indigo-800' : 'text-gray-700'}`}>
+                                                                {isPartner ? '⭐ ' : ''}{vol.name}
+                                                            </span>
+                                                            <span className="text-[10px] text-gray-400">{vol.designation || vol.role || 'Staff'}</span>
+                                                        </div>
+                                                        {checked && <span className="text-indigo-500 text-xs font-bold flex-shrink-0">✓</span>}
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
                                     {volunteers.filter(v => v.source === 'partner').length > 0 && (
-                                        <p className="text-xs text-green-600 mt-1">
-                                            ✅ {volunteers.filter(v => v.source === 'partner').length} partner volunteers available
-                                        </p>
+                                        <p className="text-[10px] text-emerald-600 font-semibold">⭐ = Partner Volunteer</p>
                                     )}
                                 </div>
 
+                                {/* Partners Section — Edit Camp */}
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-700">Assign Partners (Doctors)</label>
-                                    <div className="flex flex-wrap gap-2 mb-2">
-                                        {editCampForm.partners.map(partnerId => {
-                                            const partner = partners.find(p => p._id === partnerId);
-                                            return partner ? (
-                                                <span key={partnerId} className="flex items-center gap-1 px-3 py-1 text-sm text-emerald-700 bg-emerald-100 rounded-full border border-emerald-200">
-                                                    {partner.name || partner.clinicName} 
-                                                    <button onClick={() => handleEditRemovePartner(partnerId)} className="ml-1 text-emerald-500 hover:text-emerald-900">&times;</button>
-                                                </span>
-                                            ) : null;
-                                        })}
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-sm font-semibold text-gray-700">🏥 Assign Partners (Doctors)</label>
+                                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                            {editCampForm.partners.length} selected
+                                        </span>
                                     </div>
-                                    <select 
-                                        className="w-full px-4 py-2 border rounded-xl bg-white focus:ring-2 focus:ring-indigo-500" 
-                                        onChange={handleEditAddPartner}
-                                        defaultValue=""
-                                    >
-                                        <option value="">+ Assign Partner</option>
-                                        {partners.map(partner => (
-                                            <option key={partner._id} value={partner._id}>
-                                                {partner.name || partner.clinicName} ({partner.email})
-                                            </option>
-                                        ))}
-                                    </select>
+                                    {editCampForm.partners.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 pb-1">
+                                            {editCampForm.partners.map(partnerId => {
+                                                const partner = partners.find(p => p._id === partnerId);
+                                                return partner ? (
+                                                    <span key={partnerId} className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-100 rounded-full border border-emerald-200">
+                                                        {partner.name || partner.clinicName}
+                                                        <button type="button" onClick={() => handleEditRemovePartner(partnerId)} className="ml-0.5 text-emerald-400 hover:text-emerald-800 leading-none">×</button>
+                                                    </span>
+                                                ) : null;
+                                            })}
+                                        </div>
+                                    )}
+                                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                        <div className="p-2 border-b border-gray-100 bg-gray-50">
+                                            <input
+                                                type="text"
+                                                placeholder="🔍 Search partners..."
+                                                id="admin-edit-partner-search"
+                                                className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-400/30 bg-white"
+                                                onChange={e => {
+                                                    const q = e.target.value.toLowerCase();
+                                                    document.querySelectorAll('.admin-edit-partner-item').forEach(el => {
+                                                        el.style.display = el.dataset.name.includes(q) ? '' : 'none';
+                                                    });
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="max-h-40 overflow-y-auto divide-y divide-gray-50">
+                                            {partners.length === 0 ? (
+                                                <div className="px-4 py-3 text-xs text-gray-400 text-center">No partners available</div>
+                                            ) : partners.map(partner => {
+                                                const checked = editCampForm.partners.includes(partner._id);
+                                                return (
+                                                    <label
+                                                        key={partner._id}
+                                                        data-name={(partner.name + ' ' + (partner.clinicName || '') + ' ' + (partner.email || '')).toLowerCase()}
+                                                        className={`admin-edit-partner-item flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors select-none ${
+                                                            checked ? 'bg-emerald-50 hover:bg-emerald-100' : 'hover:bg-gray-50'
+                                                        }`}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={checked}
+                                                            onChange={() => {
+                                                                if (checked) {
+                                                                    handleEditRemovePartner(partner._id);
+                                                                } else {
+                                                                    setEditCampForm(prev => ({ ...prev, partners: [...prev.partners, partner._id] }));
+                                                                }
+                                                            }}
+                                                            className="w-4 h-4 rounded accent-emerald-600 flex-shrink-0 cursor-pointer"
+                                                        />
+                                                        <div className="flex-1 min-w-0">
+                                                            <span className={`text-xs font-semibold truncate block ${checked ? 'text-emerald-800' : 'text-gray-700'}`}>
+                                                                {partner.name || partner.clinicName}
+                                                            </span>
+                                                            <span className="text-[10px] text-gray-400 truncate block">{partner.email}</span>
+                                                        </div>
+                                                        {checked && <span className="text-emerald-500 text-xs font-bold flex-shrink-0">✓</span>}
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex justify-end gap-3 p-6 border-t border-gray-100 bg-gray-50">
