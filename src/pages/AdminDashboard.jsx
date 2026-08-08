@@ -1,4 +1,4 @@
-// import axios from "axios";
+﻿// import axios from "axios";
 // import {
 //     FiActivity,
 //     FiMapPin,
@@ -1001,8 +1001,30 @@ const AdminDashboard = () => {
                     campsData = res.data.camps;
                 }
             }
-            const hidden = campsData.filter(camp => camp.isHidden === true);
-            const visible = campsData.filter(camp => !camp.isHidden);
+            
+            // Process camps to ensure volunteers are strings
+            const processedCamps = campsData.map(camp => ({
+                ...camp,
+                volunteers: Array.isArray(camp.volunteers) 
+                    ? camp.volunteers.map(v => {
+                        if (typeof v === 'object' && v !== null) {
+                            return v.name || v._id || '';
+                        }
+                        return v || '';
+                    }).filter(v => v)
+                    : [],
+                partners: Array.isArray(camp.partners)
+                    ? camp.partners.map(p => {
+                        if (typeof p === 'object' && p !== null) {
+                            return p._id || p.id || '';
+                        }
+                        return p || '';
+                    }).filter(p => p)
+                    : []
+            }));
+            
+            const hidden = processedCamps.filter(camp => camp.isHidden === true);
+            const visible = processedCamps.filter(camp => !camp.isHidden);
             setHiddenCamps(hidden);
             setCamps(visible);
         } catch (err) {
@@ -1150,14 +1172,33 @@ const AdminDashboard = () => {
 
     const handleEditCamp = (camp) => {
         setEditingCamp(camp);
+        // Ensure volunteers and partners are properly formatted
+        const volunteerNames = Array.isArray(camp.volunteers) 
+            ? camp.volunteers.map(v => {
+                if (typeof v === 'object' && v !== null) {
+                    return v.name || v._id || '';
+                }
+                return v || '';
+            }).filter(v => v)
+            : [];
+            
+        const partnerIds = Array.isArray(camp.partners)
+            ? camp.partners.map(p => {
+                if (typeof p === 'object' && p !== null) {
+                    return p._id || p.id || '';
+                }
+                return p || '';
+            }).filter(p => p)
+            : [];
+            
         setEditCampForm({
             name: camp.name || "",
             location: camp.location || "",
             address: camp.address || "",
             date: camp.date || "",
             time: camp.time || "",
-            volunteers: camp.volunteers || [],
-            partners: camp.partners || []
+            volunteers: volunteerNames,
+            partners: partnerIds
         });
         setShowEditCampModal(true);
     };
@@ -1511,18 +1552,15 @@ const AdminDashboard = () => {
         return partner ? partner.name || partner.clinicName || "Unknown Partner" : "Unknown Partner";
     };
 
-    // ✅ FIXED: getCreatorInfo - Shows proper creator name
     const getCreatorInfo = (camp) => {
         // For admin created camps
         if (camp.creatorRole === "admin") {
             let creatorName = "Admin";
             
-            // Check if createdBy has name
             if (camp.createdBy) {
                 if (typeof camp.createdBy === 'object' && camp.createdBy.name) {
                     creatorName = camp.createdBy.name;
                 } else if (typeof camp.createdBy === 'string') {
-                    // If it's an ObjectID, use adminName from localStorage
                     if (camp.createdBy.match(/^[0-9a-fA-F]{24}$/)) {
                         creatorName = adminName || "Admin";
                     } else {
@@ -1532,7 +1570,7 @@ const AdminDashboard = () => {
             }
             
             return { 
-                label: `Created by Admin: ${creatorName}`, 
+                label: `Admin: ${creatorName}`, 
                 color: "bg-blue-100 text-blue-700" 
             };
         } 
@@ -1544,7 +1582,6 @@ const AdminDashboard = () => {
                 if (typeof camp.createdBy === 'object') {
                     partnerName = camp.createdBy.name || camp.createdBy.clinicName || "Unknown Partner";
                 } else if (typeof camp.createdBy === 'string') {
-                    // Check if it's an ObjectID
                     if (camp.createdBy.match(/^[0-9a-fA-F]{24}$/)) {
                         const partner = partners.find(p => String(p._id) === String(camp.createdBy));
                         if (partner) {
@@ -1557,21 +1594,18 @@ const AdminDashboard = () => {
             }
             
             return { 
-                label: `Created by Partner: ${partnerName}`,
+                label: `Partner: ${partnerName}`,
                 color: "bg-emerald-100 text-emerald-700"
             };
         }
         
-        // Fallback for unknown - show admin name
         return { 
             label: `Created by: ${adminName || "Admin"}`, 
             color: "bg-gray-100 text-gray-700" 
         };
     };
 
-    // ✅ FIXED: getCreatorDisplayName - Shows proper creator name in view modal
     const getCreatorDisplayName = (camp) => {
-        // For admin created camps
         if (camp.creatorRole === "admin") {
             if (camp.createdBy) {
                 if (typeof camp.createdBy === 'object' && camp.createdBy.name) {
@@ -1585,7 +1619,6 @@ const AdminDashboard = () => {
             }
             return adminName || "Admin";
         } 
-        // For partner created camps
         else if (camp.creatorRole === "partner") {
             if (camp.createdBy) {
                 if (typeof camp.createdBy === 'object') {
@@ -1603,7 +1636,6 @@ const AdminDashboard = () => {
             return "Unknown Partner";
         }
         
-        // Fallback for unknown
         return adminName || "Admin";
     };
 
@@ -1664,15 +1696,12 @@ const AdminDashboard = () => {
         return () => document.removeEventListener('click', handleClickOutside);
     }, []);
 
-    // ✅ NEW: Handle camp card click - Navigate to Add Patient with camp pre-selected
     const handleCampCardClick = (campId, campName) => {
-        // If the camp is archived, don't navigate
         const camp = camps.find(c => c._id === campId);
         if (camp && camp.isHidden) {
             alert("This camp is archived. Cannot add patients.");
             return;
         }
-        // Navigate to Add Patient page with camp pre-selected
         navigate("/add-patient", { state: { campId: campId, campName: campName } });
     };
 
@@ -2186,14 +2215,6 @@ const AdminDashboard = () => {
                                                 <span className={`inline-block text-xs font-bold px-2 py-1 rounded-lg ${!isArchived ? "bg-indigo-100 text-indigo-600" : "bg-gray-100 text-gray-400"}`}>
                                                     {patientCount} Patients
                                                 </span>
-                                                {/* {!isArchived && (
-                                                    <span className="text-[10px] text-green-600 font-medium flex items-center gap-1">
-                                                        <FiUserPlus size={12} /> Click to add
-                                                    </span>
-                                                )} */}
-                                            
-                                            
-                                            {/* <div className="float-right mt-3 flex items-center gap-1"> */}
                                                 {!isArchived && (
                                                     <>
                                                         <button
